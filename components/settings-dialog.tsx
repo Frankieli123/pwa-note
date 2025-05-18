@@ -15,23 +15,34 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { useSettings } from "@/hooks/use-settings"
 import { useTheme } from "next-themes"
-import { Settings, Moon, Sun, RotateCcw, Type } from "lucide-react"
+import { Settings, Moon, Sun, RotateCcw, Type, Cloud, CloudOff, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMobile } from "@/hooks/use-mobile"
+import { useAuth } from "@/hooks/use-auth"
 
 // 优化 SettingsDialog 组件，减少不必要的重渲染和DOM操作
 export function SettingsDialog() {
-  const { settings, updateSettings, resetSettings, applyFontSettings } = useSettings()
+  const { settings, updateSettings, resetSettings, applyFontSettings, isSyncing, lastSyncTime } = useSettings()
   const { theme, setTheme } = useTheme()
   const [isOpen, setIsOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const prevSettingsRef = useRef(settings)
   const isMobile = useMobile()
+  const { user } = useAuth()
 
   // 确保组件已挂载，避免水合不匹配
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // 格式化最后同步时间
+  const formattedSyncTime = useCallback(() => {
+    if (!lastSyncTime) return "未同步";
+    return lastSyncTime.toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }, [lastSyncTime]);
 
   // 使用 useMemo 优化选项数组，避免重复创建
   const fontFamilyOptions = useMemo(
@@ -157,8 +168,38 @@ export function SettingsDialog() {
       </DialogTrigger>
       <DialogContent className={cn("sm:max-w-[425px] mx-auto", isMobile && "w-[calc(100%-2rem)] p-4")}>
         <DialogHeader>
-          <DialogTitle>应用设置</DialogTitle>
-          <DialogDescription>自定义您的应用外观和行为。这些设置将自动保存。</DialogDescription>
+          <div className="flex justify-between items-center">
+            <DialogTitle>应用设置</DialogTitle>
+            {user && (
+              <div className="flex items-center text-xs text-muted-foreground">
+                {isSyncing ? (
+                  <div className="flex items-center">
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    <span>正在同步...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center">
+                    {lastSyncTime ? (
+                      <>
+                        <Cloud className="h-3 w-3 mr-1 text-green-500" />
+                        <span>{formattedSyncTime()}</span>
+                      </>
+                    ) : (
+                      <>
+                        <CloudOff className="h-3 w-3 mr-1 text-amber-500" />
+                        <span>未同步</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogDescription>
+            {user 
+              ? "应用设置将自动保存到您的账号，并在所有设备上同步。" 
+              : "自定义您的应用外观和行为。登录后可将设置同步到您的账号。"}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-2 sm:py-4">
           <div className={cn("grid items-center gap-2 sm:gap-4", isMobile ? "grid-cols-1" : "grid-cols-4")}>
@@ -321,16 +362,16 @@ export function SettingsDialog() {
             )}
           </div>
         </div>
-        <DialogFooter className="flex justify-between items-center">
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleReset} className="gap-1">
-              <RotateCcw className="h-4 w-4" />
-              重置设置
-            </Button>
-          </div>
-          <Button type="submit" onClick={() => setIsOpen(false)}>
-            完成
+        <DialogFooter className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <Button variant="outline" size="sm" onClick={handleReset} className="gap-1">
+            <RotateCcw className="h-4 w-4" />
+            <span>重置</span>
           </Button>
+          {user && (
+            <div className="text-xs text-muted-foreground">
+              {isSyncing ? "正在同步..." : (lastSyncTime ? "设置已同步" : "未同步到云端")}
+            </div>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

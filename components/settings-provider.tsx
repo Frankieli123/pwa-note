@@ -4,6 +4,9 @@ import type React from "react"
 
 import { createContext, useEffect, useState } from "react"
 import { useTheme } from "next-themes"
+import { useAuth } from "@/hooks/use-auth"
+import { useToast } from "@/hooks/use-toast"
+import { getUserSettings, updateUserSettings } from "@/app/actions/db-actions"
 
 export type FontFamily =
   | "sans"
@@ -30,6 +33,8 @@ interface SettingsContextType {
   updateSettings: (newSettings: Partial<Settings>) => void
   resetSettings: () => void
   applyFontSettings: () => void
+  isSyncing: boolean
+  lastSyncTime: Date | null
 }
 
 const defaultSettings: Settings = {
@@ -43,37 +48,141 @@ export const SettingsContext = createContext<SettingsContextType>({
   updateSettings: () => {},
   resetSettings: () => {},
   applyFontSettings: () => {},
+  isSyncing: false,
+  lastSyncTime: null,
 })
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings>(defaultSettings)
   const { setTheme } = useTheme()
   const [isClient, setIsClient] = useState(false)
+  const { user } = useAuth()
+  const { toast } = useToast()
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
 
   // 客户端渲染检测
   useEffect(() => {
     setIsClient(true)
   }, [])
 
-  // 加载保存的设置
-  useEffect(() => {
-    if (!isClient) return
-
+  // 从本地存储加载设置（作为默认值或离线备份）
+  const loadLocalSettings = () => {
+    if (!isClient) return null
+    
     const savedSettings = localStorage.getItem("appSettings")
     if (savedSettings) {
       try {
-        const parsedSettings = JSON.parse(savedSettings)
-        setSettings(parsedSettings)
+        return JSON.parse(savedSettings)
       } catch (error) {
-        console.error("加载设置失败:", error)
-        // 如果加载失败，重置为默认设置
-        localStorage.setItem("appSettings", JSON.stringify(defaultSettings))
+        console.error("加载本地设置失败:", error)
+        return null
       }
-    } else {
-      // 如果没有保存的设置，保存默认设置
-      localStorage.setItem("appSettings", JSON.stringify(defaultSettings))
     }
-  }, [isClient])
+    return null
+  }
+
+  // 保存设置到本地存储
+  const saveLocalSettings = (settingsToSave: Settings) => {
+    if (!isClient) return
+    
+    try {
+      localStorage.setItem("appSettings", JSON.stringify(settingsToSave))
+    } catch (error) {
+      console.error("保存本地设置失败:", error)
+    }
+  }
+
+  // 从服务器加载设置
+  const loadServerSettings = async () => {
+    if (!user) return null
+    
+    setIsSyncing(true)
+    try {
+      const serverSettings = await getUserSettings(user.id)
+      setLastSyncTime(new Date())
+      
+      if (serverSettings) {
+        // 将服务器设置格式转换为客户端设置格式
+        return {
+          fontFamily: serverSettings.font_family as FontFamily,
+          fontSize: serverSettings.font_size as FontSize,
+          syncInterval: serverSettings.sync_interval as SyncInterval,
+        }
+      }
+      return null
+    } catch (error) {
+      console.error("加载服务器设置失败:", error)
+      toast({
+        title: "设置同步失败",
+        description: "无法从服务器加载设置，将使用本地设置",
+        variant: "destructive",
+      })
+      return null
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  // 保存设置到服务器
+  const saveServerSettings = async (settingsToSave: Settings) => {
+    if (!user) return false
+    
+    setIsSyncing(true)
+    try {
+      await updateUserSettings(user.id, {
+        font_family: settingsToSave.fontFamily,
+        font_size: settingsToSave.fontSize,
+        sync_interval: settingsToSave.syncInterval,
+      })
+      setLastSyncTime(new Date())
+      return true
+    } catch (error) {
+      console.error("保存服务器设置失败:", error)
+      toast({
+        title: "设置同步失败",
+        description: "无法将设置保存到服务器，但已保存在本地",
+        variant: "destructive",
+      })
+      return false
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  // 初始化设置 - 优先从服务器加载，如果失败则从本地加载
+  useEffect(() => {
+    if (!isClient) return
+
+    const initializeSettings = async () => {
+      // 先从本地加载
+      const localSettings = loadLocalSettings()
+      
+      // 如果有本地设置，先使用它们
+      if (localSettings) {
+        setSettings(localSettings)
+      } else {
+        // 如果没有本地设置，保存默认设置
+        saveLocalSettings(defaultSettings)
+      }
+      
+      // 如果用户已登录，尝试从服务器加载
+      if (user) {
+        const serverSettings = await loadServerSettings()
+        if (serverSettings) {
+          // 使用服务器设置覆盖本地设置
+          setSettings(serverSettings)
+          // 更新本地存储以匹配服务器
+          saveLocalSettings(serverSettings)
+        } else if (localSettings) {
+          // 如果无法从服务器加载但有本地设置，将本地设置同步到服务器
+          saveServerSettings(localSettings)
+        }
+      }
+    }
+
+    initializeSettings()
+  }, [isClient, user])
 
   // 当设置变化时应用字体设置
   useEffect(() => {
@@ -81,22 +190,29 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       applyFontSettings()
     }
   }, [settings, isClient])
-
-  // 修改 updateSettings 函数，确保立即应用字体设置
-  const updateSettings = (newSettings: Partial<Settings>) => {
-    setSettings((prev) => {
-      const updatedSettings = { ...prev, ...newSettings }
-      // 保存到本地存储
-      localStorage.setItem("appSettings", JSON.stringify(updatedSettings))
-      return updatedSettings
-    })
-
-    // 注意：这里不再调用 applyFontSettings，因为 useEffect 会在 settings 更新后调用它
+  
+  // 修改 updateSettings 函数，确保设置同步到服务器和本地
+  const updateSettings = async (newSettings: Partial<Settings>) => {
+    const updatedSettings = { ...settings, ...newSettings }
+    
+    // 先更新本地状态和存储
+    setSettings(updatedSettings)
+    saveLocalSettings(updatedSettings)
+    
+    // 如果用户已登录，同步到服务器
+    if (user) {
+      saveServerSettings(updatedSettings)
+    }
   }
 
-  const resetSettings = () => {
+  const resetSettings = async () => {
     setSettings(defaultSettings)
-    localStorage.setItem("appSettings", JSON.stringify(defaultSettings))
+    saveLocalSettings(defaultSettings)
+    
+    // 如果用户已登录，同步重置的设置到服务器
+    if (user) {
+      saveServerSettings(defaultSettings)
+    }
   }
 
   // Update the applyFontSettings function to check for window
@@ -156,60 +272,30 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             element.classList.add(currentSizeClass)
             }
           })
-
-        // 应用到编辑器内容
+        
+          // 应用到编辑器内容
           const editors = document.querySelectorAll(".editor-content")
           editors.forEach((editor) => {
             if (editor instanceof HTMLElement) {
-                editor.style.fontFamily = fontFamily
-                editor.style.fontSize = fontSize
-              }
+              editor.style.fontFamily = fontFamily
+              editor.style.fontSize = fontSize
+            }
           })
-
-        // 应用到所有标题元素
-        const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
-        headings.forEach((heading) => {
-          if (heading instanceof HTMLElement) {
-            heading.classList.add(currentFontClass);
-          }
-        });
-        
-        // 应用到所有段落元素
-        const paragraphs = document.querySelectorAll('p');
-        paragraphs.forEach((p) => {
-          if (p instanceof HTMLElement) {
-            p.classList.add(currentFontClass);
-          }
-        });
-        
-        // 应用到所有span元素
-        const spans = document.querySelectorAll('span:not(.font-apply-target)');
-        spans.forEach((span) => {
-          if (span instanceof HTMLElement) {
-            span.classList.add(currentFontClass);
-          }
-        });
-        
-        // 应用到所有div元素中的文本
-        const divs = document.querySelectorAll('div:not(.font-apply-target)');
-        divs.forEach((div) => {
-          if (div instanceof HTMLElement && div.textContent && div.children.length === 0) {
-            div.classList.add(currentFontClass);
-          }
-        });
-
-        // 触发全局事件通知组件字体已更改
-          window.dispatchEvent(
-            new CustomEvent("fontSettingsChanged", {
-              detail: { fontFamily: settings.fontFamily, fontSize: settings.fontSize },
-            }),
-          )
         })
     }
   }
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, resetSettings, applyFontSettings }}>
+    <SettingsContext.Provider
+      value={{
+        settings,
+        updateSettings,
+        resetSettings,
+        applyFontSettings,
+        isSyncing,
+        lastSyncTime,
+      }}
+    >
       {children}
     </SettingsContext.Provider>
   )

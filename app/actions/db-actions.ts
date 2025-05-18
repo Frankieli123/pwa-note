@@ -31,13 +31,28 @@ export type File = {
   uploaded_at: Date
 }
 
+export type UserSettings = {
+  id: number
+  user_id: string
+  font_family: string
+  font_size: string
+  sync_interval: number
+  updated_at: Date
+}
+
 // Notes actions
 export async function getNotes(userId: string): Promise<Note[]> {
   console.log("服务器操作: getNotes", { userId })
   try {
     const result = await query("SELECT * FROM notes WHERE user_id = $1 ORDER BY created_at DESC", [userId])
     console.log("getNotes 结果:", result.rows)
-    return result.rows
+    return result.rows.map((row: any) => ({
+      id: row.id,
+      user_id: row.user_id,
+      content: row.content,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    })) as Note[]
   } catch (error) {
     console.error("getNotes 错误:", error)
     throw error
@@ -60,9 +75,18 @@ export async function createNote(userId: string, content: string, clientTime?: s
       result = await query("INSERT INTO notes (user_id, content) VALUES ($1, $2) RETURNING *", [userId, content]);
     }
     
-    console.log("createNote 结果:", result.rows[0])
+    const row = result.rows[0];
+    const note: Note = {
+      id: row.id,
+      user_id: row.user_id,
+      content: row.content,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    };
+    
+    console.log("createNote 结果:", note);
     revalidatePath("/")
-    return result.rows[0]
+    return note;
   } catch (error) {
     console.error("createNote 错误:", error)
     throw error
@@ -90,9 +114,18 @@ export async function updateNote(id: number, userId: string, content: string, cl
       );
     }
     
-    console.log("updateNote 结果:", result.rows[0])
+    const row = result.rows[0];
+    const note: Note = {
+      id: row.id,
+      user_id: row.user_id,
+      content: row.content,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    };
+    
+    console.log("updateNote 结果:", note);
     revalidatePath("/")
-    return result.rows[0]
+    return note;
   } catch (error) {
     console.error("updateNote 错误:", error)
     throw error
@@ -117,7 +150,13 @@ export async function getLinks(userId: string): Promise<Link[]> {
   try {
     const result = await query("SELECT * FROM links WHERE user_id = $1 ORDER BY created_at DESC", [userId])
     console.log("getLinks 结果:", result.rows)
-    return result.rows
+    return result.rows.map((row: any) => ({
+      id: row.id,
+      user_id: row.user_id,
+      url: row.url,
+      title: row.title,
+      created_at: row.created_at
+    })) as Link[]
   } catch (error) {
     console.error("getLinks 错误:", error)
     throw error
@@ -144,9 +183,18 @@ export async function createLink(userId: string, url: string, title: string, cli
       ]);
     }
     
-    console.log("createLink 结果:", result.rows[0])
+    const row = result.rows[0];
+    const link: Link = {
+      id: row.id,
+      user_id: row.user_id,
+      url: row.url,
+      title: row.title,
+      created_at: row.created_at
+    };
+    
+    console.log("createLink 结果:", link);
     revalidatePath("/")
-    return result.rows[0]
+    return link;
   } catch (error) {
     console.error("createLink 错误:", error)
     throw error
@@ -171,7 +219,16 @@ export async function getFiles(userId: string): Promise<File[]> {
   try {
     const result = await query("SELECT * FROM files WHERE user_id = $1 ORDER BY uploaded_at DESC", [userId])
     console.log("getFiles 结果:", result.rows)
-    return result.rows
+    return result.rows.map((row: any) => ({
+      id: row.id,
+      user_id: row.user_id,
+      name: row.name,
+      type: row.type,
+      url: row.url,
+      thumbnail: row.thumbnail,
+      size: row.size,
+      uploaded_at: row.uploaded_at
+    })) as File[]
   } catch (error) {
     console.error("getFiles 错误:", error)
     throw error
@@ -194,9 +251,22 @@ export async function createFile(
       "INSERT INTO files (user_id, name, type, url, thumbnail, size) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
       [userId, fileData.name, fileData.type, fileData.url, fileData.thumbnail || null, fileData.size],
     )
-    console.log("createFile 结果:", result.rows[0])
+    
+    const row = result.rows[0];
+    const file: File = {
+      id: row.id,
+      user_id: row.user_id,
+      name: row.name,
+      type: row.type,
+      url: row.url,
+      thumbnail: row.thumbnail,
+      size: row.size,
+      uploaded_at: row.uploaded_at
+    };
+    
+    console.log("createFile 结果:", file);
     revalidatePath("/")
-    return result.rows[0]
+    return file;
   } catch (error) {
     console.error("createFile 错误:", error)
     throw error
@@ -212,5 +282,128 @@ export async function deleteFile(id: number, userId: string): Promise<void> {
   } catch (error) {
     console.error("deleteFile 错误:", error)
     throw error
+  }
+}
+
+// User settings actions
+export async function getUserSettings(userId: string): Promise<UserSettings | null> {
+  console.log("服务器操作: getUserSettings", { userId })
+  try {
+    // 检查是否存在settings表，如果不存在则创建
+    await ensureUserSettingsTableExists()
+    
+    const result = await query("SELECT * FROM user_settings WHERE user_id = $1", [userId])
+    
+    if (result.rows.length === 0) {
+      return null;
+    }
+    
+    const row = result.rows[0];
+    const settings: UserSettings = {
+      id: row.id,
+      user_id: row.user_id,
+      font_family: row.font_family,
+      font_size: row.font_size,
+      sync_interval: row.sync_interval,
+      updated_at: row.updated_at
+    };
+    
+    console.log("getUserSettings 结果:", settings);
+    return settings;
+  } catch (error) {
+    console.error("getUserSettings 错误:", error)
+    throw error
+  }
+}
+
+export async function updateUserSettings(
+  userId: string,
+  settings: { 
+    font_family: string;
+    font_size: string;
+    sync_interval: number;
+  }
+): Promise<UserSettings> {
+  console.log("服务器操作: updateUserSettings", { userId, settings })
+  try {
+    // 确保表存在
+    await ensureUserSettingsTableExists()
+    
+    // 检查用户设置是否已存在
+    const existingSettings = await getUserSettings(userId)
+    
+    let result
+    if (existingSettings) {
+      // 更新现有设置
+      result = await query(
+        `UPDATE user_settings 
+         SET font_family = $1, font_size = $2, sync_interval = $3, updated_at = NOW() 
+         WHERE user_id = $4
+         RETURNING *`,
+        [settings.font_family, settings.font_size, settings.sync_interval, userId]
+      )
+    } else {
+      // 创建新设置
+      result = await query(
+        `INSERT INTO user_settings (user_id, font_family, font_size, sync_interval) 
+         VALUES ($1, $2, $3, $4) 
+         RETURNING *`,
+        [userId, settings.font_family, settings.font_size, settings.sync_interval]
+      )
+    }
+    
+    const row = result.rows[0];
+    const userSettings: UserSettings = {
+      id: row.id,
+      user_id: row.user_id,
+      font_family: row.font_family,
+      font_size: row.font_size,
+      sync_interval: row.sync_interval,
+      updated_at: row.updated_at
+    };
+    
+    console.log("updateUserSettings 结果:", userSettings);
+    revalidatePath("/")
+    return userSettings;
+  } catch (error) {
+    console.error("updateUserSettings 错误:", error)
+    throw error
+  }
+}
+
+// 确保用户设置表存在的辅助函数
+async function ensureUserSettingsTableExists() {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_settings (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL UNIQUE,
+        font_family TEXT NOT NULL DEFAULT 'zcool-xiaowei',
+        font_size TEXT NOT NULL DEFAULT 'medium',
+        sync_interval INTEGER NOT NULL DEFAULT 5,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `)
+    console.log("确保用户设置表存在")
+  } catch (error) {
+    // 如果外键约束失败（users表不存在），则创建没有外键的表
+    console.error("创建带外键的用户设置表失败，尝试创建无外键的表", error)
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS user_settings (
+          id SERIAL PRIMARY KEY,
+          user_id TEXT NOT NULL UNIQUE,
+          font_family TEXT NOT NULL DEFAULT 'zcool-xiaowei',
+          font_size TEXT NOT NULL DEFAULT 'medium',
+          sync_interval INTEGER NOT NULL DEFAULT 5,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )
+      `)
+      console.log("创建无外键的用户设置表成功")
+    } catch (innerError) {
+      console.error("创建用户设置表失败", innerError)
+      throw innerError
+    }
   }
 }
