@@ -15,10 +15,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { useSettings } from "@/hooks/use-settings"
 import { useTheme } from "next-themes"
-import { Settings, Moon, Sun, RotateCcw, Type, Cloud, CloudOff, Loader2 } from "lucide-react"
+import { Settings, Moon, Sun, RotateCcw, Type, Cloud, CloudOff, Loader2, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/hooks/use-auth"
+import { toast } from "@/components/ui/use-toast"
 
 // 优化 SettingsDialog 组件，减少不必要的重渲染和DOM操作
 export function SettingsDialog() {
@@ -157,8 +158,40 @@ export function SettingsDialog() {
 
   // 添加手动同步处理函数
   const handleSyncSettings = useCallback(async () => {
+    if (user) {
+      // 验证localStorage中的用户ID与当前用户ID是否一致
+      const storedUserData = localStorage.getItem("userData");
+      if (storedUserData) {
+        try {
+          const parsedUserData = JSON.parse(storedUserData);
+          if (parsedUserData.id !== user.id) {
+            console.error("本地存储的用户ID与当前用户ID不一致");
+          }
+        } catch (e) {
+          console.error("解析本地用户数据出错:", e);
+        }
+      }
+    }
+    
     await syncSettings();
-  }, [syncSettings]);
+  }, [syncSettings, user]);
+  
+  // 处理保存设置
+  const handleSaveSettings = useCallback(() => {
+    // 保存当前设置
+    toast({
+      title: "设置已保存",
+      description: "您的设置已成功保存",
+    })
+    
+    // 关闭对话框
+    setIsOpen(false)
+    
+    // 应用设置
+    requestAnimationFrame(() => {
+      applyFontSettings()
+    })
+  }, [applyFontSettings, toast])
 
   if (!mounted) {
     return null
@@ -378,28 +411,9 @@ export function SettingsDialog() {
         </div>
         <DialogFooter className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleReset} className="gap-1">
-              <RotateCcw className="h-4 w-4" />
-              <span>重置</span>
+            <Button variant="default" size="sm" onClick={handleSaveSettings} className="gap-1">
+              <span>保存</span>
             </Button>
-            
-            {/* 添加手动同步按钮 */}
-            {user && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleSyncSettings} 
-                disabled={isSyncing}
-                className="gap-1"
-              >
-                {isSyncing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Cloud className="h-4 w-4" />
-                )}
-                <span>同步</span>
-              </Button>
-            )}
           </div>
           
           {user && (

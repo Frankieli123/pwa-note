@@ -32,8 +32,6 @@ export const AuthContext = createContext<AuthContextType>({
 
 // Helper function to generate a consistent user ID from username
 function generateUserId(username: string): string {
-  console.log("生成用户 ID，用户名:", username)
-
   let hash = 0
   for (let i = 0; i < username.length; i++) {
     const char = username.charCodeAt(i)
@@ -42,7 +40,6 @@ function generateUserId(username: string): string {
   }
 
   const userId = `user_${Math.abs(hash).toString(16)}`
-  console.log("生成的用户 ID:", userId)
   return userId
 }
 
@@ -102,26 +99,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Check existing session
     const checkAuth = async () => {
       try {
-        console.log("检查认证状态...")
         // In a real app, this would verify token with backend
         const token = localStorage.getItem("authToken")
         if (token) {
-          console.log("找到认证令牌")
           // Try to get user info from local storage
           const savedUser = localStorage.getItem("userData")
           if (savedUser) {
-            console.log("找到用户数据")
             const userData = JSON.parse(savedUser)
-            console.log("用户数据:", userData)
             setUser(userData)
           } else {
-            console.log("未找到用户数据，设置默认用户")
             // If no user data but token exists, set default user
             const defaultUsername = "默认用户"
             const userId = generateUserId(defaultUsername)
             const deviceType = getDeviceType();
             
-            setUser({
+            const defaultUser = {
               id: userId,
               username: defaultUsername,
               avatar: getAvatarForUser(defaultUsername),
@@ -129,10 +121,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 name: "当前设备",
                 type: deviceType,
               },
-            })
+            }
+            
+            setUser(defaultUser)
           }
-        } else {
-          console.log("未找到认证令牌")
         }
       } catch (error) {
         console.error("认证检查失败:", error)
@@ -145,9 +137,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const login = async (username: string) => {
-    console.log("登录，用户名:", username)
     setIsLoading(true)
     try {
+      // 先清除任何现有的登录状态，确保干净的环境
+      localStorage.removeItem("authToken")
+      localStorage.removeItem("refreshToken")
+      localStorage.removeItem("userData")
+      
       // 模拟登录 - 在真实应用中，您会调用API
       const mockToken = "mock-jwt-token-" + Math.random().toString(36).substring(2)
       localStorage.setItem("authToken", mockToken)
@@ -165,16 +161,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           type: deviceType,
         },
       }
-
-      console.log("设置用户:", newUser)
+      
       // 保存用户数据到本地存储
       localStorage.setItem("userData", JSON.stringify(newUser))
+      
+      // 设置用户状态
       setUser(newUser)
 
       toast({
         title: "登录成功",
         description: "欢迎回来！",
       })
+      
+      // 强制页面更新以确保所有组件能获取到最新的用户状态
+      // 如果只是开发环境
+      if (process.env.NODE_ENV === "development") {
+        // 以下代码帮助确保所有组件能看到更新后的状态
+        setTimeout(() => {
+          const event = new Event('storage')
+          window.dispatchEvent(event)
+        }, 500)
+      }
     } catch (error) {
       console.error("登录失败:", error)
       toast({

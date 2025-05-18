@@ -79,6 +79,33 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setIsClient(true)
   }, [])
 
+  // 添加认证状态监听，确保组件能获取到最新的登录状态
+  useEffect(() => {
+    if (!isClient) return
+    
+    // 打印当前认证状态，用于调试
+    console.log("SettingsProvider 中的认证状态:", {
+      isLoggedIn: !!user,
+      userId: user?.id,
+      username: user?.username
+    })
+    
+    // 监听存储变化，可能来自其他标签页的登录/登出操作
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'userData' || event.key === 'authToken') {
+        console.log("检测到存储变化 - 用户数据可能已更新")
+        // 可以在这里添加刷新逻辑，比如强制页面刷新
+        // window.location.reload()
+      }
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [isClient, user])
+
   // 从本地存储加载设置（作为默认值或离线备份）
   const loadLocalSettings = useCallback(() => {
     if (!isClient) return null
@@ -307,12 +334,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   
   // 手动同步函数 - 可在设置对话框中调用
   const syncSettings = useCallback(async () => {
-    console.log("手动同步设置...")
     if (!user) {
-      console.log("用户未登录，无法同步")
       toast({
         title: "同步失败",
         description: "您需要登录才能同步设置",
+        variant: "destructive",
+      })
+      return false
+    }
+    
+    // 额外检查，确认用户ID存在
+    if (!user.id) {
+      toast({
+        title: "同步失败",
+        description: "用户信息不完整，请尝试重新登录",
         variant: "destructive",
       })
       return false
@@ -326,7 +361,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       
       if (serverSettings) {
         // 如果服务器有设置，使用服务器设置
-        console.log("使用服务器设置")
         setSettings(serverSettings)
         saveLocalSettings(serverSettings)
         toast({
@@ -336,7 +370,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         return true
       } else {
         // 如果服务器没有设置，上传本地设置
-        console.log("服务器无设置，上传本地设置")
         const success = await saveServerSettings(settings)
         
         if (success) {

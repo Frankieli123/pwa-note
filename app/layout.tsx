@@ -153,15 +153,15 @@ export default function RootLayout({
       </head>
       <body className="font-sans">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <SettingsProvider>
-            <AuthProvider>
+          <AuthProvider>
+            <SettingsProvider>
               <SyncProvider>
                 <SilentDbInitializer />
                 {children}
                 <Toaster />
               </SyncProvider>
-            </AuthProvider>
-          </SettingsProvider>
+            </SettingsProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
