@@ -22,7 +22,7 @@ import { useAuth } from "@/hooks/use-auth"
 
 // 优化 SettingsDialog 组件，减少不必要的重渲染和DOM操作
 export function SettingsDialog() {
-  const { settings, updateSettings, resetSettings, applyFontSettings, isSyncing, lastSyncTime } = useSettings()
+  const { settings, updateSettings, resetSettings, applyFontSettings, isSyncing, lastSyncTime, syncError, syncSettings } = useSettings()
   const { theme, setTheme } = useTheme()
   const [isOpen, setIsOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -155,6 +155,11 @@ export function SettingsDialog() {
     [settings, applyFontSettings],
   )
 
+  // 添加手动同步处理函数
+  const handleSyncSettings = useCallback(async () => {
+    await syncSettings();
+  }, [syncSettings]);
+
   if (!mounted) {
     return null
   }
@@ -200,6 +205,15 @@ export function SettingsDialog() {
               ? "应用设置将自动保存到您的账号，并在所有设备上同步。" 
               : "自定义您的应用外观和行为。登录后可将设置同步到您的账号。"}
           </DialogDescription>
+          
+          {/* 显示同步错误信息（如果有） */}
+          {syncError && (
+            <div className="mt-2 p-2 bg-destructive/10 text-destructive text-xs rounded-md">
+              <p className="font-semibold">同步错误:</p>
+              <p>{syncError}</p>
+            </div>
+          )}
+          
         </DialogHeader>
         <div className="grid gap-4 py-2 sm:py-4">
           <div className={cn("grid items-center gap-2 sm:gap-4", isMobile ? "grid-cols-1" : "grid-cols-4")}>
@@ -363,13 +377,34 @@ export function SettingsDialog() {
           </div>
         </div>
         <DialogFooter className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <Button variant="outline" size="sm" onClick={handleReset} className="gap-1">
-            <RotateCcw className="h-4 w-4" />
-            <span>重置</span>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleReset} className="gap-1">
+              <RotateCcw className="h-4 w-4" />
+              <span>重置</span>
+            </Button>
+            
+            {/* 添加手动同步按钮 */}
+            {user && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleSyncSettings} 
+                disabled={isSyncing}
+                className="gap-1"
+              >
+                {isSyncing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Cloud className="h-4 w-4" />
+                )}
+                <span>同步</span>
+              </Button>
+            )}
+          </div>
+          
           {user && (
             <div className="text-xs text-muted-foreground">
-              {isSyncing ? "正在同步..." : (lastSyncTime ? "设置已同步" : "未同步到云端")}
+              {isSyncing ? "正在同步..." : (lastSyncTime ? `上次同步: ${formattedSyncTime()}` : "未同步到云端")}
             </div>
           )}
         </DialogFooter>

@@ -373,23 +373,44 @@ export async function updateUserSettings(
 
 // 确保用户设置表存在的辅助函数
 async function ensureUserSettingsTableExists() {
+  console.log("开始检查用户设置表是否存在...")
   try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS user_settings (
-        id SERIAL PRIMARY KEY,
-        user_id TEXT NOT NULL UNIQUE,
-        font_family TEXT NOT NULL DEFAULT 'zcool-xiaowei',
-        font_size TEXT NOT NULL DEFAULT 'medium',
-        sync_interval INTEGER NOT NULL DEFAULT 5,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    // 首先检查表是否已存在
+    const tableExists = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'user_settings'
       )
-    `)
-    console.log("确保用户设置表存在")
-  } catch (error) {
-    // 如果外键约束失败（users表不存在），则创建没有外键的表
-    console.error("创建带外键的用户设置表失败，尝试创建无外键的表", error)
+    `);
+    
+    const exists = tableExists.rows[0]?.exists;
+    if (exists) {
+      console.log("用户设置表已存在，无需创建");
+      return;
+    }
+    
+    // 表不存在，尝试创建带外键的表
+    console.log("用户设置表不存在，尝试创建带外键的表...");
     try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS user_settings (
+          id SERIAL PRIMARY KEY,
+          user_id TEXT NOT NULL UNIQUE,
+          font_family TEXT NOT NULL DEFAULT 'zcool-xiaowei',
+          font_size TEXT NOT NULL DEFAULT 'medium',
+          sync_interval INTEGER NOT NULL DEFAULT 5,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `);
+      console.log("成功创建带外键的用户设置表");
+      return;
+    } catch (fkError) {
+      // 外键创建失败，可能是users表不存在
+      console.error("创建带外键的用户设置表失败:", fkError);
+      console.log("尝试创建无外键的表...");
+      
+      // 尝试创建没有外键的表
       await query(`
         CREATE TABLE IF NOT EXISTS user_settings (
           id SERIAL PRIMARY KEY,
@@ -399,11 +420,16 @@ async function ensureUserSettingsTableExists() {
           sync_interval INTEGER NOT NULL DEFAULT 5,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         )
-      `)
-      console.log("创建无外键的用户设置表成功")
-    } catch (innerError) {
-      console.error("创建用户设置表失败", innerError)
-      throw innerError
+      `);
+      console.log("成功创建无外键的用户设置表");
     }
+  } catch (error) {
+    console.error("检查或创建用户设置表时出错:", error);
+    // 记录更详细的错误信息
+    if (error instanceof Error) {
+      console.error("错误详情:", error.message);
+      console.error("错误堆栈:", error.stack);
+    }
+    throw new Error(`无法创建用户设置表: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
