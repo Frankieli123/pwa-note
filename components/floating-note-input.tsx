@@ -413,8 +413,8 @@ export function FloatingNoteInput() {
 
       <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
         <DialogContent className={cn(
-          "max-w-md mx-auto", 
-          isMobile && "w-[90%] p-4 top-[30%] fixed left-[5%] right-[5%]"
+          "sm:max-w-md",
+          isMobile && "w-[95%] p-4 rounded-lg"
         )}>
           <DialogHeader>
             <DialogTitle className="font-apply-target">{uploadType === "image" ? "上传图片" : "上传文件"}</DialogTitle>
@@ -444,8 +444,8 @@ export function FloatingNoteInput() {
 
       <Dialog open={isErrorDialogOpen} onOpenChange={setIsErrorDialogOpen}>
         <DialogContent className={cn(
-          "max-w-md mx-auto", 
-          isMobile && "w-[90%] p-4 top-[30%] fixed left-[5%] right-[5%]"
+          "sm:max-w-md",
+          isMobile && "w-[95%] p-4 rounded-lg"
         )}>
           <DialogHeader>
             <DialogTitle className="font-apply-target">保存便签失败 ❌</DialogTitle>
