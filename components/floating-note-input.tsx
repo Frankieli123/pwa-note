@@ -147,7 +147,9 @@ export function FloatingNoteInput() {
     // 设置新的自动保存计时器
     console.log(`设置新的自动保存计时器: ${settings.syncInterval}秒后执行`);
     autoSaveTimerRef.current = setTimeout(async () => {
-      if (content && content.trim() && content !== lastContentRef.current && user) {
+      // 使用trim()移除两端空白字符，并检查内容是否为空
+      const trimmedContent = content.trim();
+      if (trimmedContent && trimmedContent !== lastContentRef.current.trim() && user) {
         console.log("自动保存执行: 保存到本地存储");
         localStorage.setItem("noteDraft", content)
         lastContentRef.current = content
@@ -414,7 +416,7 @@ export function FloatingNoteInput() {
       <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
         <DialogContent className={cn(
           "sm:max-w-md",
-          isMobile && "w-[95%] p-4 rounded-lg"
+          isMobile && "w-[90vw] p-4 rounded-lg mx-auto !left-1/2 !transform !-translate-x-1/2"
         )}>
           <DialogHeader>
             <DialogTitle className="font-apply-target">{uploadType === "image" ? "上传图片" : "上传文件"}</DialogTitle>
@@ -445,7 +447,7 @@ export function FloatingNoteInput() {
       <Dialog open={isErrorDialogOpen} onOpenChange={setIsErrorDialogOpen}>
         <DialogContent className={cn(
           "sm:max-w-md",
-          isMobile && "w-[95%] p-4 rounded-lg"
+          isMobile && "w-[90vw] p-4 rounded-lg mx-auto !left-1/2 !transform !-translate-x-1/2"
         )}>
           <DialogHeader>
             <DialogTitle className="font-apply-target">保存便签失败 ❌</DialogTitle>
