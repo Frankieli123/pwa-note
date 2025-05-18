@@ -18,7 +18,7 @@ import {
   ZCOOL_XiaoWei,
   ZCOOL_QingKe_HuangYou,
 } from "next/font/google"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Toaster } from "@/components/ui/toaster"
 
 // 优化字体加载，减少 CLS (Cumulative Layout Shift)
@@ -117,11 +117,13 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "快速笔记",
   },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-  },
+}
+
+// 从metadata中移出viewport配置，按照Next.js推荐方式单独导出
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({

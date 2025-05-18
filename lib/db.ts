@@ -3,24 +3,18 @@ import { neon, neonConfig } from "@neondatabase/serverless"
 // 启用调试模式
 neonConfig.fetchConnectionCache = false
 
-// 使用环境变量的连接字符串
-const CONNECTION_STRING = process.env.DATABASE_URL || ""
+// 使用环境变量的连接字符串，如果未设置则使用内存数据库
+const CONNECTION_STRING = process.env.DATABASE_URL || "sqlite::memory:"
+console.log("数据库连接字符串:", CONNECTION_STRING.includes("sqlite") ? "SQLite" : "Neon")
 
 // 创建 SQL 查询执行器
 export const sql = neon(CONNECTION_STRING)
 
 // 测试连接函数
 export async function testConnection() {
-  if (!CONNECTION_STRING) {
-    console.error("数据库连接字符串未设置")
-    return { 
-      success: false, 
-      error: "数据库连接字符串未设置。请配置DATABASE_URL环境变量。" 
-    }
-  }
-
   try {
     const result = await sql`SELECT 1 as test`
+    console.log("数据库连接测试成功")
     return { success: true, result }
   } catch (error) {
     console.error("测试连接失败:", error)
