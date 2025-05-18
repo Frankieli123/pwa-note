@@ -145,7 +145,7 @@ type Toast = Omit<ToasterToast, "id">
 function toast({ ...props }: Toast) {
   // 不执行任何操作以禁用所有通知
   const id = genId()
-  
+
   const update = (props: ToasterToast) => {
     // 不执行任何操作
   }

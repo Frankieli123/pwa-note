@@ -33,9 +33,9 @@ interface SettingsContextType {
 }
 
 const defaultSettings: Settings = {
-  fontFamily: "sans",
+  fontFamily: "zcool-xiaowei",
   fontSize: "medium",
-  syncInterval: 10,
+  syncInterval: 5,
 }
 
 export const SettingsContext = createContext<SettingsContextType>({
@@ -133,39 +133,39 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
       // 首先应用到body
       const bodyClassList = document.body.classList
-      bodyClassList.remove(...allFontClasses)
-      bodyClassList.remove(...allSizeClasses)
-      bodyClassList.add(currentFontClass)
-      bodyClassList.add(currentSizeClass)
+        bodyClassList.remove(...allFontClasses)
+        bodyClassList.remove(...allSizeClasses)
+        bodyClassList.add(currentFontClass)
+        bodyClassList.add(currentSizeClass)
 
       // 计算字体样式
-      const fontFamily = getComputedStyle(document.body).fontFamily
-      const fontSize = getComputedStyle(document.body).fontSize
+        const fontFamily = getComputedStyle(document.body).fontFamily
+        const fontSize = getComputedStyle(document.body).fontSize
 
       // 使用requestAnimationFrame优化DOM更新
-      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
         // 应用到所有标记的元素
-        const elements = document.querySelectorAll(".font-apply-target")
-        elements.forEach((element) => {
-          if (element instanceof HTMLElement) {
+          const elements = document.querySelectorAll(".font-apply-target")
+          elements.forEach((element) => {
+            if (element instanceof HTMLElement) {
             // 移除旧的字体类
             element.classList.remove(...allFontClasses)
             element.classList.remove(...allSizeClasses)
             // 添加新的字体类
             element.classList.add(currentFontClass)
             element.classList.add(currentSizeClass)
-          }
-        })
+            }
+          })
 
         // 应用到编辑器内容
-        const editors = document.querySelectorAll(".editor-content")
-        editors.forEach((editor) => {
-          if (editor instanceof HTMLElement) {
-            editor.style.fontFamily = fontFamily
-            editor.style.fontSize = fontSize
-          }
-        })
-        
+          const editors = document.querySelectorAll(".editor-content")
+          editors.forEach((editor) => {
+            if (editor instanceof HTMLElement) {
+                editor.style.fontFamily = fontFamily
+                editor.style.fontSize = fontSize
+              }
+          })
+
         // 应用到所有标题元素
         const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
         headings.forEach((heading) => {
@@ -199,12 +199,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         });
 
         // 触发全局事件通知组件字体已更改
-        window.dispatchEvent(
-          new CustomEvent("fontSettingsChanged", {
-            detail: { fontFamily: settings.fontFamily, fontSize: settings.fontSize },
-          }),
-        )
-      })
+          window.dispatchEvent(
+            new CustomEvent("fontSettingsChanged", {
+              detail: { fontFamily: settings.fontFamily, fontSize: settings.fontSize },
+            }),
+          )
+        })
     }
   }
 

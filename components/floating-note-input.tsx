@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useSync } from "@/hooks/use-sync"
 import { useToast } from "@/hooks/use-toast"
@@ -26,7 +26,7 @@ import { zhCN } from "date-fns/locale"
 
 export function FloatingNoteInput() {
   const [content, setContent] = useState("")
-  const { syncStatus, syncNow, saveNote } = useSync()
+  const { status, sync, saveNote } = useSync()
   const { settings, applyFontSettings } = useSettings()
   const { toast } = useToast()
   const isMobile = useMobile()
@@ -46,11 +46,28 @@ export function FloatingNoteInput() {
   const { getRelativeTime } = useTime()
   // Add state to track if we're on client side
   const [isClient, setIsClient] = useState(false)
+  // 添加键盘状态
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
 
   // First mark that we're on the client to fix hydration issues
   useEffect(() => {
     setIsClient(true)
   }, [])
+
+  // 监听移动端键盘弹出事件
+  useEffect(() => {
+    if (!isClient || !isMobile) return;
+    
+    // 在iOS上，键盘弹出时窗口高度会变小
+    const handleResize = () => {
+      // 如果可视高度比窗口高度小很多，键盘可能已弹出
+      const isKeyboard = window.innerHeight < window.outerHeight * 0.75;
+      setIsKeyboardVisible(isKeyboard);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isClient, isMobile]);
 
   // 定期更新当前时间
   useEffect(() => {
@@ -130,7 +147,7 @@ export function FloatingNoteInput() {
     // 设置新的自动保存计时器
     console.log(`设置新的自动保存计时器: ${settings.syncInterval}秒后执行`);
     autoSaveTimerRef.current = setTimeout(async () => {
-      if (content && content !== lastContentRef.current && user) {
+      if (content && content.trim() && content !== lastContentRef.current && user) {
         console.log("自动保存执行: 保存到本地存储");
         localStorage.setItem("noteDraft", content)
         lastContentRef.current = content
@@ -144,15 +161,15 @@ export function FloatingNoteInput() {
         
         try {
           console.log("自动保存执行: 保存到数据库");
-          // 实际保存到数据库
-          const result = await saveNote(content);
+          // 实际保存到数据库，使用"new"作为ID以创建新的笔记
+          const result = await saveNote("new", content);
           console.log("自动保存结果:", result);
           
-          if (result && result.success) {
+          if (result) {
             console.log("自动保存成功");
             // 移除自动保存的 toast 提示
           } else {
-            console.error("自动保存失败:", result?.error);
+            console.error("自动保存失败");
           }
         } catch (error) {
           console.error("自动保存错误:", error);
@@ -160,7 +177,7 @@ export function FloatingNoteInput() {
           setIsSaving(false);
         }
       } else {
-        console.log("内容未变化或用户未登录，跳过自动保存");
+        console.log("内容为空、未变化或用户未登录，跳过自动保存");
       }
     }, settings.syncInterval * 1000)
 
@@ -169,7 +186,7 @@ export function FloatingNoteInput() {
         clearTimeout(autoSaveTimerRef.current)
       }
     }
-  }, [content, saveNote, syncNow, settings.syncInterval, user])
+  }, [content, saveNote, sync, settings.syncInterval, user])
 
   // 优化保存便签函数
   const handleSaveNote = async () => {
@@ -199,25 +216,30 @@ export function FloatingNoteInput() {
     setError(null)
 
     try {
-      // 保存为便签
+      // 保存为便签，使用"new"作为ID来创建新的笔记
       console.log("调用 saveNote 函数...")
-      const result = await saveNote(content)
-      console.log("保存结果:", result)
+      const result = await saveNote("new", content);
+      console.log("保存结果:", result);
 
-      if (result && result.success) {
+      if (result) {
         // 清空编辑器
         setContent("")
         localStorage.removeItem("noteDraft")
         lastContentRef.current = ""
+        
+        toast({
+          title: "保存成功",
+          description: "便签已保存",
+        })
       } else {
-        const errorMsg = result?.error || "保存便签时发生未知错误"
+        const errorMsg = "保存便签时发生未知错误"
         console.error("保存便签失败:", errorMsg)
         setError(errorMsg)
         setIsErrorDialogOpen(true)
 
         toast({
           title: "保存失败",
-          description: "无法保存便签，请查看详细错误",
+          description: "无法保存便签",
           variant: "destructive",
         })
       }
@@ -254,33 +276,93 @@ export function FloatingNoteInput() {
 
   // 使用 useMemo 优化类名计算
   const cardClassName = cn(
-    "w-full max-w-3xl shadow-lg transition-all duration-300",
+    "w-full shadow-lg transition-all duration-300",
     "bg-background/80 backdrop-blur-xl border border-border/50",
     "rounded-2xl overflow-hidden",
-    isMobile ? "h-[65vh]" : "h-[85vh] max-h-[800px]",
-    "mx-auto",
+    isMobile 
+      ? "h-[calc(100vh-8rem)] max-h-[calc(100vh-8rem)] mx-0 my-0" 
+      : "h-[85vh] max-h-[800px] max-w-3xl mx-auto",
   )
 
-  return (
-    <>
+  // 创建移动端专用工具栏组件
+  const MobileToolbar = () => (
+    <div className="w-full flex justify-around items-center px-2 py-1 bg-background/95 border-t-0">
+      <button
+        onClick={() => openUploadDialog("image")}
+        className="flex-1 flex items-center justify-center gap-1"
+        style={{ fontSize: "14px", height: "36px" }}
+      >
+        <FileUp className="h-4 w-4" />
+        <span>图片</span>
+      </button>
+      <button
+        onClick={() => openUploadDialog("file")}
+        className="flex-1 flex items-center justify-center gap-1"
+        style={{ fontSize: "14px", height: "36px" }}
+      >
+        <Paperclip className="h-4 w-4" />
+        <span>文件</span>
+      </button>
+      <button
+        onClick={handleSaveNote}
+        disabled={!content.trim() || isSaving}
+        className="flex-1 flex items-center justify-center gap-1"
+        style={{ fontSize: "14px", height: "36px" }}
+      >
+        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        <span>保存</span>
+      </button>
+    </div>
+  );
+
+  // 创建移动设备专用的渲染函数
+  const renderMobileLayout = () => {
+    return (
+      <div 
+        className="fixed inset-0 top-12 bottom-0 z-20 bg-background flex flex-col" 
+        style={{ 
+          touchAction: 'none', 
+          userSelect: 'none',
+          height: 'calc(100% - 3.5rem)',
+          overscrollBehavior: 'none'
+        }}
+        onTouchMove={(e) => e.preventDefault()}
+      >
+        {/* 移动端工具栏 - 位置与标题栏底部对齐 */}
+        <MobileToolbar />
+        
+        {/* 编辑器卡片 - 使用fixed定位完全阻止上拉 */}
+        <Card className="flex-1 w-full shadow-none bg-background/95 border-0 rounded-none m-0">
+          <CardContent className="px-2 h-full overflow-hidden">
+            {/* 编辑区域 - 使用多重技术禁止拖动 */}
+            <div 
+              className="h-full" 
+              style={{ touchAction: 'none', userSelect: 'none', overscrollBehavior: 'none' }}
+            >
+              <Editor 
+                value={content} 
+                onChange={setContent} 
+                placeholder="点击此处开始输入" 
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  // 创建桌面版专用的渲染函数
+  const renderDesktopLayout = () => {
+    return (
       <Card className={cardClassName}>
         <CardContent className="p-0 h-full flex flex-col">
           <div className="p-4 border-b flex items-center justify-between">
-            <div className={cn(
-              "text-sm font-medium text-muted-foreground",
-              isMobile ? "flex flex-row items-center gap-2" : "flex flex-col"
-            )}>
-              <div className={cn(
-                "font-apply-target",
-                isMobile && "text-xs"
-              )}>
+            <div className="flex flex-col text-sm font-medium text-muted-foreground">
+              <div className="font-apply-target">
                 {isClient ? formatDate(currentDate) : "加载日期中..."}
               </div>
               {lastAutoSaveTime && (
-                <div className={cn(
-                  "opacity-70 font-apply-target whitespace-nowrap",
-                  isMobile ? "text-xs" : "text-xs mt-1"
-                )}>
+                <div className="opacity-70 font-apply-target text-xs mt-1">
                   上次自动保存: {lastAutoSaveTime.toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'})}
                 </div>
               )}
@@ -322,9 +404,18 @@ export function FloatingNoteInput() {
           </div>
         </CardContent>
       </Card>
+    );
+  };
+
+  return (
+    <>
+      {isMobile ? renderMobileLayout() : renderDesktopLayout()}
 
       <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className={cn(
+          "max-w-md mx-auto", 
+          isMobile && "w-[90%] p-4 top-[30%] fixed left-[5%] right-[5%]"
+        )}>
           <DialogHeader>
             <DialogTitle className="font-apply-target">{uploadType === "image" ? "上传图片" : "上传文件"}</DialogTitle>
             <DialogDescription className="font-apply-target">
@@ -352,7 +443,10 @@ export function FloatingNoteInput() {
       </Dialog>
 
       <Dialog open={isErrorDialogOpen} onOpenChange={setIsErrorDialogOpen}>
-        <DialogContent>
+        <DialogContent className={cn(
+          "max-w-md mx-auto", 
+          isMobile && "w-[90%] p-4 top-[30%] fixed left-[5%] right-[5%]"
+        )}>
           <DialogHeader>
             <DialogTitle className="font-apply-target">保存便签失败 ❌</DialogTitle>
             <DialogDescription className="font-apply-target">保存便签时发生错误</DialogDescription>

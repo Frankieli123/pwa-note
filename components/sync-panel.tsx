@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSync } from "@/hooks/use-sync"
@@ -9,7 +9,7 @@ import { FileGrid } from "@/components/file-grid"
 import { SyncStatus } from "@/components/sync-status"
 import { useMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { FileText, Image, Link2, StickyNote, Trash2, Copy, Check } from "lucide-react"
+import { FileText, Image, Link2, StickyNote, Trash2, Copy, Check, Cloud } from "lucide-react"
 import { LinksList } from "@/components/links-list"
 import { LinkForm } from "@/components/link-form"
 import { Button } from "@/components/ui/button"
@@ -18,17 +18,57 @@ import { useTime } from "@/hooks/use-time"
 import { useToast } from "@/hooks/use-toast"
 
 export function SyncPanel() {
-  const { uploadedFiles, lastSyncTime, syncStatus, isSyncEnabled, toggleSync, notes, deleteNote } = useSync()
+  const { files, lastSync, status, isInitialized, sync, notes, deleteNote } = useSync()
   const [activeTab, setActiveTab] = useState("notes")
   const [showLinkForm, setShowLinkForm] = useState(false)
   const isMobile = useMobile()
   const { toast } = useToast()
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
+  const [isCollapsed, setIsCollapsed] = useState(isMobile ? true : false)
+  const { getRelativeTime } = useTime();
+  const uploadedFiles = files || []; // Provide a default empty array if files is undefined
+  const isSyncEnabled = true; // Default to true since it's not provided by context
+  // 点击云朵按钮强制刷新数据
+  const toggleSync = () => {
+    // 显式指定非静默模式，这样会显示同步状态和通知
+    sync(false);
+    
+    // 只显示同步开始通知，成功后不显示
+    toast({
+      title: "正在同步数据",
+      description: "正在从服务器获取最新数据...",
+      duration: 2000,
+    });
+  };
 
-  const imageFiles = uploadedFiles.filter((file) => file.type.startsWith("image/"))
-  const documentFiles = uploadedFiles.filter(
-    (file) => file.type.includes("pdf") || file.type.includes("doc") || file.type.includes("text"),
-  )
+  useEffect(() => {
+    setIsCollapsed(isMobile ? true : false)
+  }, [isMobile])
+
+  // Transform files to match FileGrid component's expected format
+  const imageFiles = uploadedFiles
+    .filter((file) => file.type.startsWith("image/"))
+    .map(file => ({
+      id: file.id,
+      name: file.name,
+      type: file.type,
+      url: file.url,
+      thumbnail: file.thumbnail ? String(file.thumbnail) : undefined,
+      uploadedAt: file.uploaded_at,
+      size: file.size
+    }))
+
+  const documentFiles = uploadedFiles
+    .filter((file) => file.type.includes("pdf") || file.type.includes("doc") || file.type.includes("text"))
+    .map(file => ({
+      id: file.id,
+      name: file.name,
+      type: file.type,
+      url: file.url,
+      thumbnail: file.thumbnail ? String(file.thumbnail) : undefined,
+      uploadedAt: file.uploaded_at,
+      size: file.size
+    }))
 
   // 当标签变化时的处理函数
   const handleTabChange = (value: string) => {
@@ -129,8 +169,6 @@ export function SyncPanel() {
 
   // 修改 renderNotes 函数，支持富文本显示
   const renderNotes = () => {
-    const { getRelativeTime } = useTime(); // 使用统一的时间钩子计算相对时间
-
     if (notes.length === 0) {
       return (
         <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm font-apply-target">
@@ -153,7 +191,7 @@ export function SyncPanel() {
                   />
                   <div className="text-xs text-muted-foreground flex items-center gap-2 font-apply-target">
                     <span className="font-apply-target text-xs !text-xs" style={{fontSize: "0.75rem !important"}}>
-                      {getRelativeTime(note.createdAt)}
+                      {getRelativeTime(note.created_at)}
                     </span>
                   </div>
                 </div>
@@ -191,96 +229,133 @@ export function SyncPanel() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* 顶部标题栏 - 保留底部分割线 */}
-      <div className={cn("border-b flex justify-between items-center px-3 sm:px-4", isMobile ? "py-2" : "py-3")}>
+    <div className={cn(
+      "h-full flex flex-col",
+      isMobile && isCollapsed ? "h-10" : isMobile && "h-[80vh] max-h-[80vh]"
+    )}>
+      <div 
+        className={cn(
+          "flex justify-between items-center px-3 sm:px-4", 
+          isMobile ? "py-2 border-b" : "py-3 border-b",
+          isMobile && "cursor-pointer"
+        )}
+        onClick={isMobile ? () => setIsCollapsed(!isCollapsed) : undefined}
+      >
         <div className="flex items-center">
-          <span className={cn("font-medium font-apply-target", isMobile ? "text-base" : "text-xl")}>同步面板</span>
+          <span className={cn("font-medium font-apply-target", isMobile ? "text-base" : "text-xl")}>
+            同步面板 {isMobile && (notes.length > 0 || uploadedFiles.length > 0) && 
+              <span className="text-xs text-muted-foreground ml-2">
+                ({notes.length + uploadedFiles.length}项)
+              </span>
+            }
+          </span>
         </div>
         <div className="flex items-center gap-2">
-          <SyncStatus
-            status={syncStatus}
-            lastSyncTime={lastSyncTime}
-            isEnabled={isSyncEnabled}
-            onToggle={toggleSync}
-          />
+          {isMobile ? (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6" 
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSync();
+              }}
+            >
+              <Cloud className={cn(
+                "h-4 w-4",
+                status === "syncing" && "animate-breathing"
+              )} />
+            </Button>
+          ) : (
+            <SyncStatus
+              status={status}
+              lastSyncTime={lastSync}
+              isEnabled={isSyncEnabled}
+              onToggle={toggleSync}
+            />
+          )}
         </div>
       </div>
       
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* 标签导航栏 - 移除底部分割线 */}
-        <div>
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col h-full">
-            <TabsList className={cn(
-              "w-full bg-transparent rounded-none px-2",
-              isMobile ? "justify-between py-1 h-10" : "justify-start p-2 h-12"
-            )}>
-              <TabsTrigger value="notes" className={cn("rounded-md", isMobile ? "px-2 py-1" : "px-4")}>
-                <StickyNote className="h-4 w-4 mr-1" />
-                <span className={cn("font-apply-target", isMobile && "text-xs")}>便签</span>
-              </TabsTrigger>
-              <TabsTrigger value="docFiles" className={cn("rounded-md", isMobile ? "px-2 py-1" : "px-4")}>
-                <FileText className="h-4 w-4 mr-1" />
-                <span className={cn("font-apply-target", isMobile && "text-xs")}>文件</span>
-              </TabsTrigger>
-              <TabsTrigger value="imageFiles" className={cn("rounded-md", isMobile ? "px-2 py-1" : "px-4")}>
-                <Image className="h-4 w-4 mr-1" />
-                <span className={cn("font-apply-target", isMobile && "text-xs")}>图片</span>
-              </TabsTrigger>
-              <TabsTrigger value="links" className={cn("rounded-md", isMobile ? "px-2 py-1" : "px-4")}>
-                <Link2 className="h-4 w-4 mr-1" />
-                <span className={cn("font-apply-target", isMobile && "text-xs")}>链接</span>
-              </TabsTrigger>
-            </TabsList>
+      {(!isMobile || !isCollapsed) && (
+        <div className={cn(
+          "flex-1 flex flex-col overflow-hidden"
+        )}>
+          <div className="flex flex-col h-full overflow-hidden">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col h-full">
+              <TabsList className={cn(
+                "w-full bg-transparent rounded-none px-2 sticky top-0 z-10",
+                isMobile ? "justify-between py-1 h-10" : "justify-start p-2 h-12"
+              )}>
+                <TabsTrigger value="notes" className={cn("rounded-md", isMobile ? "px-2 py-1" : "px-4")}>
+                  <StickyNote className="h-4 w-4 mr-1" />
+                  <span className={cn("font-apply-target", isMobile && "text-xs")}>便签</span>
+                </TabsTrigger>
+                <TabsTrigger value="docFiles" className={cn("rounded-md", isMobile ? "px-2 py-1" : "px-4")}>
+                  <FileText className="h-4 w-4 mr-1" />
+                  <span className={cn("font-apply-target", isMobile && "text-xs")}>文件</span>
+                </TabsTrigger>
+                <TabsTrigger value="imageFiles" className={cn("rounded-md", isMobile ? "px-2 py-1" : "px-4")}>
+                  <Image className="h-4 w-4 mr-1" />
+                  <span className={cn("font-apply-target", isMobile && "text-xs")}>图片</span>
+                </TabsTrigger>
+                <TabsTrigger value="links" className={cn("rounded-md", isMobile ? "px-2 py-1" : "px-4")}>
+                  <Link2 className="h-4 w-4 mr-1" />
+                  <span className={cn("font-apply-target", isMobile && "text-xs")}>链接</span>
+                </TabsTrigger>
+              </TabsList>
 
-            {/* 内容区域 - 添加上下居中和滚动区域 */}
-            <ScrollArea className="flex-1">
-              <TabsContent value="notes" className="flex-1 overflow-auto px-3 py-2 mt-0">
-                {renderNotes()}
-              </TabsContent>
+              <div className={cn(
+                "flex-1 overflow-auto relative",
+                isMobile && "h-[calc(80vh-52px)]" // 确保内容区域有足够高度：总高度减去标题栏和标签栏高度
+              )}>
+                <TabsContent value="notes" className="flex-1 absolute inset-0 px-3 py-2 mt-0 overflow-auto">
+                  {renderNotes()}
+                </TabsContent>
 
-              <TabsContent value="imageFiles" className="flex-1 overflow-auto px-3 py-2 mt-0">
-                <div className="mb-4">
-                  <FileUploader
-                    accept="image/*"
-                    label="拖放图片到此处上传"
-                    maxSize={5}
-                  />
-                </div>
-                <FileGrid files={imageFiles} showAsThumbnails={true} />
-              </TabsContent>
-
-              <TabsContent value="docFiles" className="flex-1 overflow-auto px-3 py-2 mt-0">
-                <div className="mb-4">
-                  <FileUploader
-                    accept=".pdf,.doc,.docx,.txt,.xlsx,.xls,.csv"
-                    label="拖放文档到此处上传"
-                    maxSize={20}
-                  />
-                </div>
-                <FileGrid files={documentFiles} />
-              </TabsContent>
-
-              <TabsContent value="links" className="flex-1 overflow-auto px-3 py-2 mt-0">
-                {!showLinkForm ? (
-                  <Button
-                    className={cn("w-full mb-4 font-apply-target", isMobile && "text-sm py-1")}
-                    onClick={() => setShowLinkForm(true)}
-                  >
-                    <Link2 className="h-4 w-4 mr-2" />
-                    添加新链接
-                  </Button>
-                ) : (
-                  <div className="mb-4 pt-4">
-                    <LinkForm onComplete={() => setShowLinkForm(false)} />
+                <TabsContent value="imageFiles" className="flex-1 absolute inset-0 px-3 py-2 mt-0 overflow-auto">
+                  <div className="mb-4">
+                    <FileUploader
+                      accept="image/*"
+                      label="拖放图片到此处上传"
+                      maxSize={5}
+                    />
                   </div>
-                )}
-                <LinksList />
-              </TabsContent>
-            </ScrollArea>
-          </Tabs>
+                  <FileGrid files={imageFiles} showAsThumbnails={true} />
+                </TabsContent>
+
+                <TabsContent value="docFiles" className="flex-1 absolute inset-0 px-3 py-2 mt-0 overflow-auto">
+                  <div className="mb-4">
+                    <FileUploader
+                      accept=".pdf,.doc,.docx,.txt,.xlsx,.xls,.csv"
+                      label="拖放文档到此处上传"
+                      maxSize={20}
+                    />
+                  </div>
+                  <FileGrid files={documentFiles} />
+                </TabsContent>
+
+                <TabsContent value="links" className="flex-1 absolute inset-0 px-3 py-2 mt-0 overflow-auto">
+                  {!showLinkForm ? (
+                    <Button
+                      className={cn("w-full mb-4 font-apply-target", isMobile && "text-sm py-1")}
+                      onClick={() => setShowLinkForm(true)}
+                    >
+                      <Link2 className="h-4 w-4 mr-2" />
+                      添加新链接
+                    </Button>
+                  ) : (
+                    <div className="mb-4 pt-4">
+                      <LinkForm onComplete={() => setShowLinkForm(false)} />
+                    </div>
+                  )}
+                  <LinksList />
+                </TabsContent>
+              </div>
+            </Tabs>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

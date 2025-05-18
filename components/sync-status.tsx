@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { Cloud, CloudOff } from "lucide-react"
+import { Cloud, CloudOff, AlertCircle } from "lucide-react"
 import { useTime } from "@/hooks/use-time"
 import { useMobile } from "@/hooks/use-mobile"
 
@@ -20,16 +20,7 @@ export function SyncStatus({ status, lastSyncTime, isEnabled, onToggle }: SyncSt
 
   return (
     <TooltipProvider>
-      <div className="flex items-center gap-2">
-        {lastSyncTime && (
-          <span className={cn(
-            "text-muted-foreground font-apply-target",
-            isMobile ? "text-xs" : "text-xs"
-          )}>
-            {getRelativeTime(lastSyncTime)}
-          </span>
-        )}
-
+      <div className="flex items-center">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -38,23 +29,21 @@ export function SyncStatus({ status, lastSyncTime, isEnabled, onToggle }: SyncSt
               onClick={onToggle}
               className={cn("h-8 w-8 rounded-full relative", !isEnabled && "text-muted-foreground")}
             >
-              {isEnabled ? <Cloud className="h-4 w-4" /> : <CloudOff className="h-4 w-4" />}
-
-              {status === "syncing" && (
-                <span className="absolute inset-0 flex items-center justify-center">
-                  <span className="animate-ping absolute h-3 w-3 rounded-full bg-primary opacity-75" />
-                  <span className="relative rounded-full h-2 w-2 bg-primary" />
-                </span>
+              {isEnabled ? (
+                <Cloud className={cn(
+                  "h-4 w-4",
+                  status === "syncing" && "animate-breathing"
+                )} />
+              ) : (
+                <CloudOff className="h-4 w-4" />
               )}
 
               {status === "error" && <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-destructive" />}
-
-              {status === "success" && <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-green-500" />}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <span className="font-apply-target">
-              {isEnabled ? "禁用自动同步" : "启用自动同步"}
+              点击立即同步数据
             </span>
           </TooltipContent>
         </Tooltip>

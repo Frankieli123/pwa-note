@@ -155,7 +155,7 @@ export function SettingsDialog() {
           <Settings className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className={cn("sm:max-w-[425px] mx-auto", isMobile && "w-[calc(100%-2rem)] p-4")}>
         <DialogHeader>
           <DialogTitle>应用设置</DialogTitle>
           <DialogDescription>自定义您的应用外观和行为。这些设置将自动保存。</DialogDescription>

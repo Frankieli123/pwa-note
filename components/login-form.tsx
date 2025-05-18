@@ -36,7 +36,7 @@ export function LoginForm() {
 
     try {
       await login(username)
-      setIsOpen(false)
+        setIsOpen(false)
       setUsername("")
     } catch (err) {
       setError("登录失败，请重试")
@@ -56,31 +56,31 @@ export function LoginForm() {
           <DialogTitle>登录快速笔记</DialogTitle>
           <DialogDescription>输入用户名即可快速登录使用。</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            <div className="grid gap-2">
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <div className="grid gap-2">
               <Label htmlFor="username">用户名</Label>
-              <Input
+                <Input
                 id="username"
                 placeholder="请输入用户名"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                required
-              />
+                  required
+                />
+              </div>
             </div>
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={isLoading}>
+            <DialogFooter>
+              <Button type="submit" disabled={isLoading}>
               {isLoading ? "登录中..." : "登录"}
-            </Button>
-          </DialogFooter>
-        </form>
+              </Button>
+            </DialogFooter>
+          </form>
       </DialogContent>
     </Dialog>
   )

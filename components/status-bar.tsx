@@ -43,14 +43,19 @@ export function StatusBar({ onToggleSidebar, sidebarOpen }: StatusBarProps) {
   const avatarUrl = "/placeholder-avatar.svg?v=" + new Date().getTime()
 
   return (
-    <div className="w-full border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10 shadow-sm">
+    <div className={cn(
+      "w-full sticky top-0 z-30",
+      isMobile 
+        ? "bg-background/95 border-b shadow-none" 
+        : "border-b bg-background/95 backdrop-blur-sm shadow-sm"
+    )}>
       <div className={cn(
-        "w-full flex items-center justify-between",
-        isMobile ? "px-2 h-12" : "px-4 h-14"
+        "flex items-center justify-between",
+        isMobile ? "px-0 h-12 mx-0 w-full" : "px-4 h-14 w-full"
       )}>
-        <div className="flex items-center gap-1 sm:gap-2">
-          <NotebookPen size={isMobile ? 18 : 24} className="text-foreground" />
-          <span className={cn("font-medium font-apply-target", isMobile ? "text-sm" : "text-lg")}>快速笔记</span>
+        <div className="flex items-center gap-1 sm:gap-2 px-3">
+          <NotebookPen size={isMobile ? 20 : 24} className="text-foreground" />
+          <span className={cn("font-medium font-apply-target", isMobile ? "text-base" : "text-lg")}>快速笔记</span>
           <div
             className={cn(
               "h-2 w-2 rounded-full ml-1",
@@ -62,7 +67,7 @@ export function StatusBar({ onToggleSidebar, sidebarOpen }: StatusBarProps) {
           />
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-2 justify-end">
+        <div className="flex items-center gap-1 sm:gap-2 justify-end px-3">
           {!isMobile && (
             <Button
               variant="ghost"

@@ -44,10 +44,22 @@ export async function getNotes(userId: string): Promise<Note[]> {
   }
 }
 
-export async function createNote(userId: string, content: string): Promise<Note> {
-  console.log("服务器操作: createNote", { userId, contentLength: content.length })
+export async function createNote(userId: string, content: string, clientTime?: string): Promise<Note> {
+  console.log("服务器操作: createNote", { userId, contentLength: content.length, clientTime })
   try {
-    const result = await query("INSERT INTO notes (user_id, content) VALUES ($1, $2) RETURNING *", [userId, content])
+    let result;
+    
+    // 如果提供了客户端时间，使用它作为创建时间和更新时间
+    if (clientTime) {
+      result = await query(
+        "INSERT INTO notes (user_id, content, created_at, updated_at) VALUES ($1, $2, $3, $3) RETURNING *", 
+        [userId, content, new Date(clientTime)]
+      );
+    } else {
+      // 没有提供客户端时间时使用默认的NOW()
+      result = await query("INSERT INTO notes (user_id, content) VALUES ($1, $2) RETURNING *", [userId, content]);
+    }
+    
     console.log("createNote 结果:", result.rows[0])
     revalidatePath("/")
     return result.rows[0]
@@ -57,13 +69,27 @@ export async function createNote(userId: string, content: string): Promise<Note>
   }
 }
 
-export async function updateNote(id: number, userId: string, content: string): Promise<Note> {
-  console.log("服务器操作: updateNote", { id, userId, contentLength: content.length })
+export async function updateNote(id: number, userId: string, content: string, clientTime?: string): Promise<Note> {
+  // 确保content不为undefined，如果是则用空字符串代替
+  content = content || "";
+  console.log("服务器操作: updateNote", { id, userId, contentLength: content.length, clientTime })
   try {
-    const result = await query(
-      "UPDATE notes SET content = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *",
-      [content, id, userId],
-    )
+    let result;
+    
+    // 如果提供了客户端时间，使用它作为更新时间
+    if (clientTime) {
+      result = await query(
+        "UPDATE notes SET content = $1, updated_at = $4 WHERE id = $2 AND user_id = $3 RETURNING *",
+        [content, id, userId, new Date(clientTime)],
+      );
+    } else {
+      // 没有提供客户端时间时使用默认的NOW()
+      result = await query(
+        "UPDATE notes SET content = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *",
+        [content, id, userId],
+      );
+    }
+    
     console.log("updateNote 结果:", result.rows[0])
     revalidatePath("/")
     return result.rows[0]
@@ -98,14 +124,26 @@ export async function getLinks(userId: string): Promise<Link[]> {
   }
 }
 
-export async function createLink(userId: string, url: string, title: string): Promise<Link> {
-  console.log("服务器操作: createLink", { userId, url, title })
+export async function createLink(userId: string, url: string, title: string, clientTime?: string): Promise<Link> {
+  console.log("服务器操作: createLink", { userId, url, title, clientTime })
   try {
-    const result = await query("INSERT INTO links (user_id, url, title) VALUES ($1, $2, $3) RETURNING *", [
-      userId,
-      url,
-      title,
-    ])
+    let result;
+    
+    // 如果提供了客户端时间，使用它作为创建时间
+    if (clientTime) {
+      result = await query(
+        "INSERT INTO links (user_id, url, title, created_at) VALUES ($1, $2, $3, $4) RETURNING *", 
+        [userId, url, title, new Date(clientTime)]
+      );
+    } else {
+      // 没有提供客户端时间时使用默认的NOW()
+      result = await query("INSERT INTO links (user_id, url, title) VALUES ($1, $2, $3) RETURNING *", [
+        userId,
+        url,
+        title,
+      ]);
+    }
+    
     console.log("createLink 结果:", result.rows[0])
     revalidatePath("/")
     return result.rows[0]

@@ -8,7 +8,7 @@ export default function VerifyPage() {
 
   useEffect(() => {
     // 简单重定向到首页，因为我们不再使用魔术链接验证
-    router.push("/")
+          router.push("/")
   }, [router])
 
   return (

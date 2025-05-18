@@ -61,12 +61,12 @@ export default function Home() {
     const mainContentClassName = cn(
       "flex-1 flex items-center justify-center p-4 transition-all duration-300 ease-in-out",
       !isMobile && sidebarOpen ? "mr-80 lg:mr-96" : "",
-      isMobile ? "pb-[40vh]" : "" // 在移动端增加底部内边距，为同步面板留出空间
+      isMobile ? "pb-12" : "" // 只为折叠状态的标题栏留出空间
     )
 
     const mobileSidebarClassName = cn(
-      "fixed bottom-0 left-0 right-0 h-[40vh] border-t w-full",
-      "bg-background/80 backdrop-blur-xl z-10 font-apply-target"
+      "fixed bottom-0 left-0 right-0 transition-all border-t w-full z-40",
+      "bg-background/95 backdrop-blur-xl font-apply-target overflow-hidden"
     )
 
     const desktopSidebarClassName = cn(
@@ -74,6 +74,9 @@ export default function Home() {
       "bg-background/80 backdrop-blur-xl transition-all duration-300 ease-in-out z-10 font-apply-target",
       sidebarOpen ? "w-80 lg:w-96" : "w-0 opacity-0 pointer-events-none",
     )
+
+    // 将SyncPanel提取出来，避免在条件渲染中使用不同的组件结构
+    const syncPanelComponent = <SyncPanel />;
 
     return (
       <main className="flex min-h-screen w-full flex-col bg-gradient-to-b from-background to-muted/50 font-apply-target">
@@ -87,11 +90,11 @@ export default function Home() {
           {/* 侧边栏 - 在移动端底部，在桌面端右侧 */}
           {isMobile ? (
             <div className={mobileSidebarClassName}>
-              <SyncPanel />
+              {syncPanelComponent}
             </div>
           ) : (
             <div className={desktopSidebarClassName}>
-              <SyncPanel />
+              {syncPanelComponent}
             </div>
           )}
         </div>

@@ -24,7 +24,7 @@ export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
 
     try {
       await login(username)
-      onComplete()
+    onComplete()
     } catch (error) {
       console.error("登录失败:", error)
     }
