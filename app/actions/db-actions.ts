@@ -292,7 +292,36 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
     // 检查是否存在settings表，如果不存在则创建
     await ensureUserSettingsTableExists()
     
-    const result = await query("SELECT * FROM user_settings WHERE user_id = $1", [userId])
+    let result;
+    try {
+      result = await query("SELECT * FROM user_settings WHERE user_id = $1", [userId])
+    } catch (error: any) {
+      // 检查是否是外键约束错误
+      if (error instanceof Error && 
+          (error.message.includes('违反外键约束') || 
+           error.message.includes('violates foreign key constraint'))) {
+        
+        console.error("外键约束错误，尝试修复:", error);
+        
+        // 尝试删除外键约束
+        try {
+          await query(`
+            ALTER TABLE user_settings 
+            DROP CONSTRAINT IF EXISTS fk_user
+          `);
+          console.log("成功删除外键约束");
+          
+          // 重新尝试查询
+          result = await query("SELECT * FROM user_settings WHERE user_id = $1", [userId])
+        } catch (alterError) {
+          console.error("无法删除外键约束:", alterError);
+          throw new Error(`无法修复外键约束: ${alterError instanceof Error ? alterError.message : String(alterError)}`);
+        }
+      } else {
+        // 如果不是外键错误，重新抛出
+        throw error;
+      }
+    }
     
     if (result.rows.length === 0) {
       return null;
@@ -333,23 +362,66 @@ export async function updateUserSettings(
     const existingSettings = await getUserSettings(userId)
     
     let result
-    if (existingSettings) {
-      // 更新现有设置
-      result = await query(
-        `UPDATE user_settings 
-         SET font_family = $1, font_size = $2, sync_interval = $3, updated_at = NOW() 
-         WHERE user_id = $4
-         RETURNING *`,
-        [settings.font_family, settings.font_size, settings.sync_interval, userId]
-      )
-    } else {
-      // 创建新设置
-      result = await query(
-        `INSERT INTO user_settings (user_id, font_family, font_size, sync_interval) 
-         VALUES ($1, $2, $3, $4) 
-         RETURNING *`,
-        [userId, settings.font_family, settings.font_size, settings.sync_interval]
-      )
+    try {
+      if (existingSettings) {
+        // 更新现有设置
+        result = await query(
+          `UPDATE user_settings 
+           SET font_family = $1, font_size = $2, sync_interval = $3, updated_at = NOW() 
+           WHERE user_id = $4
+           RETURNING *`,
+          [settings.font_family, settings.font_size, settings.sync_interval, userId]
+        )
+      } else {
+        // 创建新设置
+        result = await query(
+          `INSERT INTO user_settings (user_id, font_family, font_size, sync_interval) 
+           VALUES ($1, $2, $3, $4) 
+           RETURNING *`,
+          [userId, settings.font_family, settings.font_size, settings.sync_interval]
+        )
+      }
+    } catch (error: any) {
+      // 检查是否是外键约束错误
+      if (error instanceof Error && 
+          (error.message.includes('违反外键约束') || 
+           error.message.includes('violates foreign key constraint'))) {
+        
+        console.error("外键约束错误，尝试修复:", error);
+        
+        // 尝试删除外键约束
+        try {
+          await query(`
+            ALTER TABLE user_settings 
+            DROP CONSTRAINT IF EXISTS fk_user
+          `);
+          console.log("成功删除外键约束");
+          
+          // 重新尝试插入或更新
+          if (existingSettings) {
+            result = await query(
+              `UPDATE user_settings 
+               SET font_family = $1, font_size = $2, sync_interval = $3, updated_at = NOW() 
+               WHERE user_id = $4
+               RETURNING *`,
+              [settings.font_family, settings.font_size, settings.sync_interval, userId]
+            )
+          } else {
+            result = await query(
+              `INSERT INTO user_settings (user_id, font_family, font_size, sync_interval) 
+               VALUES ($1, $2, $3, $4) 
+               RETURNING *`,
+              [userId, settings.font_family, settings.font_size, settings.sync_interval]
+            )
+          }
+        } catch (alterError) {
+          console.error("无法删除外键约束:", alterError);
+          throw new Error(`无法修复外键约束: ${alterError instanceof Error ? alterError.message : String(alterError)}`);
+        }
+      } else {
+        // 如果不是外键错误，重新抛出
+        throw error;
+      }
     }
     
     const row = result.rows[0];
@@ -389,40 +461,19 @@ async function ensureUserSettingsTableExists() {
       return;
     }
     
-    // 表不存在，尝试创建带外键的表
-    console.log("用户设置表不存在，尝试创建带外键的表...");
-    try {
-      await query(`
-        CREATE TABLE IF NOT EXISTS user_settings (
-          id SERIAL PRIMARY KEY,
-          user_id TEXT NOT NULL UNIQUE,
-          font_family TEXT NOT NULL DEFAULT 'zcool-xiaowei',
-          font_size TEXT NOT NULL DEFAULT 'medium',
-          sync_interval INTEGER NOT NULL DEFAULT 5,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )
-      `);
-      console.log("成功创建带外键的用户设置表");
-      return;
-    } catch (fkError) {
-      // 外键创建失败，可能是users表不存在
-      console.error("创建带外键的用户设置表失败:", fkError);
-      console.log("尝试创建无外键的表...");
-      
-      // 尝试创建没有外键的表
-      await query(`
-        CREATE TABLE IF NOT EXISTS user_settings (
-          id SERIAL PRIMARY KEY,
-          user_id TEXT NOT NULL UNIQUE,
-          font_family TEXT NOT NULL DEFAULT 'zcool-xiaowei',
-          font_size TEXT NOT NULL DEFAULT 'medium',
-          sync_interval INTEGER NOT NULL DEFAULT 5,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        )
-      `);
-      console.log("成功创建无外键的用户设置表");
-    }
+    // 表不存在，直接创建无外键的表，避免外键约束问题
+    console.log("用户设置表不存在，创建无外键的表...");
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_settings (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL UNIQUE,
+        font_family TEXT NOT NULL DEFAULT 'zcool-xiaowei',
+        font_size TEXT NOT NULL DEFAULT 'medium',
+        sync_interval INTEGER NOT NULL DEFAULT 5,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `);
+    console.log("成功创建无外键的用户设置表");
   } catch (error) {
     console.error("检查或创建用户设置表时出错:", error);
     // 记录更详细的错误信息
