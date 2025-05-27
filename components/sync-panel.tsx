@@ -17,7 +17,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useTime } from "@/hooks/use-time"
 import { useToast } from "@/hooks/use-toast"
 
-export function SyncPanel() {
+// 添加onExpandChange回调属性
+interface SyncPanelProps {
+  onExpandChange?: (isExpanded: boolean) => void;
+}
+
+export function SyncPanel({ onExpandChange }: SyncPanelProps) {
   const { files, lastSync, status, isInitialized, sync, notes, deleteNote } = useSync()
   const [activeTab, setActiveTab] = useState("notes")
   const [showLinkForm, setShowLinkForm] = useState(false)
@@ -28,6 +33,14 @@ export function SyncPanel() {
   const { getRelativeTime } = useTime();
   const uploadedFiles = files || []; // Provide a default empty array if files is undefined
   const isSyncEnabled = true; // Default to true since it's not provided by context
+
+  // 当展开状态变化时通知父组件
+  useEffect(() => {
+    if (onExpandChange && isMobile) {
+      onExpandChange(!isCollapsed);
+    }
+  }, [isCollapsed, onExpandChange, isMobile]);
+
   // 点击云朵按钮强制刷新数据
   const toggleSync = () => {
     // 显式指定非静默模式，这样会显示同步状态和通知
@@ -75,6 +88,13 @@ export function SyncPanel() {
     setActiveTab(value)
   }
 
+  // 处理折叠/展开
+  const handleToggleCollapse = () => {
+    if (isMobile) {
+      setIsCollapsed(prev => !prev);
+    }
+  };
+
   // 删除笔记 - 直接删除，不再弹出确认对话框
   const handleDeleteClick = (id: string) => {
     deleteNote(id)
@@ -82,15 +102,48 @@ export function SyncPanel() {
 
   // 处理复制笔记内容
   const handleCopyClick = (note: any) => {
-    // 创建一个临时div来获取纯文本内容
+    // 创建一个临时div来获取纯文本内容，并正确处理换行
     const tempDiv = document.createElement("div")
     tempDiv.innerHTML = note.content
-    const textContent = tempDiv.textContent || tempDiv.innerText || ""
+    
+    // 采用更简单的方法处理HTML到纯文本的转换
+    // 首先将常见的HTML块级元素替换为特定的标记
+    let html = tempDiv.innerHTML
+    
+    // 处理div元素（这是最常见的换行来源）
+    html = html.replace(/<div[^>]*>/gi, '{DIV_START}')
+    html = html.replace(/<\/div>/gi, '{DIV_END}')
+    
+    // 处理其他块级元素
+    html = html.replace(/<p[^>]*>/gi, '{P_START}')
+    html = html.replace(/<\/p>/gi, '{P_END}')
+    html = html.replace(/<br\s*\/?>/gi, '{BR}')
+    html = html.replace(/<li[^>]*>/gi, '{LI_START}')
+    html = html.replace(/<\/li>/gi, '{LI_END}')
+    
+    // 再次应用处理后的HTML并获取文本
+    tempDiv.innerHTML = html
+    let textContent = tempDiv.textContent || tempDiv.innerText || ""
+    
+    // 用换行符替换标记
+    textContent = textContent
+      .replace(/\{DIV_START\}/g, '\n')
+      .replace(/\{DIV_END\}/g, '')
+      .replace(/\{P_START\}/g, '\n')
+      .replace(/\{P_END\}/g, '')
+      .replace(/\{BR\}/g, '\n')
+      .replace(/\{LI_START\}/g, '\n• ')
+      .replace(/\{LI_END\}/g, '')
+    
+    // 清理多余空行和空格，但确保只有单个换行符
+    const cleanedText = textContent
+      .replace(/\n{2,}/g, '\n')  // 两个或更多换行符替换为一个
+      .replace(/^\s+|\s+$/g, '') // 移除首尾空白字符
     
     // 添加fallback机制，防止navigator.clipboard不可用
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(textContent)
+        navigator.clipboard.writeText(cleanedText)
           .then(() => {
             setCopiedNoteId(note.id)
             toast({
@@ -106,21 +159,21 @@ export function SyncPanel() {
           })
           .catch(err => {
             console.error('复制失败:', err)
-            fallbackCopy(textContent, note.id)
+            fallbackCopy(cleanedText, note.id)
           })
       } else {
-        fallbackCopy(textContent, note.id)
+        fallbackCopy(cleanedText, note.id)
       }
     } catch (error) {
       console.error('复制错误:', error)
-      fallbackCopy(textContent, note.id)
+      fallbackCopy(cleanedText, note.id)
     }
   }
   
   // 复制文本的备选方法
   const fallbackCopy = (text: string, noteId: string) => {
     try {
-      // 创建临时textarea元素
+      // 创建临时textarea元素（textarea比div更适合保留换行符）
       const textArea = document.createElement("textarea")
       textArea.value = text
       
@@ -239,7 +292,7 @@ export function SyncPanel() {
           isMobile ? "py-2 border-b" : "py-3 border-b",
           isMobile && "cursor-pointer"
         )}
-        onClick={isMobile ? () => setIsCollapsed(!isCollapsed) : undefined}
+        onClick={isMobile ? handleToggleCollapse : undefined}
       >
         <div className="flex items-center">
           <span className={cn("font-medium font-apply-target", isMobile ? "text-base" : "text-xl")}>
