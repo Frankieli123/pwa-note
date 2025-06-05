@@ -1,15 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Textarea } from "@/components/ui/textarea"
 import { useSync } from "@/hooks/use-sync"
 import { FileUploader } from "@/components/file-uploader"
 import { FileGrid } from "@/components/file-grid"
 import { SyncStatus } from "@/components/sync-status"
 import { useMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { FileText, Image, Link2, StickyNote, Trash2, Copy, Check, Cloud } from "lucide-react"
+import { FileText, Image, Link2, StickyNote, Trash2, Copy, Check, Cloud, Save, X, Edit3 } from "lucide-react"
 import { LinksList } from "@/components/links-list"
 import { LinkForm } from "@/components/link-form"
 import { Button } from "@/components/ui/button"
@@ -23,7 +24,7 @@ interface SyncPanelProps {
 }
 
 export function SyncPanel({ onExpandChange }: SyncPanelProps) {
-  const { files, lastSync, status, isInitialized, sync, notes, deleteNote } = useSync()
+  const { files, lastSync, status, isInitialized, sync, notes, deleteNote, saveNote } = useSync()
   const [activeTab, setActiveTab] = useState("notes")
   const [showLinkForm, setShowLinkForm] = useState(false)
   const isMobile = useMobile()
@@ -33,6 +34,11 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
   const { getRelativeTime } = useTime();
   const uploadedFiles = files || []; // Provide a default empty array if files is undefined
   const isSyncEnabled = true; // Default to true since it's not provided by context
+
+  // 编辑状态管理
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editingContent, setEditingContent] = useState("")
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   // 当展开状态变化时通知父组件
   useEffect(() => {
@@ -98,6 +104,118 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
   // 删除笔记 - 直接删除，不再弹出确认对话框
   const handleDeleteClick = (id: string) => {
     deleteNote(id)
+  }
+
+  // 处理双击编辑
+  const handleDoubleClick = (note: any) => {
+    // 如果已经在编辑其他笔记，先取消编辑
+    if (editingNoteId && editingNoteId !== note.id) {
+      setEditingNoteId(null)
+      setEditingContent("")
+    }
+
+    // 开始编辑当前笔记
+    setEditingNoteId(note.id)
+
+    // 将HTML内容转换为纯文本用于编辑，正确处理换行
+    const tempDiv = document.createElement("div")
+    let html = note.content
+
+    // 处理各种HTML换行元素，转换为换行符
+    html = html.replace(/<br\s*\/?>/gi, '\n')
+    html = html.replace(/<\/div>/gi, '\n')
+    html = html.replace(/<\/p>/gi, '\n')
+    html = html.replace(/<\/li>/gi, '\n')
+
+    tempDiv.innerHTML = html
+    let textContent = tempDiv.textContent || tempDiv.innerText || ""
+
+    // 清理多余的换行符
+    textContent = textContent.replace(/\n{3,}/g, '\n\n').trim()
+
+    setEditingContent(textContent)
+
+    // 延迟聚焦到文本框，不全选文本
+    setTimeout(() => {
+      if (editTextareaRef.current) {
+        editTextareaRef.current.focus()
+        // 将光标移到文本末尾
+        const length = editTextareaRef.current.value.length
+        editTextareaRef.current.setSelectionRange(length, length)
+      }
+    }, 100)
+  }
+
+  // 保存编辑
+  const handleSaveEdit = async () => {
+    if (!editingNoteId || !saveNote) return
+
+    // 检查内容是否为空或只有空白字符
+    const trimmedContent = editingContent.trim()
+    if (!trimmedContent) {
+      // 如果内容为空，直接删除这个笔记
+      setEditingNoteId(null)
+      setEditingContent("")
+
+      // 删除空白笔记
+      await handleDeleteClick(editingNoteId)
+
+      toast({
+        title: "已删除空白便签",
+        description: "空白内容的便签已被删除",
+        duration: 2000,
+      })
+      return
+    }
+
+    // 将纯文本转换为HTML格式，保持换行
+    const htmlContent = trimmedContent.replace(/\n/g, '<br>')
+
+    // 立即退出编辑模式，给用户即时反馈
+    setEditingNoteId(null)
+    setEditingContent("")
+
+    // 后台保存到数据库，saveNote函数内部已经处理了UI更新和错误处理
+    try {
+      const result = await saveNote(editingNoteId, htmlContent)
+      if (result) {
+        toast({
+          title: "保存成功",
+          description: "便签已更新",
+          duration: 2000,
+        })
+      } else {
+        toast({
+          title: "保存失败",
+          description: "无法保存便签，但本地已更新",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("保存编辑失败:", error)
+      toast({
+        title: "保存失败",
+        description: "网络错误，但本地已更新",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // 取消编辑
+  const handleCancelEdit = () => {
+    setEditingNoteId(null)
+    setEditingContent("")
+  }
+
+  // 处理键盘快捷键
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      handleSaveEdit()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCancelEdit()
+    }
   }
 
   // 处理复制笔记内容
@@ -220,7 +338,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
     }
   }
 
-  // 修改 renderNotes 函数，支持富文本显示
+  // 修改 renderNotes 函数，支持富文本显示和编辑
   const renderNotes = () => {
     if (notes.length === 0) {
       return (
@@ -237,42 +355,87 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
             <CardContent className="p-3">
               <div className="flex justify-between items-start gap-2">
                 <div className="flex-1 min-w-0 font-apply-target">
-                  {/* 使用 dangerouslySetInnerHTML 显示富文本内容 */}
-                  <div
-                    className="text-sm line-clamp-6 whitespace-pre-wrap mb-2 rich-text-content font-apply-target"
-                    dangerouslySetInnerHTML={{ __html: note.content }}
-                  />
-                  <div className="text-xs text-muted-foreground flex items-center gap-2 font-apply-target">
-                    <span className="font-apply-target text-xs !text-xs" style={{fontSize: "0.75rem !important"}}>
-                      {getRelativeTime(note.created_at)}
-                    </span>
-                  </div>
+                  {editingNoteId === note.id ? (
+                    // 编辑模式
+                    <div className="space-y-3">
+                      <Textarea
+                        ref={editTextareaRef}
+                        value={editingContent}
+                        onChange={(e) => setEditingContent(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="min-h-[100px] resize-none font-apply-target text-sm"
+                        placeholder="编辑便签内容..."
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleSaveEdit}
+                          className="h-7 px-2 text-xs"
+                        >
+                          <Save className="h-3 w-3 mr-1" />
+                          保存
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleCancelEdit}
+                          className="h-7 px-2 text-xs"
+                        >
+                          <X className="h-3 w-3 mr-1" />
+                          取消
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          Ctrl+Enter 保存，Esc 取消
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    // 显示模式
+                    <div
+                      className="cursor-pointer"
+                      onDoubleClick={() => handleDoubleClick(note)}
+                      title="双击编辑"
+                    >
+                      <div
+                        className="text-sm line-clamp-6 whitespace-pre-wrap mb-2 rich-text-content font-apply-target hover:bg-muted/50 rounded transition-colors"
+                        dangerouslySetInnerHTML={{ __html: note.content }}
+                      />
+                      <div className="text-xs text-muted-foreground flex items-center gap-2 font-apply-target">
+                        <span className="font-apply-target text-xs !text-xs" style={{fontSize: "0.75rem !important"}}>
+                          {getRelativeTime(note.created_at)}
+                        </span>
+                        <Edit3 className="h-3 w-3 opacity-50" />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-primary"
-                    onClick={() => handleCopyClick(note)}
-                    title="复制内容"
-                  >
-                    {copiedNoteId === note.id ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDeleteClick(note.id)}
-                    title="删除便签"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+                {editingNoteId !== note.id && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary"
+                      onClick={() => handleCopyClick(note)}
+                      title="复制内容"
+                    >
+                      {copiedNoteId === note.id ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDeleteClick(note.id)}
+                      title="删除便签"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -406,6 +569,13 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                 </TabsContent>
               </div>
             </Tabs>
+          </div>
+
+          {/* 版权信息 */}
+          <div className="px-3 py-2 bg-muted/30">
+            <div className="text-center text-xs text-muted-foreground">
+              © Frankie 2025
+            </div>
           </div>
         </div>
       )}

@@ -231,40 +231,64 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   // 检查服务器上是否有更新的函数
   const checkForUpdates = async () => {
     if (!user) return;
-    
+
     try {
       // 获取上次内容更新时间
       const lastUpdate = lastContentUpdateRef.current || lastSyncTime;
-      
+
       if (!lastUpdate) {
         // 如果没有上次更新时间，执行完整同步
         await sync(true);
         return;
       }
-      
-      // 调用轻量级API检查是否有更新
-      const response = await fetch('/api/check-updates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId: user.id, 
-          lastUpdate: lastUpdate.toISOString()
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error checking for updates: ${response.statusText}`);
-      }
-      
-      const { hasUpdates } = await response.json();
-      
-      // 如果有更新，执行静默同步
-      if (hasUpdates) {
-        console.log('Updates detected, syncing...');
-        await sync(true);
+
+      // 调用轻量级API检查是否有更新，添加重试机制
+      let retryCount = 0;
+      const maxRetries = 2;
+
+      while (retryCount <= maxRetries) {
+        try {
+          const response = await fetch('/api/check-updates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: user.id,
+              lastUpdate: lastUpdate.toISOString()
+            })
+          });
+
+          if (!response.ok) {
+            if (response.status === 404 && retryCount < maxRetries) {
+              // 如果是404错误且还有重试次数，等待一下再重试
+              console.warn(`API route not found, retrying... (${retryCount + 1}/${maxRetries + 1})`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              retryCount++;
+              continue;
+            }
+            throw new Error(`Error checking for updates: ${response.statusText}`);
+          }
+
+          const { hasUpdates } = await response.json();
+
+          // 如果有更新，执行静默同步
+          if (hasUpdates) {
+            console.log('Updates detected, syncing...');
+            await sync(true);
+          }
+
+          // 成功执行，跳出重试循环
+          break;
+        } catch (fetchError) {
+          if (retryCount === maxRetries) {
+            throw fetchError;
+          }
+          retryCount++;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
     } catch (error) {
-      console.error('Failed to check for updates', error);
+      console.error('Failed to check for updates after retries:', error);
+      // 如果检查更新失败，静默忽略，避免影响用户体验
     }
   };
 
@@ -303,10 +327,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         getFilesAction(user.id),
       ])
 
-      // Map DB types to client types
-      setNotes(notesData.map(mapDbNoteToNote))
-      setLinks(linksData.map(mapDbLinkToLink))
-      setFiles(filesData.map(mapDbFileToFile))
+      // Map DB types to client types with null checks
+      setNotes(notesData ? notesData.map(mapDbNoteToNote) : [])
+      setLinks(linksData ? linksData.map(mapDbLinkToLink) : [])
+      setFiles(filesData ? filesData.map(mapDbFileToFile) : [])
       
       // 直接使用客户端当前时间
       const clientNow = new Date();

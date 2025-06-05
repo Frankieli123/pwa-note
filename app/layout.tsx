@@ -112,10 +112,29 @@ const zcoolQingKeHuangYou = ZCOOL_QingKe_HuangYou({
 export const metadata: Metadata = {
   title: "快速笔记",
   description: "跨平台笔记应用，支持实时同步",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/new-logo.png", sizes: "any" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: [
+      { url: "/new-logo.png" },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "快速笔记",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "default",
   },
 }
 
@@ -152,6 +171,39 @@ export default function RootLayout({
       <head>
         {/* 预加载主要字体以减少 CLS */}
         <link rel="preload" href="/fonts/noto-sans-sc-400.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+
+        {/* PWA相关meta标签 */}
+        <meta name="theme-color" content="#000000" />
+        <meta name="background-color" content="#ffffff" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="快速笔记" />
+        <link rel="manifest" href="/manifest.json" />
+
+        {/* Service Worker注册 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                      console.log('SW registered: ', registration);
+                    })
+                    .catch(function(registrationError) {
+                      console.log('SW registration failed: ', registrationError);
+                    });
+                });
+              }
+            `,
+          }}
+        />
+
+        {/* 图标链接 */}
+        <link rel="icon" href="/new-logo.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="shortcut icon" href="/new-logo.png" />
       </head>
       <body className="font-sans">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>

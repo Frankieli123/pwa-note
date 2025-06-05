@@ -2,10 +2,12 @@
 
 import { useAuth } from "@/hooks/use-auth"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { useSync } from "@/hooks/use-sync"
 import { cn } from "@/lib/utils"
-import { Laptop, LogOut, Smartphone, Tablet, User, PanelRight, PanelRightClose, NotebookPen } from "lucide-react"
+import { Laptop, LogOut, Smartphone, Tablet, User, PanelRight, PanelRightClose } from "lucide-react"
+import Image from "next/image"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +27,7 @@ interface StatusBarProps {
 
 export function StatusBar({ onToggleSidebar, sidebarOpen }: StatusBarProps) {
   const { user, logout } = useAuth()
-  const { syncStatus } = useSync()
+  const { status: syncStatus } = useSync()
   const isMobile = useMobile()
 
   const getDeviceIcon = (type?: "mobile" | "tablet" | "desktop") => {
@@ -39,8 +41,7 @@ export function StatusBar({ onToggleSidebar, sidebarOpen }: StatusBarProps) {
     }
   }
 
-  // 强制使用固定的默认头像地址，确保不受缓存影响
-  const avatarUrl = "/placeholder-avatar.svg?v=" + new Date().getTime()
+  // 头像现在通过 UserAvatar 组件处理
 
   return (
     <div className={cn(
@@ -54,7 +55,13 @@ export function StatusBar({ onToggleSidebar, sidebarOpen }: StatusBarProps) {
         isMobile ? "px-0 h-12 mx-0 w-full" : "px-4 h-14 w-full"
       )}>
         <div className="flex items-center gap-1 sm:gap-2 px-3">
-          <NotebookPen size={isMobile ? 20 : 24} className="text-foreground" />
+          <Image
+            src="/1.png"
+            alt="应用图标"
+            width={isMobile ? 20 : 24}
+            height={isMobile ? 20 : 24}
+            className="text-foreground"
+          />
           <span className={cn("font-medium font-apply-target", isMobile ? "text-base" : "text-lg")}>快速笔记</span>
           <div
             className={cn(
@@ -91,12 +98,12 @@ export function StatusBar({ onToggleSidebar, sidebarOpen }: StatusBarProps) {
                   "rounded-full relative",
                   isMobile ? "h-7 w-7" : "h-8 w-8"
                 )}>
-                  <Avatar className="h-full w-full bg-muted">
-                    <AvatarImage src={user.avatar || avatarUrl} alt={user.username} />
-                    <AvatarFallback>
-                      <User className={cn(isMobile ? "h-3.5 w-3.5" : "h-4 w-4")} />
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    user={user}
+                    size={isMobile ? 28 : 32}
+                    loading="eager"
+                    className="h-full w-full"
+                  />
 
                   {syncStatus === "syncing" && (
                     <span className="absolute inset-0 flex items-center justify-center">

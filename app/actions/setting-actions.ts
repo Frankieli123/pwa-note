@@ -9,6 +9,8 @@ export type UserSettings = {
   font_family: string
   font_size: string
   sync_interval: number
+  avatar_style?: string
+  avatar_seed?: string
   updated_at: Date
 }
 
@@ -23,9 +25,23 @@ async function createUserSettingsTableIfNeeded() {
         font_family TEXT NOT NULL DEFAULT 'zcool-xiaowei',
         font_size TEXT NOT NULL DEFAULT 'medium',
         sync_interval INTEGER NOT NULL DEFAULT 5,
+        avatar_style TEXT DEFAULT 'lorelei',
+        avatar_seed TEXT,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `)
+
+    // 为现有表添加头像字段（如果不存在）
+    try {
+      await query(`
+        ALTER TABLE user_settings
+        ADD COLUMN IF NOT EXISTS avatar_style TEXT DEFAULT 'lorelei',
+        ADD COLUMN IF NOT EXISTS avatar_seed TEXT
+      `)
+      console.log("【设置同步】头像字段添加成功或已存在")
+    } catch (error) {
+      console.log("【设置同步】头像字段可能已存在:", error)
+    }
     console.log("【设置同步】用户设置表创建成功或已存在")
     return true
   } catch (error) {
@@ -62,6 +78,8 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
       font_family: row.font_family,
       font_size: row.font_size,
       sync_interval: row.sync_interval,
+      avatar_style: row.avatar_style,
+      avatar_seed: row.avatar_seed,
       updated_at: row.updated_at
     }
     
@@ -80,6 +98,8 @@ export async function saveUserSettings(
     font_family: string
     font_size: string
     sync_interval: number
+    avatar_style?: string
+    avatar_seed?: string
   }
 ): Promise<UserSettings | null> {
   console.log("【设置同步】开始保存用户设置:", { userId, settings })
@@ -100,20 +120,23 @@ export async function saveUserSettings(
       console.log("【设置同步】更新现有设置")
       // 更新现有设置
       result = await query(
-        `UPDATE user_settings 
-         SET font_family = $1, font_size = $2, sync_interval = $3, updated_at = NOW() 
-         WHERE user_id = $4
+        `UPDATE user_settings
+         SET font_family = $1, font_size = $2, sync_interval = $3,
+             avatar_style = $4, avatar_seed = $5, updated_at = NOW()
+         WHERE user_id = $6
          RETURNING *`,
-        [settings.font_family, settings.font_size, settings.sync_interval, userId]
+        [settings.font_family, settings.font_size, settings.sync_interval,
+         settings.avatar_style, settings.avatar_seed, userId]
       )
     } else {
       console.log("【设置同步】创建新设置")
       // 创建新设置
       result = await query(
-        `INSERT INTO user_settings (user_id, font_family, font_size, sync_interval) 
-         VALUES ($1, $2, $3, $4) 
+        `INSERT INTO user_settings (user_id, font_family, font_size, sync_interval, avatar_style, avatar_seed)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [userId, settings.font_family, settings.font_size, settings.sync_interval]
+        [userId, settings.font_family, settings.font_size, settings.sync_interval,
+         settings.avatar_style, settings.avatar_seed]
       )
     }
     
@@ -129,6 +152,8 @@ export async function saveUserSettings(
       font_family: row.font_family,
       font_size: row.font_size,
       sync_interval: row.sync_interval,
+      avatar_style: row.avatar_style,
+      avatar_seed: row.avatar_seed,
       updated_at: row.updated_at
     }
     

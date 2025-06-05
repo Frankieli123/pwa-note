@@ -22,11 +22,15 @@ export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
     e.preventDefault()
     if (!username) return
 
+    // 立即显示UI，不等待登录完成
+    onComplete()
+
+    // 后台异步处理登录
     try {
       await login(username)
-    onComplete()
     } catch (error) {
       console.error("登录失败:", error)
+      // 登录失败时可以显示toast，但不影响UI流程
     }
   }
 

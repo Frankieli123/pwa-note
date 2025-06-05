@@ -24,6 +24,21 @@ import { useAuth } from "@/hooks/use-auth"
 import { format } from "date-fns"
 import { zhCN } from "date-fns/locale"
 
+// 检查内容是否真正为空（包括只有HTML标签和HTML实体的情况）
+const isContentEmpty = (content: string): boolean => {
+  if (!content) return true
+
+  // 创建临时DOM元素来正确解析HTML实体
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = content
+
+  // 获取纯文本内容（这会自动处理HTML实体）
+  const textOnly = tempDiv.textContent || tempDiv.innerText || ''
+
+  // 检查是否只有空白字符、换行符等
+  return !textOnly.trim() || textOnly.trim().replace(/\s/g, '') === ''
+}
+
 export function FloatingNoteInput() {
   const [content, setContent] = useState("")
   const { status, sync, saveNote } = useSync()
@@ -147,12 +162,12 @@ export function FloatingNoteInput() {
     // 设置新的自动保存计时器
     console.log(`设置新的自动保存计时器: ${settings.syncInterval}秒后执行`);
     autoSaveTimerRef.current = setTimeout(async () => {
-      // 使用trim()移除两端空白字符，并检查内容是否为空
-      const trimmedContent = content.trim();
-      if (trimmedContent && trimmedContent !== lastContentRef.current.trim() && user) {
+      // 检查内容是否真正为空（包括只有HTML标签的情况）
+      if (!isContentEmpty(content) && content !== lastContentRef.current && user) {
+        const trimmedContent = content.trim();
         console.log("自动保存执行: 保存到本地存储");
-        localStorage.setItem("noteDraft", content)
-        lastContentRef.current = content
+        localStorage.setItem("noteDraft", trimmedContent)
+        lastContentRef.current = trimmedContent
         
         // 更新最后自动保存时间
         const now = new Date();
@@ -163,8 +178,8 @@ export function FloatingNoteInput() {
         
         try {
           console.log("自动保存执行: 保存到数据库");
-          // 实际保存到数据库，使用"new"作为ID以创建新的笔记
-          const result = await saveNote("new", content);
+          // 实际保存到数据库，使用"new"作为ID以创建新的笔记，使用trimmedContent确保不保存空白字符
+          const result = await saveNote("new", trimmedContent);
           console.log("自动保存结果:", result);
           
           if (result) {
@@ -196,7 +211,7 @@ export function FloatingNoteInput() {
     console.log("内容:", content)
     console.log("用户登录状态:", !!user)
 
-    if (!content.trim()) {
+    if (isContentEmpty(content)) {
       toast({
         title: "无法保存空笔记",
         description: "请先添加一些内容",
@@ -218,9 +233,10 @@ export function FloatingNoteInput() {
     setError(null)
 
     try {
-      // 保存为便签，使用"new"作为ID来创建新的笔记
+      // 保存为便签，使用"new"作为ID来创建新的笔记，使用trim后的内容
+      const trimmedContent = content.trim()
       console.log("调用 saveNote 函数...")
-      const result = await saveNote("new", content);
+      const result = await saveNote("new", trimmedContent);
       console.log("保存结果:", result);
 
       if (result) {
@@ -307,7 +323,7 @@ export function FloatingNoteInput() {
       </button>
       <button
         onClick={handleSaveNote}
-        disabled={!content.trim() || isSaving}
+        disabled={isContentEmpty(content) || isSaving}
         className="flex-1 flex items-center justify-center gap-1"
         style={{ fontSize: "14px", height: "36px" }}
       >
@@ -392,7 +408,7 @@ export function FloatingNoteInput() {
                 variant="ghost"
                 size="sm"
                 onClick={handleSaveNote}
-                disabled={!content.trim() || isSaving}
+                disabled={isContentEmpty(content) || isSaving}
                 className="flex items-center gap-1"
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
