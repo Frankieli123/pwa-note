@@ -1,23 +1,55 @@
-# 快速笔记 (PWA Note)
+# 快速笔记 (PWA Note) 📝
 
-一个基于 Next.js 构建的渐进式 Web 应用程序，提供跨设备的笔记同步功能。
+<div align="center">
 
-## 功能特点
+![PWA Note Logo](public/2.png)
 
-- ✅ 离线工作能力 - 所有核心功能在离线状态下可用
-- ✅ 多设备同步 - 在不同设备间同步笔记、链接和设置
-- ✅ 个性化设置 - 自定义字体、大小及同步间隔
-- ✅ 自动保存 - 在编辑时自动保存内容
-- ✅ 响应式设计 - 适配桌面和移动设备
-- ✅ PWA 支持 - 可作为本地应用安装
+一个现代化的渐进式 Web 应用程序，提供跨设备的笔记同步功能
 
-## 技术栈
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Frankieli123/pwa-note)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 
-- **Framework**: [Next.js 15](https://nextjs.org/)
-- **UI Components**: [shadcn/ui](https://ui.shadcn.com/)
-- **CSS**: [Tailwind CSS](https://tailwindcss.com/)
-- **Database**: SQLite (通过 Vercel Postgres Client)
-- **部署**: 支持 Vercel 部署
+</div>
+
+## ✨ 功能特点
+
+### 📱 核心功能
+- **📝 智能笔记** - 支持富文本编辑，自动保存，双击编辑历史记录
+- **🔗 链接管理** - 快速保存和管理网页链接
+- **📁 文件上传** - 支持图片和文档上传，自动生成缩略图
+- **🔄 实时同步** - 多设备间数据实时同步，支持离线操作
+
+### 🎨 用户体验
+- **🌓 主题切换** - 支持明暗主题自动切换
+- **🎭 个性头像** - 基于DiceBear API的动态头像系统
+- **📱 响应式设计** - 完美适配桌面、平板和移动设备
+- **⚡ PWA支持** - 可安装为本地应用，支持离线使用
+
+### 🔧 技术特性
+- **🚀 性能优化** - 图片缓存、懒加载、代码分割
+- **🔒 数据安全** - 用户认证、数据加密存储
+- **🌐 国际化** - 支持中文界面，可扩展多语言
+- **📊 实时监控** - 同步状态监控、错误处理
+
+## 🛠️ 技术栈
+
+### 前端框架
+- **[Next.js 15](https://nextjs.org/)** - React全栈框架
+- **[TypeScript](https://www.typescriptlang.org/)** - 类型安全的JavaScript
+- **[Tailwind CSS](https://tailwindcss.com/)** - 实用优先的CSS框架
+- **[shadcn/ui](https://ui.shadcn.com/)** - 现代化UI组件库
+
+### 后端服务
+- **[Neon Database](https://neon.tech/)** - 无服务器PostgreSQL数据库
+- **[Drizzle ORM](https://orm.drizzle.team/)** - 类型安全的ORM
+- **[NextAuth.js](https://next-auth.js.org/)** - 身份认证解决方案
+
+### 开发工具
+- **[Vercel](https://vercel.com/)** - 部署和托管平台
+- **[ESLint](https://eslint.org/)** - 代码质量检查
+- **[Prettier](https://prettier.io/)** - 代码格式化
 
 ## 🚀 快速开始
 
