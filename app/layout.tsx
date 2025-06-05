@@ -115,7 +115,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: [
-      { url: "/new-logo.png", sizes: "any" },
+      { url: "/2.png", sizes: "any" },
       { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
       { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
     ],
@@ -123,7 +123,7 @@ export const metadata: Metadata = {
       { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
     shortcut: [
-      { url: "/new-logo.png" },
+      { url: "/2.png" },
     ],
   },
   appleWebApp: {
@@ -201,9 +201,9 @@ export default function RootLayout({
         />
 
         {/* 图标链接 */}
-        <link rel="icon" href="/new-logo.png" />
+        <link rel="icon" href="/2.png" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="shortcut icon" href="/new-logo.png" />
+        <link rel="shortcut icon" href="/2.png" />
       </head>
       <body className="font-sans">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>

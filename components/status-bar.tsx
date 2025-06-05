@@ -63,15 +63,6 @@ export function StatusBar({ onToggleSidebar, sidebarOpen }: StatusBarProps) {
             className="text-foreground"
           />
           <span className={cn("font-medium font-apply-target", isMobile ? "text-base" : "text-lg")}>快速笔记</span>
-          <div
-            className={cn(
-              "h-2 w-2 rounded-full ml-1",
-              syncStatus === "syncing" && "bg-amber-500",
-              syncStatus === "error" && "bg-destructive",
-              syncStatus === "success" && "bg-green-500",
-              syncStatus === "idle" && "bg-muted",
-            )}
-          />
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2 justify-end px-3">

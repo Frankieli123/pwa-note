@@ -2,7 +2,8 @@
 const CACHE_NAME = 'quick-notes-v1';
 const urlsToCache = [
   '/',
-  '/new-logo.png',
+  '/2.png',
+  '/icons/icon-144x144.png',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
   '/manifest.json'
