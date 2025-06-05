@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![PWA Note Logo](public/2.png)
+<img src="public/2.png" alt="PWA Note Logo" width="120" height="120" />
 
 一个现代化的渐进式 Web 应用程序，提供跨设备的笔记同步功能
 
