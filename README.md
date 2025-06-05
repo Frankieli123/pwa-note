@@ -44,7 +44,7 @@
 ### 后端服务
 - **[Neon Database](https://neon.tech/)** - 无服务器PostgreSQL数据库
 - **[Drizzle ORM](https://orm.drizzle.team/)** - 类型安全的ORM
-- **[NextAuth.js](https://next-auth.js.org/)** - 身份认证解决方案
+- **简单认证系统** - 基于用户名的快速登录
 
 ### 开发工具
 - **[Vercel](https://vercel.com/)** - 部署和托管平台
@@ -78,16 +78,31 @@ pnpm install
 
 3. **环境配置**
 ```bash
-# 复制环境变量模板
-cp .env.example .env.local
-
-# 编辑 .env.local 文件，配置以下变量：
+# 运行启动脚本会自动创建 .env.local 模板
+# 或手动创建 .env.local 文件，配置以下变量：
 DATABASE_URL=your_postgresql_connection_string
-NEXTAUTH_SECRET=your_nextauth_secret
-NEXTAUTH_URL=http://localhost:3000
+
+# 如果使用 Neon Database：
+# 1. 访问 https://neon.tech/ 创建免费数据库
+# 2. 复制连接字符串到 DATABASE_URL
 ```
 
 4. **启动开发服务器**
+
+**方式一：使用自动启动脚本（推荐）**
+```bash
+# Windows 用户
+.\run-app.bat
+
+# 脚本会自动：
+# - 检查 Node.js 环境
+# - 检测包管理器
+# - 创建环境配置文件（如不存在）
+# - 安装依赖
+# - 启动应用并打开浏览器
+```
+
+**方式二：手动启动**
 ```bash
 npm run dev
 # 或
