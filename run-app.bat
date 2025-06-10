@@ -3,7 +3,7 @@ chcp 65001 >nul
 
 echo.
 echo ========================================
-echo    PWA 笔记应用 - 自动启动脚本
+echo    PWA Note App - Auto Start Script
 echo ========================================
 echo.
 
@@ -11,145 +11,172 @@ set "PROJECT_DIR=%~dp0"
 set "PORT=3000"
 set "PACKAGE_MANAGER=npm"
 
-echo [1/6] 检查 Node.js 环境...
+echo [1/6] Checking Node.js environment...
 node --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ 错误: 未检测到 Node.js
-    echo 请先安装 Node.js: https://nodejs.org/
+    echo Error: Node.js not detected
+    echo Please install Node.js: https://nodejs.org/
     pause
     exit /b 1
 )
-echo ✅ Node.js 已安装
+echo Node.js is installed
 
 echo.
-echo [2/6] 检测包管理器...
+echo [2/6] Detecting package manager...
 if exist "%PROJECT_DIR%pnpm-lock.yaml" (
     set "PACKAGE_MANAGER=pnpm"
-    echo ✅ 使用 pnpm
+    echo Using pnpm
 ) else (
     if exist "%PROJECT_DIR%yarn.lock" (
         set "PACKAGE_MANAGER=yarn"
-        echo ✅ 使用 yarn
+        echo Using yarn
     ) else (
-        echo ✅ 使用 npm
+        echo Using npm
     )
 )
 
-:: 检查环境配置文件
+:: Check environment configuration file
 echo.
-echo [3/6] 检查环境配置...
-if not exist "%PROJECT_DIR%.env.local" (
-    echo ⚠️  未找到 .env.local 文件，正在创建模板...
+echo [3/6] Checking environment configuration...
+if exist ".env.local" (
+    echo Environment configuration file exists
+    :: Check if DATABASE_URL is properly configured
+    findstr /C:"DATABASE_URL=postgresql://neondb_owner" ".env.local" >nul
+    if errorlevel 1 (
+        findstr /C:"DATABASE_URL=postgresql://" ".env.local" | findstr /V /C:"your_username" >nul
+        if errorlevel 1 (
+            echo Warning: DATABASE_URL not properly configured in .env.local
+            echo Please edit .env.local to set your database connection string
+            set /p "continue=Open .env.local file for editing now? (y/n): "
+            if /i "%continue%"=="y" (
+                start notepad ".env.local"
+                echo Please edit and save the configuration file, then re-run this script
+                pause
+                exit /b 0
+            ) else (
+                echo Please manually edit .env.local file and re-run this script
+                pause
+                exit /b 0
+            )
+        ) else (
+            echo Environment configuration file exists and is properly configured
+        )
+    ) else (
+        echo Environment configuration file exists and is properly configured
+    )
+    goto :check_dependencies
+) else (
+    echo Warning: .env.local file not found, creating template...
     echo.
 
-    :: 创建 .env.local 模板文件
-    echo # PWA Note 环境配置文件 > "%PROJECT_DIR%.env.local"
-    echo # 请根据您的实际情况修改以下配置 >> "%PROJECT_DIR%.env.local"
-    echo. >> "%PROJECT_DIR%.env.local"
-    echo # 数据库连接字符串 (必需) >> "%PROJECT_DIR%.env.local"
-    echo # 如果您使用 Neon Database，请从 Neon 控制台获取连接字符串 >> "%PROJECT_DIR%.env.local"
-    echo # 格式: postgresql://username:password@hostname:port/database?sslmode=require >> "%PROJECT_DIR%.env.local"
-    echo DATABASE_URL=postgresql://your_username:your_password@your_host:5432/your_database >> "%PROJECT_DIR%.env.local"
-    echo. >> "%PROJECT_DIR%.env.local"
-    echo # 可选配置 >> "%PROJECT_DIR%.env.local"
-    echo # APP_NAME=PWA Note >> "%PROJECT_DIR%.env.local"
-    echo # PORT=%PORT% >> "%PROJECT_DIR%.env.local"
+    :: Create .env.local template file
+    echo # PWA Note Environment Configuration > ".env.local"
+    echo # Please modify the following configuration according to your setup >> ".env.local"
+    echo. >> ".env.local"
+    echo # Database connection string (required) >> ".env.local"
+    echo # If using Neon Database, get connection string from Neon console >> ".env.local"
+    echo # Format: postgresql://username:password@hostname:port/database?sslmode=require >> ".env.local"
+    echo DATABASE_URL=postgresql://your_username:your_password@your_host:5432/your_database >> ".env.local"
+    echo. >> ".env.local"
+    echo # Optional configuration >> ".env.local"
+    echo APP_NAME=PWA Note >> ".env.local"
+    echo PORT=%PORT% >> ".env.local"
 
-    echo ✅ 已创建 .env.local 模板文件
+    echo Template .env.local file created successfully
     echo.
-    echo 📋 重要提示:
-    echo 1. 请编辑 .env.local 文件，配置您的数据库连接
-    echo 2. 如果您使用 Neon Database:
-    echo    - 访问 https://neon.tech/ 创建免费数据库
-    echo    - 复制连接字符串到 DATABASE_URL
-    echo 3. 数据库配置完成后即可使用应用
-    echo    - 应用使用简单的用户名登录系统
-    echo    - 无需复杂的认证配置
+    echo Important Notes:
+    echo 1. Please edit .env.local file to configure your database connection
+    echo 2. If using Neon Database:
+    echo    - Visit https://neon.tech/ to create a free database
+    echo    - Copy connection string to DATABASE_URL
+    echo 3. After database configuration, you can use the application
+    echo    - App uses simple username login system
+    echo    - No complex authentication configuration needed
     echo.
-    echo 🔧 配置完成后，请重新运行此脚本启动应用
+    echo Please configure .env.local and re-run this script
     echo.
 
-    set /p "continue=是否现在打开 .env.local 文件进行编辑? (y/n): "
+    set /p "continue=Open .env.local file for editing now? (y/n): "
     if /i "%continue%"=="y" (
-        echo 正在打开配置文件...
-        start notepad "%PROJECT_DIR%.env.local"
+        echo Opening configuration file...
+        start notepad ".env.local"
         echo.
-        echo 请编辑配置文件后保存，然后重新运行此脚本
+        echo Please edit and save the configuration file, then re-run this script
         pause
         exit /b 0
     ) else (
         echo.
-        echo 请手动编辑 .env.local 文件后重新运行此脚本
+        echo Please manually edit .env.local file and re-run this script
         pause
         exit /b 0
     )
 )
-echo ✅ 环境配置文件存在
 
-:: 检查依赖安装
+:check_dependencies
+:: Check dependencies installation
 echo.
-echo [4/6] 检查项目依赖...
+echo [4/6] Checking project dependencies...
 if not exist "%PROJECT_DIR%node_modules" (
-    echo 📦 正在安装依赖项...
+    echo Installing dependencies...
     cd /d "%PROJECT_DIR%"
     %PACKAGE_MANAGER% install
     if errorlevel 1 (
-        echo ❌ 依赖安装失败
+        echo Dependency installation failed
         pause
         exit /b 1
     )
-    echo ✅ 依赖安装完成
+    echo Dependencies installed successfully
 ) else (
-    echo ✅ 依赖已安装
+    echo Dependencies already installed
 )
 
-:: 检查端口是否被占用
+:: Check if port is occupied
 echo.
-echo [5/6] 检查端口 %PORT%...
+echo [5/6] Checking port %PORT%...
 netstat -an | find ":%PORT%" | find "LISTENING" >nul
 if not errorlevel 1 (
-    echo ⚠️  端口 %PORT% 已被占用
-    echo 应用将自动选择其他可用端口
+    echo Warning: Port %PORT% is already in use
+    echo Application will automatically select another available port
 ) else (
-    echo ✅ 端口 %PORT% 可用
+    echo Port %PORT% is available
 )
 
-:: 启动应用
+:: Start application
 echo.
-echo [6/6] 启动应用...
+echo [6/6] Starting application...
 echo.
-echo 🚀 正在启动 PWA 笔记应用...
-echo 📁 项目目录: %PROJECT_DIR%
-echo 📦 包管理器: %PACKAGE_MANAGER%
-echo 🌐 访问地址: http://localhost:%PORT%
+echo Starting PWA Note Application...
+echo Project directory: %PROJECT_DIR%
+echo Package manager: %PACKAGE_MANAGER%
+echo Access URL: http://localhost:%PORT%
 echo.
-echo ⏳ 请等待应用启动完成...
+echo Please wait for application to start...
 echo.
 
 cd /d "%PROJECT_DIR%"
 start "PWA Note Server" cmd /k "%PACKAGE_MANAGER% run dev"
 
-:: 等待服务器启动
-echo 正在等待服务器启动...
+:: Wait for server to start
+echo Waiting for server to start...
 timeout /t 8 /nobreak >nul
 
-:: 打开浏览器
+:: Open browser
 echo.
-echo 🌐 正在打开浏览器...
+echo Opening browser...
 start http://localhost:%PORT%
 
 echo.
 echo ========================================
-echo           启动完成！
+echo           Startup Complete!
 echo ========================================
 echo.
-echo 📝 应用地址: http://localhost:%PORT%
-echo 🔧 要停止服务器，请关闭 "PWA Note Server" 窗口
-echo 📚 更多信息请查看 README.md
+echo Application URL: http://localhost:%PORT%
+echo To stop server, close the "PWA Note Server" window
+echo For more information, see README.md
 echo.
-echo 如遇问题，请检查:
-echo 1. 数据库连接配置 ^(.env.local^)
-echo 2. 网络连接
-echo 3. 防火墙设置
+echo If you encounter issues, please check:
+echo 1. Database connection configuration (.env.local)
+echo 2. Network connection
+echo 3. Firewall settings
 echo.
 pause
