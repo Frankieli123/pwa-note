@@ -5,16 +5,11 @@ import { SettingsContext } from "@/components/settings-provider"
 
 // 导出类型以便在其他文件中使用
 export type FontFamily =
+  | "system"
   | "sans"
   | "serif"
-  | "mono"
-  | "roboto"
-  | "lora"
-  | "nunito"
-  | "roboto-mono"
   | "ma-shan-zheng"
   | "zcool-xiaowei"
-  | "zcool-qingke-huangyou"
 export type FontSize = "small" | "medium" | "large" | "x-large"
 export type SyncInterval = 5 | 10 | 30 | 60 | 300 | 600
 

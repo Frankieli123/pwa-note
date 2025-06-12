@@ -54,16 +54,11 @@ export function SettingsDialog() {
   // 使用 useMemo 优化选项数组，避免重复创建
   const fontFamilyOptions = useMemo(
     () => [
+      { value: "system", label: "系统默认字体", shortLabel: "系统默认" },
       { value: "sans", label: "思源黑体 (Noto Sans)", shortLabel: "思源黑体" },
       { value: "serif", label: "思源宋体 (Noto Serif)", shortLabel: "思源宋体" },
-      { value: "mono", label: "JetBrains Mono", shortLabel: "JetBrains" },
-      { value: "roboto", label: "Roboto", shortLabel: "Roboto" },
-      { value: "lora", label: "Lora", shortLabel: "Lora" },
-      { value: "nunito", label: "Nunito", shortLabel: "Nunito" },
-      { value: "roboto-mono", label: "Roboto Mono", shortLabel: "Roboto Mono" },
       { value: "ma-shan-zheng", label: "马善政毛笔字体", shortLabel: "马善政" },
       { value: "zcool-xiaowei", label: "站酷小薇", shortLabel: "站酷小薇" },
-      { value: "zcool-qingke-huangyou", label: "站酷庆科黄油体", shortLabel: "站酷黄油" },
     ],
     [],
   )

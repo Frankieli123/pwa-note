@@ -88,32 +88,16 @@
   }
 
   /* 字体族设置 */
+  :root[data-font-family="system"] {
+    --font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+
   :root[data-font-family="sans"] {
-    --font-family: var(--font-noto-sans), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    --font-family: var(--font-noto-sans), ui-sans-serif, system-ui, sans-serif;
   }
 
   :root[data-font-family="serif"] {
     --font-family: var(--font-noto-serif), ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  }
-
-  :root[data-font-family="mono"] {
-    --font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  }
-
-  :root[data-font-family="roboto"] {
-    --font-family: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
-  }
-
-  :root[data-font-family="lora"] {
-    --font-family: var(--font-lora), ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  }
-
-  :root[data-font-family="nunito"] {
-    --font-family: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
-  }
-
-  :root[data-font-family="roboto-mono"] {
-    --font-family: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   }
 
   :root[data-font-family="ma-shan-zheng"] {
@@ -122,10 +106,6 @@
 
   :root[data-font-family="zcool-xiaowei"] {
     --font-family: var(--font-zcool-xiaowei), ui-sans-serif, system-ui, sans-serif;
-  }
-
-  :root[data-font-family="zcool-qingke-huangyou"] {
-    --font-family: var(--font-zcool-qingke-huangyou), ui-sans-serif, system-ui, sans-serif;
   }
 
   html {
