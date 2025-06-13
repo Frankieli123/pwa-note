@@ -11,7 +11,8 @@ import { useSync } from "@/hooks/use-sync"
 import { useToast } from "@/hooks/use-toast"
 import { useTime } from "@/hooks/use-time"
 import { useState } from "react"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+// 移除 file-download 引用，直接使用 Blob URL
 
 interface FileGridProps {
   files: Array<{
@@ -22,6 +23,8 @@ interface FileGridProps {
     thumbnail?: string
     uploadedAt: Date
     size: number
+    base64_data?: string | null
+    user_id: string
   }>
   showAsThumbnails?: boolean
 }
@@ -35,6 +38,35 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
   // 直接删除文件，不显示确认弹窗
   const handleDeleteClick = (id: string, fileName: string) => {
     deleteFile(id)
+  }
+
+  // 处理文件下载
+  const handleDownloadClick = (file: {
+    name: string
+    type: string
+    url: string
+    blob_url?: string
+  }) => {
+    try {
+      // 直接使用 Blob URL 下载
+      const downloadUrl = file.blob_url || file.url
+      if (downloadUrl) {
+        const link = document.createElement('a')
+        link.href = downloadUrl
+        link.download = file.name
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      } else {
+        throw new Error('文件URL不可用')
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "下载失败",
+        description: error instanceof Error ? error.message : "未能下载文件，请稍后再试",
+      })
+    }
   }
 
   const formatFileSize = (bytes: number) => {
@@ -87,15 +119,13 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                       <Eye className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button size="icon" variant="secondary" className="h-8 w-8" asChild>
-                    <a
-                      href={file.url}
-                      download={file.name}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Download className="h-4 w-4" />
-                    </a>
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="h-8 w-8"
+                    onClick={() => handleDownloadClick(file)}
+                  >
+                    <Download className="h-4 w-4" />
                   </Button>
                   <Button
                     size="icon"
@@ -142,15 +172,13 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                       <Eye className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button size="icon" variant="ghost" className="h-8 w-8" asChild>
-                    <a
-                      href={file.url}
-                      download={file.name}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Download className="h-4 w-4" />
-                    </a>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={() => handleDownloadClick(file)}
+                  >
+                    <Download className="h-4 w-4" />
                   </Button>
                   <Button
                     size="icon"
@@ -171,6 +199,9 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
       {/* 图片预览对话框 */}
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0 sm:max-w-4xl">
+          <DialogTitle className="sr-only">
+            {previewImage ? `预览图片: ${previewImage.name}` : "图片预览"}
+          </DialogTitle>
           {previewImage && (
             <div className="relative w-full h-full">
               <Image
@@ -184,16 +215,18 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
               <div className="absolute bottom-0 left-0 right-0 bg-background/80 backdrop-blur-sm p-2 sm:p-4">
                 <p className="text-xs sm:text-sm font-medium truncate">{previewImage.name}</p>
                 <div className="flex gap-2 mt-1 sm:mt-2">
-                  <Button size="sm" className="text-xs sm:text-sm" asChild>
-                    <a
-                      href={previewImage.url}
-                      download={previewImage.name}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                      下载
-                    </a>
+                  <Button
+                    size="sm"
+                    className="text-xs sm:text-sm"
+                    onClick={() => {
+                      const file = files.find(f => f.url === previewImage.url)
+                      if (file) {
+                        handleDownloadClick(file)
+                      }
+                    }}
+                  >
+                    <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    下载
                   </Button>
                 </div>
               </div>

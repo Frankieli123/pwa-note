@@ -25,8 +25,10 @@ export type File = {
   user_id: string
   name: string
   type: string
-  url: string
-  thumbnail: string | null
+  url: string // 使用 blob_url 作为主要 URL
+  thumbnail: string | null // 使用 thumbnail_url 作为缩略图
+  blob_url: string // Vercel Blob 存储的文件URL（必需）
+  thumbnail_url: string | null // Vercel Blob 存储的缩略图URL
   size: number
   uploaded_at: Date
 }
@@ -40,12 +42,28 @@ export type UserSettings = {
   updated_at: Date
 }
 
-// Notes actions
-export async function getNotes(userId: string): Promise<Note[]> {
-  console.log("服务器操作: getNotes", { userId })
+// Notes actions (超快速版本 - 支持分页和全量加载)
+export async function getNotes(userId: string, limit: number = 20, offset: number = 0): Promise<Note[]> {
+  const isLoadAll = limit === -1
+  console.log("⚡ 加载便签:", { userId, limit: isLoadAll ? '全部' : limit, offset })
+
   try {
-    const result = await query("SELECT * FROM notes WHERE user_id = $1 ORDER BY created_at DESC", [userId])
-    console.log("getNotes 结果:", result.rows)
+    let queryText: string
+    let queryParams: any[]
+
+    if (isLoadAll) {
+      // 加载所有剩余便签（跳过前offset条）
+      queryText = "SELECT id, user_id, content, created_at, updated_at FROM notes WHERE user_id = $1 ORDER BY created_at DESC OFFSET $2"
+      queryParams = [userId, offset]
+    } else {
+      // 分页加载指定数量
+      queryText = "SELECT id, user_id, content, created_at, updated_at FROM notes WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
+      queryParams = [userId, limit, offset]
+    }
+
+    const result = await query(queryText, queryParams)
+    console.log(`⚡ 便签加载完成: ${result.rows.length} 条 ${isLoadAll ? '(剩余全部)' : ''}`)
+
     return result.rows.map((row: any) => ({
       id: row.id,
       user_id: row.user_id,
@@ -54,27 +72,28 @@ export async function getNotes(userId: string): Promise<Note[]> {
       updated_at: row.updated_at
     })) as Note[]
   } catch (error) {
-    console.error("getNotes 错误:", error)
+    console.error("❌ 便签加载失败:", error)
     throw error
   }
 }
 
 export async function createNote(userId: string, content: string, clientTime?: string): Promise<Note> {
   console.log("服务器操作: createNote", { userId, contentLength: content.length, clientTime })
+
   try {
     let result;
-    
+
     // 如果提供了客户端时间，使用它作为创建时间和更新时间
     if (clientTime) {
       result = await query(
-        "INSERT INTO notes (user_id, content, created_at, updated_at) VALUES ($1, $2, $3, $3) RETURNING *", 
+        "INSERT INTO notes (user_id, content, created_at, updated_at) VALUES ($1, $2, $3, $3) RETURNING *",
         [userId, content, new Date(clientTime)]
       );
     } else {
       // 没有提供客户端时间时使用默认的NOW()
       result = await query("INSERT INTO notes (user_id, content) VALUES ($1, $2) RETURNING *", [userId, content]);
     }
-    
+
     const row = result.rows[0];
     const note: Note = {
       id: row.id,
@@ -83,7 +102,7 @@ export async function createNote(userId: string, content: string, clientTime?: s
       created_at: row.created_at,
       updated_at: row.updated_at
     };
-    
+
     console.log("createNote 结果:", note);
     revalidatePath("/")
     return note;
@@ -140,6 +159,20 @@ export async function deleteNote(id: number, userId: string): Promise<void> {
     revalidatePath("/")
   } catch (error) {
     console.error("deleteNote 错误:", error)
+    throw error
+  }
+}
+
+// 获取便签总数
+export async function getNotesCount(userId: string): Promise<number> {
+  console.log("服务器操作: getNotesCount", { userId })
+  try {
+    const result = await query("SELECT COUNT(*) as count FROM notes WHERE user_id = $1", [userId])
+    const count = parseInt(result.rows[0].count, 10)
+    console.log(`getNotesCount 结果: ${count} 条便签`)
+    return count
+  } catch (error) {
+    console.error("getNotesCount 错误:", error)
     throw error
   }
 }
@@ -213,22 +246,30 @@ export async function deleteLink(id: number, userId: string): Promise<void> {
   }
 }
 
-// Files actions
+// Files actions (只支持 Vercel Blob 存储)
 export async function getFiles(userId: string): Promise<File[]> {
-  console.log("服务器操作: getFiles", { userId })
+  console.log("服务器操作: getFiles (Blob only)", { userId })
   try {
-    const result = await query("SELECT * FROM files WHERE user_id = $1 ORDER BY uploaded_at DESC", [userId])
-    console.log("getFiles 结果:", result.rows)
-    return result.rows.map((row: any) => ({
-      id: row.id,
-      user_id: row.user_id,
-      name: row.name,
-      type: row.type,
-      url: row.url,
-      thumbnail: row.thumbnail,
-      size: row.size,
-      uploaded_at: row.uploaded_at
-    })) as File[]
+    const result = await query(
+      "SELECT id, user_id, name, type, size, blob_url, thumbnail_url, uploaded_at FROM files WHERE user_id = $1 ORDER BY uploaded_at DESC",
+      [userId]
+    )
+    console.log(`getFiles 结果: ${result.rows.length} 个文件`)
+
+    return result.rows.map((row: any) => {
+      return {
+        id: row.id,
+        user_id: row.user_id,
+        name: row.name,
+        type: row.type,
+        url: row.blob_url, // 使用 blob_url 作为主要 URL
+        thumbnail: row.thumbnail_url,
+        blob_url: row.blob_url,
+        thumbnail_url: row.thumbnail_url,
+        size: row.size,
+        uploaded_at: row.uploaded_at
+      };
+    }) as File[]
   } catch (error) {
     console.error("getFiles 错误:", error)
     throw error
@@ -240,30 +281,49 @@ export async function createFile(
   fileData: {
     name: string
     type: string
-    url: string
-    thumbnail?: string
+    blob_url: string // Vercel Blob URL（必需）
+    thumbnail_url?: string // Vercel Blob 缩略图URL
     size: number
   },
 ): Promise<File> {
-  console.log("服务器操作: createFile", { userId, fileData })
+  console.log("服务器操作: createFile (Blob only)", { userId, fileData })
+
+  // 验证必需的 blob_url
+  if (!fileData.blob_url) {
+    throw new Error("blob_url is required")
+  }
+
   try {
     const result = await query(
-      "INSERT INTO files (user_id, name, type, url, thumbnail, size) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-      [userId, fileData.name, fileData.type, fileData.url, fileData.thumbnail || null, fileData.size],
+      `INSERT INTO files (
+        user_id, name, type, size,
+        blob_url, thumbnail_url
+      ) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [
+        userId,
+        fileData.name,
+        fileData.type,
+        fileData.size,
+        fileData.blob_url,
+        fileData.thumbnail_url || null
+      ],
     )
-    
+
     const row = result.rows[0];
+
     const file: File = {
       id: row.id,
       user_id: row.user_id,
       name: row.name,
       type: row.type,
-      url: row.url,
-      thumbnail: row.thumbnail,
+      url: row.blob_url, // 使用 blob_url 作为主要 URL
+      thumbnail: row.thumbnail_url,
+      blob_url: row.blob_url,
+      thumbnail_url: row.thumbnail_url,
       size: row.size,
       uploaded_at: row.uploaded_at
     };
-    
+
     console.log("createFile 结果:", file);
     revalidatePath("/")
     return file;
@@ -273,37 +333,86 @@ export async function createFile(
   }
 }
 
+/**
+ * 创建文件记录（只支持 Vercel Blob 存储）
+ */
+export async function createFileAction(
+  userId: string,
+  fileData: {
+    name: string
+    type: string
+    size: number
+    blob_url: string // Vercel Blob URL（必需）
+    thumbnail_url?: string // Vercel Blob 缩略图URL
+  }
+): Promise<File> {
+  console.log("服务器操作: createFileAction (Blob only)", { userId, fileData })
+
+  // 验证必需的 blob_url
+  if (!fileData.blob_url) {
+    throw new Error("blob_url is required")
+  }
+
+  try {
+    const result = await query(
+      "INSERT INTO files (user_id, name, type, size, blob_url, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+      [userId, fileData.name, fileData.type, fileData.size, fileData.blob_url, fileData.thumbnail_url || null],
+    )
+
+    const row = result.rows[0];
+
+    const file: File = {
+      id: row.id,
+      user_id: row.user_id,
+      name: row.name,
+      type: row.type,
+      url: row.blob_url, // 使用 blob_url 作为主要 URL
+      thumbnail: row.thumbnail_url,
+      blob_url: row.blob_url,
+      thumbnail_url: row.thumbnail_url,
+      size: row.size,
+      uploaded_at: row.uploaded_at
+    };
+
+    console.log("createFileAction 结果:", file);
+    revalidatePath("/")
+    return file;
+  } catch (error) {
+    console.error("createFileAction 错误:", error)
+    throw error
+  }
+}
+
 export async function deleteFile(id: number, userId: string): Promise<void> {
   console.log("服务器操作: deleteFile", { id, userId })
   try {
-    // 首先获取文件信息以获取文件名
-    const fileResult = await query("SELECT name, url FROM files WHERE id = $1 AND user_id = $2", [id, userId])
+    // 获取文件信息以便删除 Blob 存储的文件
+    const fileResult = await query("SELECT blob_url, thumbnail_url FROM files WHERE id = $1 AND user_id = $2", [id, userId])
 
     if (fileResult.rows.length > 0) {
       const file = fileResult.rows[0]
 
-      // 从URL中提取文件名
-      let filename = file.name
-      if (file.url && file.url.includes('/uploads/')) {
-        const urlParts = file.url.split('/')
-        filename = urlParts[urlParts.length - 1]
+      // 删除 Blob 存储的主文件
+      if (file.blob_url) {
+        try {
+          const { deleteFileFromBlob } = await import('@/lib/blob-utils')
+          await deleteFileFromBlob(file.blob_url)
+          console.log("Blob 文件删除成功")
+        } catch (error) {
+          console.warn("删除 Blob 文件失败:", error)
+          // 继续删除数据库记录，即使 Blob 删除失败
+        }
       }
 
-      // 调用文件服务器删除API
-      try {
-        const deleteResponse = await fetch(`http://124.243.146.198:3001/api/delete/${userId}/${filename}`, {
-          method: 'DELETE',
-        })
-
-        if (!deleteResponse.ok) {
-          console.warn(`Failed to delete file from server: ${deleteResponse.status}`)
-          // 继续删除数据库记录，即使服务器删除失败
-        } else {
-          console.log("File deleted from server successfully")
+      // 删除 Blob 存储的缩略图
+      if (file.thumbnail_url) {
+        try {
+          const { deleteFileFromBlob } = await import('@/lib/blob-utils')
+          await deleteFileFromBlob(file.thumbnail_url)
+          console.log("Blob 缩略图删除成功")
+        } catch (error) {
+          console.warn("删除 Blob 缩略图失败:", error)
         }
-      } catch (serverError) {
-        console.warn("Failed to delete file from server:", serverError)
-        // 继续删除数据库记录，即使服务器删除失败
       }
     }
 
@@ -316,6 +425,43 @@ export async function deleteFile(id: number, userId: string): Promise<void> {
     throw error
   }
 }
+
+// Get file with blob data (for download/preview)
+export async function getFileWithBlob(id: number, userId: string): Promise<File | null> {
+  console.log("服务器操作: getFileWithBlob", { id, userId })
+  try {
+    const result = await query(
+      "SELECT * FROM files WHERE id = $1 AND user_id = $2",
+      [id, userId]
+    )
+
+    if (result.rows.length === 0) {
+      return null
+    }
+
+    const row = result.rows[0]
+    return {
+      id: row.id,
+      user_id: row.user_id,
+      name: row.name,
+      type: row.type,
+      url: row.blob_url, // 使用 blob_url 作为主要 URL
+      thumbnail: row.thumbnail_url,
+      blob_url: row.blob_url,
+      thumbnail_url: row.thumbnail_url,
+      size: row.size,
+      uploaded_at: row.uploaded_at
+    } as File
+  } catch (error) {
+    console.error("getFileWithBlob 错误:", error)
+    throw error
+  }
+}
+
+// 保持向后兼容的别名
+export const getFileWithBase64 = getFileWithBlob
+
+
 
 // User settings actions
 export async function getUserSettings(userId: string): Promise<UserSettings | null> {

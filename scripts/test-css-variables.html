@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSS变量字体系统测试</title>
+    <style>
+        /* 复制项目的CSS变量系统 */
+        :root {
+            --base-font-size: 0.95rem;
+            --font-size-xs: calc(var(--base-font-size) * 0.75);
+            --font-size-sm: calc(var(--base-font-size) * 0.875);
+            --font-size-base: var(--base-font-size);
+            --font-size-lg: calc(var(--base-font-size) * 1.125);
+        }
+
+        :root[data-font-size="small"] {
+            --base-font-size: 0.8rem;
+        }
+
+        :root[data-font-size="medium"] {
+            --base-font-size: 0.95rem;
+        }
+
+        :root[data-font-size="large"] {
+            --base-font-size: 1.1rem;
+        }
+
+        :root[data-font-size="x-large"] {
+            --base-font-size: 1.3rem;
+        }
+
+        .text-base {
+            font-size: var(--font-size-base) !important;
+        }
+
+        .test-input {
+            padding: 8px 12px;
+            border: 2px solid #007bff;
+            border-radius: 4px;
+            margin: 10px 0;
+            width: 100%;
+            max-width: 400px;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+
+        .controls {
+            margin: 20px 0;
+            padding: 20px;
+            background: #e3f2fd;
+            border-radius: 8px;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            border: 1px solid #007bff;
+            background: #007bff;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button.active {
+            background: #28a745;
+            border-color: #28a745;
+        }
+
+        .current-size {
+            font-weight: bold;
+            color: #007bff;
+            font-size: 18px;
+        }
+
+        .result {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+
+        .error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>CSS变量字体系统测试</h1>
+    
+    <div class="controls">
+        <h3>🎛️ 字体大小控制</h3>
+        <button id="btn-small" onclick="setFontSize('small')">小号 (Small)</button>
+        <button id="btn-medium" onclick="setFontSize('medium')" class="active">中号 (Medium)</button>
+        <button id="btn-large" onclick="setFontSize('large')">大号 (Large)</button>
+        <button id="btn-x-large" onclick="setFontSize('x-large')">特大号 (X-Large)</button>
+        <p>当前设置：<span id="currentSetting" class="current-size">medium (中号)</span></p>
+    </div>
+
+    <div class="test-section">
+        <h3>📝 输入框测试</h3>
+        <input type="text" class="test-input text-base" id="testInput" value="测试输入框 - 应该跟随字体设置" placeholder="输入一些文字测试">
+        <textarea class="test-input text-base" id="testTextarea" placeholder="测试文本域">测试文本域 - 应该跟随字体设置</textarea>
+    </div>
+
+    <div class="test-section">
+        <h3>🔍 实时检测结果</h3>
+        <div id="results">
+            <!-- 动态填充 -->
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 期望vs实际对比</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f5f5f5;">
+                    <th style="border: 1px solid #ddd; padding: 8px;">设置</th>
+                    <th style="border: 1px solid #ddd; padding: 8px;">期望大小</th>
+                    <th style="border: 1px solid #ddd; padding: 8px;">实际大小</th>
+                    <th style="border: 1px solid #ddd; padding: 8px;">状态</th>
+                </tr>
+            </thead>
+            <tbody id="comparisonTable">
+                <!-- 动态填充 -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let currentSize = 'medium';
+        const expectedSizes = {
+            'small': 0.8,
+            'medium': 0.95,
+            'large': 1.1,
+            'x-large': 1.3
+        };
+
+        function setFontSize(size) {
+            currentSize = size;
+            
+            // 更新DOM属性
+            document.documentElement.setAttribute('data-font-size', size);
+            document.getElementById('currentSetting').textContent = `${size} (${getSizeLabel(size)})`;
+            
+            // 更新按钮状态
+            document.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${size}`).classList.add('active');
+            
+            // 延迟检测，确保CSS变量更新
+            setTimeout(() => {
+                checkResults();
+                updateComparisonTable();
+            }, 100);
+        }
+
+        function getSizeLabel(size) {
+            const labels = {
+                'small': '小号',
+                'medium': '中号', 
+                'large': '大号',
+                'x-large': '特大号'
+            };
+            return labels[size] || size;
+        }
+
+        function checkResults() {
+            const input = document.getElementById('testInput');
+            const textarea = document.getElementById('testTextarea');
+            const resultsDiv = document.getElementById('results');
+            
+            const inputFontSize = parseFloat(getComputedStyle(input).fontSize);
+            const textareaFontSize = parseFloat(getComputedStyle(textarea).fontSize);
+            
+            const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
+            const expectedPx = expectedSizes[currentSize] * rootFontSize;
+            
+            const inputMatch = Math.abs(inputFontSize - expectedPx) < 1;
+            const textareaMatch = Math.abs(textareaFontSize - expectedPx) < 1;
+            
+            let resultHtml = '';
+            
+            // 输入框结果
+            resultHtml += `
+                <div class="result ${inputMatch ? 'success' : 'error'}">
+                    <h4>输入框 (Input)</h4>
+                    <p>期望: ${expectedPx.toFixed(1)}px | 实际: ${inputFontSize}px</p>
+                    <p>状态: ${inputMatch ? '✅ 正确' : '❌ 不匹配'}</p>
+                    ${!inputMatch ? `<p>差异: ${(inputFontSize - expectedPx).toFixed(1)}px</p>` : ''}
+                </div>
+            `;
+            
+            // 文本域结果
+            resultHtml += `
+                <div class="result ${textareaMatch ? 'success' : 'error'}">
+                    <h4>文本域 (Textarea)</h4>
+                    <p>期望: ${expectedPx.toFixed(1)}px | 实际: ${textareaFontSize}px</p>
+                    <p>状态: ${textareaMatch ? '✅ 正确' : '❌ 不匹配'}</p>
+                    ${!textareaMatch ? `<p>差异: ${(textareaFontSize - expectedPx).toFixed(1)}px</p>` : ''}
+                </div>
+            `;
+            
+            // CSS变量信息
+            const rootStyle = getComputedStyle(document.documentElement);
+            const baseFontSize = rootStyle.getPropertyValue('--base-font-size');
+            const fontSizeBase = rootStyle.getPropertyValue('--font-size-base');
+            
+            resultHtml += `
+                <div class="result">
+                    <h4>CSS变量状态</h4>
+                    <p>--base-font-size: ${baseFontSize}</p>
+                    <p>--font-size-base: ${fontSizeBase}</p>
+                    <p>data-font-size: ${document.documentElement.getAttribute('data-font-size')}</p>
+                </div>
+            `;
+            
+            resultsDiv.innerHTML = resultHtml;
+        }
+
+        function updateComparisonTable() {
+            const table = document.getElementById('comparisonTable');
+            const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
+            
+            let tableHtml = '';
+            
+            Object.keys(expectedSizes).forEach(size => {
+                const expectedPx = expectedSizes[size] * rootFontSize;
+                const isCurrentSize = size === currentSize;
+                
+                let actualPx = 0;
+                let status = '';
+                
+                if (isCurrentSize) {
+                    const input = document.getElementById('testInput');
+                    actualPx = parseFloat(getComputedStyle(input).fontSize);
+                    const match = Math.abs(actualPx - expectedPx) < 1;
+                    status = match ? '✅ 正确' : '❌ 错误';
+                } else {
+                    status = '⭕ 未测试';
+                }
+                
+                tableHtml += `
+                    <tr style="${isCurrentSize ? 'background: #fff3cd;' : ''}">
+                        <td style="border: 1px solid #ddd; padding: 8px;">${getSizeLabel(size)}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${expectedPx.toFixed(1)}px</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${isCurrentSize ? actualPx.toFixed(1) + 'px' : '-'}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${status}</td>
+                    </tr>
+                `;
+            });
+            
+            table.innerHTML = tableHtml;
+        }
+
+        // 初始化
+        setFontSize('medium');
+        
+        // 监听窗口大小变化
+        window.addEventListener('resize', () => {
+            setTimeout(checkResults, 100);
+        });
+    </script>
+</body>
+</html>

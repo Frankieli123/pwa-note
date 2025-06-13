@@ -48,9 +48,9 @@ export function UploadDialogs({
               {uploadType === "image" ? "上传图片" : "上传文件"}
             </DialogTitle>
             <DialogDescription>
-              {uploadType === "image" 
-                ? "选择要上传的图片文件，支持 JPG、PNG、GIF 格式"
-                : "选择要上传的文件，支持常见的文档格式"
+              {uploadType === "image"
+                ? "选择要上传的图片文件"
+                : "选择要上传的文件"
               }
             </DialogDescription>
           </DialogHeader>
@@ -59,9 +59,10 @@ export function UploadDialogs({
             <FileUploader
               accept={uploadType === "image" ? "image/*" : "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"}
               label={uploadType === "image"
-                ? "拖放图片到此处上传 (JPG, PNG, GIF, WebP, 最大5MB)"
-                : "拖放文档到此处上传 (PDF, DOC, DOCX, TXT, XLS, XLSX, CSV, 最大20MB)"
+                ? "拖放图片到此处上传"
+                : "拖放文档到此处上传"
               }
+              maxSize={uploadType === "image" ? 5 : 20}
               multiple={false}
               onUploadSuccess={(url) => onUploadSuccess(url, uploadType)}
             />

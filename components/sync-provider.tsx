@@ -51,6 +51,7 @@ type File = {
   url: string
   thumbnail?: string | null
   size: number
+  base64_data?: string | null // Base64 encoded file content
   user_id: string
   uploaded_at: Date
 }
@@ -69,7 +70,8 @@ const mapDbLinkToLink = (dbLink: DbLink): Link => ({
 const mapDbFileToFile = (dbFile: DbFile): File => ({
   ...dbFile,
   id: String(dbFile.id),
-  thumbnail: dbFile.thumbnail || undefined
+  thumbnail: dbFile.thumbnail || undefined,
+  base64_data: dbFile.base64_data || undefined
 })
 
 type SyncStatus = "idle" | "syncing" | "error" | "success"
@@ -88,6 +90,7 @@ interface SyncContextType {
   uploadFile: (file: globalThis.File) => Promise<{ id: string; url: string } | null>
   deleteFile: (id: string) => Promise<boolean>
   isInitialized: boolean
+  loadMoreNotes: () => Promise<boolean>
 }
 
 export const SyncContext = createContext<SyncContextType | null>(null)
@@ -110,26 +113,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const syncTimerRef = useRef<NodeJS.Timeout | null>(null)
   const checkUpdatesTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const pendingDeletesRef = useRef<string[]>([])
-  const pendingDeleteFilesRef = useRef<string[]>([])
-  const pendingDeleteLinksRef = useRef<string[]>([])
   const syncChannel = useRef<BroadcastChannel | null>(null)
   const lastBroadcastRef = useRef<number | null>(null)
   const lastContentUpdateRef = useRef<Date | null>(null)
-  const pendingSaveNotesRef = useRef<Array<{
-    tempId: string;
-    content: string;
-    title?: string;
-  }>>([])
-  const pendingSaveLinksRef = useRef<Array<{
-    tempId: string;
-    url: string;
-    title: string;
-  }>>([])
-  const pendingUploadFilesRef = useRef<Array<{
-    tempId: string;
-    file: File;
-  }>>([])
 
   // 初始化 - 设置客户端时间
   useEffect(() => {
@@ -141,7 +127,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     console.log('初始化客户端时间:', clientNow);
   }, []);
   
-  // Load data when user changes
+  // Load data when user changes (优化版本 - 快速初始化)
   useEffect(() => {
     if (!user) {
       setNotes([])
@@ -159,8 +145,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setLastSyncTime(clientNow);
         lastSyncTimeRef.current = clientNow;
         lastContentUpdateRef.current = clientNow;
-        
-        await sync(false)
+
+        // 快速同步 - 只加载最近的数据
+        await syncOptimized(false)
         setIsInitialized(true)
       } catch (error) {
         console.error("Failed to load initial data", error)
@@ -209,12 +196,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }
     }, syncInterval || 5 * 60 * 1000)
 
-    // 每30秒检查一次更新（轻量级检查）
+    // 每2分钟检查一次更新（优化频率，减少数据库压力）
     const checkInterval = setInterval(() => {
       if (navigator.onLine) {
         checkForUpdates()
       }
-    }, 30 * 1000) // 30秒检查一次
+    }, 2 * 60 * 1000) // 2分钟检查一次
 
     syncTimerRef.current = interval
     checkUpdatesTimerRef.current = checkInterval
@@ -307,7 +294,89 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     });
   }, [user?.id]);
 
-  // Sync with the server
+  // 优先加载便签的快速同步函数
+  const syncOptimized = async (silent = false) => {
+    if (!user) return
+
+    if (!silent) {
+      setSyncStatus("syncing")
+    }
+
+    try {
+      // Process pending offline operations
+      await handlePendingOperations()
+
+      // 第一步：优先加载便签数据（最近20条）
+      console.log('🚀 开始优先加载便签...')
+      const notesData = await getNotesAction(user.id, 20, 0)
+
+      // 立即显示便签
+      setNotes(notesData ? notesData.map(mapDbNoteToNote) : [])
+      console.log('⚡ 便签优先加载完成，共', notesData?.length || 0, '条')
+
+      // 第二步：后台异步加载其他数据
+      setTimeout(async () => {
+        try {
+          console.log('📂 开始后台加载链接和文件...')
+          const [linksData, filesData] = await Promise.all([
+            getLinksAction(user.id),
+            getFilesAction(user.id),
+          ])
+
+          // 更新其他数据
+          setLinks(linksData ? linksData.map(mapDbLinkToLink) : [])
+          setFiles(filesData ? filesData.map(mapDbFileToFile) : [])
+          console.log('✅ 后台数据加载完成')
+        } catch (error) {
+          console.error("❌ 后台数据加载失败", error)
+        }
+      }, 100) // 100ms后加载其他数据
+
+      // 第三步：后台加载剩余便签（如果有的话）
+      setTimeout(async () => {
+        try {
+          if (notesData && notesData.length === 20) {
+            console.log('📝 开始后台加载剩余便签...')
+            const remainingNotesData = await getNotesAction(user.id, -1, 20) // -1表示加载所有剩余
+
+            if (remainingNotesData && remainingNotesData.length > 0) {
+              const remainingNotes = remainingNotesData.map(mapDbNoteToNote)
+              setNotes(prev => [...prev, ...remainingNotes])
+              console.log('📚 剩余便签加载完成，共', remainingNotesData.length, '条')
+            }
+          }
+        } catch (error) {
+          console.error("❌ 剩余便签加载失败", error)
+        }
+      }, 500) // 500ms后加载剩余便签
+
+      // 直接使用客户端当前时间
+      const clientNow = new Date();
+      setLastSyncTime(clientNow);
+      lastSyncTimeRef.current = clientNow;
+      lastContentUpdateRef.current = clientNow;
+
+      if (!silent) {
+        setSyncStatus("success")
+      }
+
+      // 恢复强制刷新以保证多端同步
+      router.refresh()
+    } catch (error) {
+      console.error("❌ 便签加载失败", error)
+
+      if (!silent) {
+        setSyncStatus("error")
+        toast({
+          variant: "destructive",
+          title: "同步失败",
+          description: "未能同步数据，请稍后再试",
+        })
+      }
+    }
+  }
+
+  // 完整同步函数 - 加载所有数据
   const sync = async (silent = false) => {
     if (!user) return
 
@@ -342,7 +411,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setSyncStatus("success")
       }
 
-      // Force refresh after sync
+      // 恢复强制刷新以保证多端同步
       router.refresh()
     } catch (error) {
       console.error("Sync failed", error)
@@ -358,165 +427,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Handle pending operations (created offline)
+  // 不再支持离线重试机制
   const handlePendingOperations = async () => {
-    // Process pending deletes
-    if (pendingDeletesRef.current.length > 0) {
-      const pendingDeletes = [...pendingDeletesRef.current]
-      pendingDeletesRef.current = []
-
-      for (const id of pendingDeletes) {
-        try {
-          // 确保 id 是有效的数字
-          const numId = parseInt(id, 10)
-          if (isNaN(numId)) {
-            console.error("Invalid note ID:", id)
-            continue;
-          }
-          await deleteNoteAction(numId, user?.id || "")
-        } catch (error) {
-          console.error(`Failed to delete note ${id}`, error)
-          pendingDeletesRef.current.push(id)
-        }
-      }
-    }
-
-    // Process pending file deletes
-    if (pendingDeleteFilesRef.current.length > 0) {
-      const pendingDeletes = [...pendingDeleteFilesRef.current]
-      pendingDeleteFilesRef.current = []
-
-      for (const id of pendingDeletes) {
-        try {
-          // 确保 id 是有效的数字
-          const numId = parseInt(id, 10)
-          if (isNaN(numId)) {
-            console.error("Invalid file ID:", id)
-            continue;
-          }
-          await deleteFileAction(numId, user?.id || "")
-        } catch (error) {
-          console.error(`Failed to delete file ${id}`, error)
-          pendingDeleteFilesRef.current.push(id)
-        }
-      }
-    }
-
-    // Process pending link deletes
-    if (pendingDeleteLinksRef.current.length > 0) {
-      const pendingDeletes = [...pendingDeleteLinksRef.current]
-      pendingDeleteLinksRef.current = []
-
-      for (const id of pendingDeletes) {
-        try {
-          // 确保 id 是有效的数字
-          const numId = parseInt(id, 10)
-          if (isNaN(numId)) {
-            console.error("Invalid link ID:", id)
-            continue;
-          }
-          await deleteLinkAction(numId, user?.id || "")
-        } catch (error) {
-          console.error(`Failed to delete link ${id}`, error)
-          pendingDeleteLinksRef.current.push(id)
-        }
-      }
-    }
-    
-    // Process pending note saves
-    if (pendingSaveNotesRef.current.length > 0) {
-      const pendingSaves = [...pendingSaveNotesRef.current]
-      pendingSaveNotesRef.current = []
-      
-      for (const item of pendingSaves) {
-        try {
-          const result = await createNoteAction(user?.id || "", item.content);
-          const clientNote = mapDbNoteToNote(result);
-          
-          // 用实际ID更新UI中的临时笔记
-          setNotes((prev) => {
-            const tempIndex = prev.findIndex((n) => n.id === item.tempId);
-            if (tempIndex !== -1) {
-              return [
-                ...prev.slice(0, tempIndex),
-                clientNote,
-                ...prev.slice(tempIndex + 1),
-              ];
-            }
-            return prev;
-          });
-        } catch (error) {
-          console.error(`Failed to save pending note ${item.tempId}`, error);
-          pendingSaveNotesRef.current.push(item);
-        }
-      }
-    }
-    
-    // Process pending link saves
-    if (pendingSaveLinksRef.current.length > 0) {
-      const pendingSaves = [...pendingSaveLinksRef.current]
-      pendingSaveLinksRef.current = []
-      
-      for (const item of pendingSaves) {
-        try {
-          const result = await createLinkAction(user?.id || "", item.url, item.title);
-          const clientLink = mapDbLinkToLink(result);
-          
-          // 用实际ID更新UI中的临时链接
-          setLinks((prev) => {
-            const tempIndex = prev.findIndex((l) => l.id === item.tempId);
-            if (tempIndex !== -1) {
-              return [
-                ...prev.slice(0, tempIndex),
-                clientLink,
-                ...prev.slice(tempIndex + 1),
-              ];
-            }
-            return prev;
-          });
-        } catch (error) {
-          console.error(`Failed to save pending link ${item.tempId}`, error);
-          pendingSaveLinksRef.current.push(item);
-        }
-      }
-    }
-    
-    // Process pending file uploads
-    if (pendingUploadFilesRef.current.length > 0) {
-      const pendingUploads = [...pendingUploadFilesRef.current]
-      pendingUploadFilesRef.current = []
-      
-      for (const item of pendingUploads) {
-        try {
-          const fileData = {
-            name: item.file.name,
-            type: item.file.type,
-            url: item.file.url,
-            thumbnail: item.file.thumbnail || undefined,
-            size: item.file.size
-          };
-          
-          const result = await createFileAction(user?.id || "", fileData);
-          const clientFile = mapDbFileToFile(result);
-          
-          // 用实际ID更新UI中的临时文件
-          setFiles((prev) => {
-            const tempIndex = prev.findIndex((f) => f.id === item.tempId);
-            if (tempIndex !== -1) {
-              return [
-                ...prev.slice(0, tempIndex),
-                clientFile,
-                ...prev.slice(tempIndex + 1),
-              ];
-            }
-            return prev;
-          });
-        } catch (error) {
-          console.error(`Failed to upload pending file ${item.tempId}`, error);
-          pendingUploadFilesRef.current.push(item);
-        }
-      }
-    }
+    // 离线重试机制已移除
   }
 
   // Save a note
@@ -632,15 +545,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Failed to save note", error);
       
-      // 如果是离线状态，加入待处理队列
-      if (!navigator.onLine) {
-        pendingSaveNotesRef.current.push({
-          tempId,
-          content,
-          title
-        });
-        return tempNote;
-      }
+      // 便签保存失败，不再支持离线重试
       
       // 如果操作失败，恢复UI
       setNotes(originalNotes);
@@ -697,11 +602,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error(`Failed to delete note ${id}`, error)
       
-      // 如果是离线状态，加入待处理队列
-      if (!navigator.onLine) {
-        pendingDeletesRef.current.push(id)
-        return true
-      }
+      // 便签删除失败，不再支持离线重试
       
       // 如果操作失败，恢复UI
       setNotes(originalNotes);
@@ -782,15 +683,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Failed to save link", error);
       
-      // 如果是离线状态，加入待处理队列
-      if (!navigator.onLine) {
-        pendingSaveLinksRef.current.push({
-          tempId,
-          url,
-          title
-        });
-        return tempLink;
-      }
+      // 链接保存失败，不再支持离线重试
       
       // 如果操作失败，恢复UI
       setLinks(originalLinks);
@@ -839,11 +732,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error(`Failed to delete link ${id}`, error)
       
-      // 如果是离线状态，加入待处理队列
-      if (!navigator.onLine) {
-        pendingDeleteLinksRef.current.push(id)
-        return true
-      }
+      // 链接删除失败，不再支持离线重试
       
       // 如果操作失败，恢复UI
       setLinks(originalLinks);
@@ -857,88 +746,164 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Upload a file
+  // 上传状态锁，防止重复上传
+  const uploadingFiles = useRef<Set<string>>(new Set())
+
+  // Upload a file (使用 Vercel Blob 存储)
   const uploadFile = async (
     file: globalThis.File
   ): Promise<{ id: string; url: string } | null> => {
     if (!user) return null
 
+    // 生成文件唯一标识（文件名+大小+修改时间）
+    const fileKey = `${file.name}_${file.size}_${file.lastModified}`
+
+    // 检查是否正在上传相同文件
+    if (uploadingFiles.current.has(fileKey)) {
+      console.log('文件正在上传中，跳过重复上传:', file.name)
+      return null
+    }
+
+    // 标记文件为上传中
+    uploadingFiles.current.add(fileKey)
+
+    // 导入Blob工具函数
+    const {
+      validateFileSize,
+      isFileTypeSupported
+    } = await import('@/lib/blob-utils')
+
     // 生成临时ID和临时数据
     const tempId = `temp_${Date.now()}`;
     const now = new Date();
 
-    // 为文件生成临时URL（用于预览）
-    const tempUrl = URL.createObjectURL(file);
-
-    // 服务器会自动生成缩略图，这里不需要客户端生成
-    let thumbnail: string | undefined;
-
-    // 创建临时文件对象用于UI显示
-    const tempFile: File = {
-      id: tempId,
-      name: file.name,
-      type: file.type,
-      url: tempUrl,
-      thumbnail: thumbnail,
-      size: file.size,
-      user_id: user.id,
-      uploaded_at: now
-    };
-
-    // 存储原始文件列表，以便操作失败时恢复
-    const originalFiles = [...files];
-
-    // 立即更新UI
-    setFiles((prev) => [tempFile, ...prev]);
-
-    // 广播更新到其他标签页
-    broadcastUpdate();
-
     try {
-      // 上传文件到服务器
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('userId', user.id);
-
-      console.log('开始上传文件到服务器:', file.name);
-
-      const uploadResponse = await fetch('http://124.243.146.198:3001/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      console.log('服务器响应状态:', uploadResponse.status);
-
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error('服务器错误响应:', errorText);
-        throw new Error(`Upload failed: ${uploadResponse.status} ${errorText}`);
+      // 验证文件类型和大小
+      if (!isFileTypeSupported(file.type)) {
+        throw new Error(`不支持的文件类型: ${file.type}`)
       }
 
-      const uploadResult = await uploadResponse.json();
+      const sizeValidation = validateFileSize(file)
+      if (!sizeValidation.valid) {
+        throw new Error(sizeValidation.error || '文件大小验证失败')
+      }
 
-      // 准备文件数据保存到数据库
-      const fileData = {
+      // 立即创建临时预览URL
+      const tempUrl = URL.createObjectURL(file);
+
+      // 创建临时文件对象用于UI显示
+      const tempFile: File = {
+        id: tempId,
         name: file.name,
         type: file.type,
-        url: `http://124.243.146.198:3001${uploadResult.url}`, // 使用服务器返回的完整URL
-        thumbnail: uploadResult.thumbnailUrl ? `http://124.243.146.198:3001${uploadResult.thumbnailUrl}` : undefined,
-        size: file.size
+        url: tempUrl, // 使用blob URL作为临时预览
+        thumbnail: null, // 缩略图将异步生成
+        blob_url: tempUrl, // 临时使用 Object URL
+        thumbnail_url: null,
+        size: file.size,
+        user_id: user.id,
+        uploaded_at: now
       };
 
-      // 保存文件信息到数据库
-      const result = await createFileAction(user.id, fileData);
+      // 立即更新UI - 用户看到文件已"上传完成"
+      setFiles((prev) => [tempFile, ...prev]);
+      broadcastUpdate();
+
+      // 异步处理文件上传到 Vercel Blob
+      processFileBlobUpload(file, tempId, tempUrl);
+
+      // 立即返回成功结果
+      return { id: tempId, url: tempUrl };
+
+    } catch (error) {
+      console.error("File validation failed", error);
+
+      toast({
+        variant: "destructive",
+        title: "上传失败",
+        description: error instanceof Error ? error.message : "文件验证失败",
+      });
+      return null;
+    }
+  };
+
+  // 异步处理文件上传到 Vercel Blob
+  const processFileBlobUpload = async (
+    file: globalThis.File,
+    tempId: string,
+    tempUrl: string
+  ) => {
+    try {
+      // 创建 FormData 用于上传到 Vercel Blob
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('userId', user!.id)
+
+      // 如果是图片，生成缩略图
+      let thumbnailBlob: Blob | null = null
+      if (file.type.startsWith('image/')) {
+        try {
+          // 生成缩略图
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          const img = new Image()
+
+          await new Promise((resolve, reject) => {
+            img.onload = resolve
+            img.onerror = reject
+            img.src = tempUrl
+          })
+
+          // 设置缩略图尺寸
+          const maxSize = 400
+          const ratio = Math.min(maxSize / img.width, maxSize / img.height)
+          canvas.width = img.width * ratio
+          canvas.height = img.height * ratio
+
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+          // 转换为 Blob
+          thumbnailBlob = await new Promise(resolve => {
+            canvas.toBlob(resolve, 'image/jpeg', 0.8)
+          })
+
+          if (thumbnailBlob) {
+            formData.append('thumbnail', thumbnailBlob)
+          }
+        } catch (error) {
+          console.warn('缩略图生成失败:', error)
+        }
+      }
+
+      // 上传到 Vercel Blob
+      const response = await fetch('/api/files/upload-blob', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || '上传失败')
+      }
+
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.message || '上传失败')
+      }
 
       // 将服务器结果转换为客户端文件
-      const clientFile = mapDbFileToFile(result);
+      const clientFile = mapDbFileToFile(result.file);
 
       // 更新内容时间戳
       lastContentUpdateRef.current = new Date();
 
-      // 用实际ID更新UI中的临时文件
+      // 用实际数据更新UI中的临时文件
       setFiles((prev) => {
         const tempIndex = prev.findIndex((f) => f.id === tempId);
         if (tempIndex !== -1) {
+          // 清理临时URL
+          URL.revokeObjectURL(tempUrl);
+
           return [
             ...prev.slice(0, tempIndex),
             clientFile,
@@ -948,37 +913,40 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         return prev;
       });
 
-      // 清理临时URL
-      URL.revokeObjectURL(tempUrl);
-
-      // 再次广播更新（现在有了真实ID）
+      // 广播更新（现在有了真实数据）
       broadcastUpdate();
 
-      return { id: clientFile.id, url: clientFile.url };
+      console.log(`文件 ${file.name} 上传到 Vercel Blob 完成`);
+
     } catch (error) {
-      console.error("Failed to upload file", error);
+      console.error("异步文件处理失败:", error);
 
-      // 如果是离线状态，加入待处理队列
-      if (!navigator.onLine) {
-        pendingUploadFilesRef.current.push({
-          tempId,
-          file: tempFile
-        });
-        return { id: tempId, url: tempUrl };
-      }
+      // 文件上传失败，不再支持离线重试
 
-      // 如果操作失败，恢复UI
-      setFiles(originalFiles);
+      // 更新UI显示错误状态
+      setFiles((prev) => {
+        const tempIndex = prev.findIndex((f) => f.id === tempId);
+        if (tempIndex !== -1) {
+          const errorFile = {
+            ...prev[tempIndex],
+            name: `❌ ${prev[tempIndex].name}`, // 在文件名前添加错误标记
+          };
 
-      // 清理临时URL
-      URL.revokeObjectURL(tempUrl);
+          return [
+            ...prev.slice(0, tempIndex),
+            errorFile,
+            ...prev.slice(tempIndex + 1),
+          ];
+        }
+        return prev;
+      });
 
+      // 显示错误提示，但不影响用户继续操作
       toast({
         variant: "destructive",
-        title: "上传失败",
-        description: error instanceof Error ? error.message : "未能上传文件，请稍后再试",
+        title: "后台上传失败",
+        description: `文件 ${file.name} 上传失败，请重试`,
       });
-      return null;
     }
   };
 
@@ -1017,11 +985,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error(`Failed to delete file ${id}`, error)
       
-      // 如果是离线状态，加入待处理队列
-      if (!navigator.onLine) {
-        pendingDeleteFilesRef.current.push(id)
-        return true
-      }
+      // 文件删除失败，不再支持离线重试
       
       // 如果操作失败，恢复UI
       setFiles(originalFiles);
@@ -1031,6 +995,30 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         title: "删除失败",
         description: "未能删除文件，请稍后再试",
       })
+      return false
+    }
+  }
+
+  // 手动加载更多便签
+  const loadMoreNotes = async (): Promise<boolean> => {
+    if (!user) return false
+
+    try {
+      console.log('📖 手动加载更多便签...')
+      const currentCount = notes.length
+      const moreNotesData = await getNotesAction(user.id, 20, currentCount)
+
+      if (moreNotesData && moreNotesData.length > 0) {
+        const moreNotes = moreNotesData.map(mapDbNoteToNote)
+        setNotes(prev => [...prev, ...moreNotes])
+        console.log('📚 加载更多便签完成，新增', moreNotesData.length, '条')
+        return true
+      } else {
+        console.log('📭 没有更多便签了')
+        return false
+      }
+    } catch (error) {
+      console.error("❌ 加载更多便签失败", error)
       return false
     }
   }
@@ -1051,6 +1039,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         uploadFile,
         deleteFile,
         isInitialized,
+        loadMoreNotes,
       }}
     >
       {children}

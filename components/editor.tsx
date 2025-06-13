@@ -32,8 +32,6 @@ interface EditorProps {
 // 优化简化版Editor组件
 export function Editor({ value, onChange, placeholder = "点击此处开始输入", className, showToolbar = true }: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
-  const { settings } = useSettings()
-  const prevSettingsRef = useRef(settings)
   const [isCodeBlock, setIsCodeBlock] = useState(false)
   const [mounted, setMounted] = useState(false)
 
@@ -55,58 +53,8 @@ export function Editor({ value, onChange, placeholder = "点击此处开始输�
     }
   }, [value, mounted])
 
-  // 使用 useCallback 优化事件处理函数
-  const updateEditorFont = useCallback(() => {
-    if (!mounted) return
-
-    const editorElement = editorRef.current
-    if (editorElement) {
-      requestAnimationFrame(() => {
-        const fontFamily = getComputedStyle(document.body).fontFamily
-        const fontSize = getComputedStyle(document.body).fontSize
-
-        // Only update when styles are different
-        if (editorElement.style.fontFamily !== fontFamily || editorElement.style.fontSize !== fontSize) {
-          editorElement.style.fontFamily = fontFamily
-          editorElement.style.fontSize = fontSize
-        }
-      })
-    }
-  }, [mounted])
-
-  // 客户端挂载完成后应用字体设置
-  useEffect(() => {
-    if (mounted) {
-      updateEditorFont()
-    }
-  }, [mounted, updateEditorFont])
-
-  // 当设置变化时更新编辑器字体，使用 useLayoutEffect 减少闪烁
-  useLayoutEffect(() => {
-    if (!mounted) return
-
-    // 只有当设置真正变化时才更新
-    if (
-      prevSettingsRef.current.fontFamily !== settings.fontFamily ||
-      prevSettingsRef.current.fontSize !== settings.fontSize
-    ) {
-      updateEditorFont()
-      prevSettingsRef.current = settings
-    }
-  }, [settings, updateEditorFont, mounted])
-
-  // 优化事件监听，使用 useEffect
-  useEffect(() => {
-    if (!mounted) return
-
-    // 使用防抖函数优化事件处理
-    const debouncedUpdateFont = debounce(updateEditorFont, 50)
-
-    window.addEventListener("fontSettingsChanged", debouncedUpdateFont)
-    return () => {
-      window.removeEventListener("fontSettingsChanged", debouncedUpdateFont)
-    }
-  }, [updateEditorFont, mounted])
+  // 编辑器现在使用CSS变量系统，不需要手动设置字体
+  // 移除复杂的字体更新逻辑，让CSS变量自动处理
 
   // 处理内容变化，使用 useCallback 优化
   const handleInput = useCallback(() => {
@@ -205,14 +153,12 @@ export function Editor({ value, onChange, placeholder = "点击此处开始输�
   // 使用 useMemo 优化类名计算
   const computedClassName = useMemo(() => {
     return cn(
-      "outline-none w-full h-full min-h-[200px] text-foreground editor-content font-apply-target",
-      `font-${settings.fontFamily}`,
-      `text-size-${settings.fontSize}`,
+      "outline-none w-full h-full min-h-[200px] text-foreground editor-content text-base",
       "focus:ring-0 focus:outline-none",
       !value && "before:content-[attr(data-placeholder)] before:text-muted-foreground",
       className,
     )
-  }, [settings.fontFamily, settings.fontSize, value, className])
+  }, [value, className])
 
   return (
     <div className="w-full h-full flex flex-col">

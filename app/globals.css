@@ -164,7 +164,7 @@
 /* 富文本编辑器样式 */
 .editor-content {
   min-height: 200px;
-  font-size: 0.875rem; /* 减小编辑器基础字体大小 */
+  /* 移除强制字体大小，让编辑器跟随用户设置 */
 }
 
 .editor-content h1 {

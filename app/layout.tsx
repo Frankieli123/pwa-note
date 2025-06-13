@@ -103,10 +103,6 @@ export default function RootLayout({
       `}
     >
       <head>
-        {/* 预加载主要字体以减少 CLS */}
-        <link rel="preload" href="/fonts/noto-sans-sc-400.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
-
-        {/* PWA相关meta标签 */}
         <meta name="theme-color" content="#000000" />
         <meta name="background-color" content="#ffffff" />
         <meta name="mobile-web-app-capable" content="yes" />

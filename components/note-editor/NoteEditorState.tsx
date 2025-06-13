@@ -140,17 +140,19 @@ export function useNoteEditorState() {
     }
   }, [content, user, saveNote, toast, clearEditor])
 
-  // 上传处理函数
+  // 上传处理函数 - 修改为不插入编辑器，只上传到文件列表
   const handleUploadSuccess = useCallback((url: string, type: "image" | "file") => {
-    if (type === "image") {
-      const imageHtml = `<img src="${url}" alt="上传的图片" style="max-width: 100%; height: auto;" />`
-      setContent(prev => prev + imageHtml)
-    } else {
-      const linkHtml = `<a href="${url}" target="_blank" rel="noopener noreferrer">查看文件</a>`
-      setContent(prev => prev + linkHtml)
-    }
+    // 不再插入到编辑器内容中，只是上传到文件列表
+    // 文件已经通过 FileUploader 组件上传到了文件列表
+    console.log(`${type === "image" ? "图片" : "文件"}上传成功，已添加到文件列表`)
     setIsUploadDialogOpen(false)
-  }, [])
+
+    // 可以显示成功提示
+    toast({
+      title: "上传成功",
+      description: `${type === "image" ? "图片" : "文件"}已添加到文件列表`,
+    })
+  }, [toast])
 
   const openUploadDialog = useCallback((type: "image" | "file") => {
     setUploadType(type)

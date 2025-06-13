@@ -18,14 +18,14 @@ export const links = pgTable("links", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
-// Files table
+// Files table - 只支持 Vercel Blob 存储
 export const files = pgTable("files", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id", { length: 255 }).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   type: varchar("type", { length: 100 }).notNull(),
-  url: text("url").notNull(),
-  thumbnail: text("thumbnail"),
+  blobUrl: text("blob_url").notNull(), // Vercel Blob 存储的文件URL（必需）
+  thumbnailUrl: text("thumbnail_url"), // Vercel Blob 存储的缩略图URL
   size: integer("size").notNull(),
   status: varchar("status", { length: 20 }).default("active").notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),

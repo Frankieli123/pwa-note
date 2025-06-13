@@ -1,6 +1,7 @@
 "use server"
 
 import { sql } from "@/lib/db"
+import { createFileChunksTable } from "./chunked-upload"
 
 export async function initializeDatabase() {
   console.log("初始化数据库...")
@@ -40,14 +41,28 @@ export async function initializeDatabase() {
         url TEXT NOT NULL,
         thumbnail TEXT,
         size INTEGER NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        base64_data TEXT,
         uploaded_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `
     console.log("files 表已创建或已存在")
 
+    // 为现有数据库添加新列（如果不存在）
+    try {
+      await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active'`
+      await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS base64_data TEXT`
+      console.log("files 表列更新完成")
+    } catch (error) {
+      console.log("列可能已存在，跳过添加:", error)
+    }
+
+    // 创建分块存储表
+    await createFileChunksTable()
+
     return {
       success: true,
-      message: "数据库表已成功初始化",
+      message: "数据库表已成功初始化（包含分块存储）",
     }
   } catch (error) {
     console.error("初始化数据库失败:", error)

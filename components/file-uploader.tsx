@@ -43,7 +43,7 @@ const validateFile = (file: File): { isValid: boolean; error?: string } => {
   if (!isImage && !isDocument) {
     return {
       isValid: false,
-      error: `不支持的文件类型: ${file.type}。支持的图片格式: JPG, PNG, GIF, WebP；支持的文档格式: PDF, DOC, DOCX, TXT, XLS, XLSX, CSV`
+      error: `不支持的文件类型`
     }
   }
 
@@ -54,7 +54,7 @@ const validateFile = (file: File): { isValid: boolean; error?: string } => {
   if (fileSizeMB > maxSize) {
     return {
       isValid: false,
-      error: `文件大小超过限制: ${fileSizeMB.toFixed(1)}MB > ${maxSize}MB (${isImage ? '图片' : '文档'})`
+      error: `文件大小超过限制: ${fileSizeMB.toFixed(1)}MB，${isImage ? '图片' : '文档'}最大${maxSize}MB`
     }
   }
 
@@ -63,9 +63,9 @@ const validateFile = (file: File): { isValid: boolean; error?: string } => {
 
 export function FileUploader({
   accept = "*",
-  label = "拖放文件到此处",
+  label = "拖放文档到此处上传",
   className,
-  maxSize = 10, // 默认10MB
+  maxSize = 20, // 默认20MB
   multiple = true,
   onClick,
   onUploadSuccess,
@@ -123,14 +123,6 @@ export function FileUploader({
       }, 100)
 
       try {
-        // 检查网络状态
-        if (!navigator.onLine) {
-          setError("网络连接不可用，请检查网络连接后重试")
-          setIsUploading(false)
-          clearInterval(progressInterval)
-          return
-        }
-
         // 上传每个验证通过的文件
         for (const file of validFiles) {
           const result = await uploadFile(file)
@@ -153,14 +145,10 @@ export function FileUploader({
         // 根据错误类型提供更具体的错误信息
         let errorMessage = "上传失败，请重试"
         if (error instanceof Error) {
-          if (error.message.includes("网络")) {
-            errorMessage = "网络连接失败，请检查网络连接后重试"
-          } else if (error.message.includes("大小")) {
+          if (error.message.includes("大小")) {
             errorMessage = "文件大小超过限制，请选择更小的文件"
           } else if (error.message.includes("类型")) {
             errorMessage = "文件类型不支持，请选择支持的文件格式"
-          } else if (error.message.includes("服务器")) {
-            errorMessage = "服务器暂时不可用，请稍后重试"
           }
         }
 
@@ -245,7 +233,7 @@ export function FileUploader({
             <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={open}>
               <span>选择文件</span>
             </Button>
-            <span>· 最大 {maxSize}MB</span>
+            <span>· 最大{maxSize}MB</span>
           </div>
         )}
 

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>字体输入框测试</title>
+    <style>
+        /* 模拟项目的字体系统 */
+        :root {
+            --base-font-size: 0.95rem;
+            --font-size-xs: calc(var(--base-font-size) * 0.75);
+            --font-size-sm: calc(var(--base-font-size) * 0.875);
+            --font-size-base: var(--base-font-size);
+            --font-size-lg: calc(var(--base-font-size) * 1.125);
+        }
+
+        :root[data-font-size="small"] {
+            --base-font-size: 0.8rem;
+        }
+
+        :root[data-font-size="medium"] {
+            --base-font-size: 0.95rem;
+        }
+
+        :root[data-font-size="large"] {
+            --base-font-size: 1.1rem;
+        }
+
+        :root[data-font-size="x-large"] {
+            --base-font-size: 1.3rem;
+        }
+
+        .text-base {
+            font-size: var(--font-size-base) !important;
+        }
+
+        .text-sm {
+            font-size: var(--font-size-sm) !important;
+        }
+
+        /* 模拟原始的响应式输入框 */
+        .input-old {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem; /* text-base */
+            margin: 10px;
+            width: 300px;
+        }
+
+        @media (min-width: 768px) {
+            .input-old {
+                font-size: 0.875rem; /* md:text-sm */
+            }
+        }
+
+        /* 修复后的输入框 */
+        .input-new {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 10px;
+            width: 300px;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .controls {
+            margin: 20px 0;
+        }
+
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            border: 1px solid #007bff;
+            background: #007bff;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .current-size {
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <h1>字体输入框测试</h1>
+    
+    <div class="controls">
+        <h3>字体大小控制：</h3>
+        <button onclick="setFontSize('small')">小号 (Small)</button>
+        <button onclick="setFontSize('medium')">中号 (Medium)</button>
+        <button onclick="setFontSize('large')">大号 (Large)</button>
+        <button onclick="setFontSize('x-large')">特大号 (X-Large)</button>
+        <p>当前字体大小：<span id="currentSize" class="current-size">medium</span></p>
+    </div>
+
+    <div class="test-section">
+        <h3>修复前的输入框（响应式字体）</h3>
+        <p>移动端：text-base，桌面端：text-sm</p>
+        <input type="text" class="input-old" placeholder="这是修复前的输入框" value="测试文字 - 修复前">
+        <textarea class="input-old" placeholder="这是修复前的文本域">测试文字 - 修复前</textarea>
+    </div>
+
+    <div class="test-section">
+        <h3>修复后的输入框（跟随用户设置）</h3>
+        <p>所有屏幕尺寸：text-base（跟随用户字体设置）</p>
+        <input type="text" class="input-new text-base" placeholder="这是修复后的输入框" value="测试文字 - 修复后">
+        <textarea class="input-new text-base" placeholder="这是修复后的文本域">测试文字 - 修复后</textarea>
+    </div>
+
+    <div class="test-section">
+        <h3>字体大小对比</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <h4>修复前</h4>
+                <p>移动端字体大小：<span class="text-base">text-base</span></p>
+                <p>桌面端字体大小：<span class="text-sm">text-sm</span></p>
+            </div>
+            <div>
+                <h4>修复后</h4>
+                <p>所有设备字体大小：<span class="text-base">text-base</span></p>
+                <p>完全跟随用户设置</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>测试说明</h3>
+        <ul>
+            <li><strong>问题</strong>：原来的输入框在桌面端强制使用 text-sm，不跟随用户字体设置</li>
+            <li><strong>现象</strong>：用户调大字体时，桌面端输入框看起来没有变化</li>
+            <li><strong>修复</strong>：移除响应式字体大小，统一使用 text-base</li>
+            <li><strong>效果</strong>：输入框在所有设备上都完全跟随用户的字体设置</li>
+        </ul>
+    </div>
+
+    <script>
+        function setFontSize(size) {
+            document.documentElement.setAttribute('data-font-size', size);
+            document.getElementById('currentSize').textContent = size;
+            
+            // 显示当前的实际字体大小
+            const baseSize = getComputedStyle(document.documentElement).getPropertyValue('--base-font-size');
+            console.log(`字体大小设置为 ${size}，--base-font-size: ${baseSize}`);
+        }
+
+        // 初始化
+        setFontSize('medium');
+
+        // 显示当前屏幕尺寸信息
+        function showScreenInfo() {
+            const width = window.innerWidth;
+            const isMobile = width < 768;
+            console.log(`屏幕宽度: ${width}px, ${isMobile ? '移动端' : '桌面端'}`);
+        }
+
+        window.addEventListener('resize', showScreenInfo);
+        showScreenInfo();
+    </script>
+</body>
+</html>

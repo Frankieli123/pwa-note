@@ -28,32 +28,46 @@ export async function POST(request: Request) {
     const lastUpdateDate = new Date(lastUpdate);
     
     try {
-      // 检查笔记是否有更新
-      const notesQuery = `
-        SELECT COUNT(*) as count FROM notes 
-        WHERE user_id = $1 AND (created_at > $2 OR updated_at > $2)
-      `;
-      const notesResult = await query(notesQuery, [userId, lastUpdateDate]);
-      const hasNoteUpdates = parseInt(notesResult.rows[0].count, 10) > 0;
-      
-      // 检查链接是否有更新
-      const linksQuery = `
-        SELECT COUNT(*) as count FROM links 
-        WHERE user_id = $1 AND created_at > $2
-      `;
-      const linksResult = await query(linksQuery, [userId, lastUpdateDate]);
-      const hasLinkUpdates = parseInt(linksResult.rows[0].count, 10) > 0;
-      
-      // 检查文件是否有更新
-      const filesQuery = `
-        SELECT COUNT(*) as count FROM files 
-        WHERE user_id = $1 AND uploaded_at > $2
-      `;
-      const filesResult = await query(filesQuery, [userId, lastUpdateDate]);
-      const hasFileUpdates = parseInt(filesResult.rows[0].count, 10) > 0;
-      
+      console.log('🔍 检查更新，用户:', userId, '上次更新:', lastUpdateDate);
+
+      // 优化查询：使用EXISTS替代COUNT，并行执行
+      const [notesResult, linksResult, filesResult] = await Promise.all([
+        // 检查笔记是否有更新 - 使用EXISTS优化
+        query(`
+          SELECT EXISTS(
+            SELECT 1 FROM notes
+            WHERE user_id = $1 AND (created_at > $2 OR updated_at > $2)
+            LIMIT 1
+          ) as has_updates
+        `, [userId, lastUpdateDate]),
+
+        // 检查链接是否有更新 - 使用EXISTS优化
+        query(`
+          SELECT EXISTS(
+            SELECT 1 FROM links
+            WHERE user_id = $1 AND created_at > $2
+            LIMIT 1
+          ) as has_updates
+        `, [userId, lastUpdateDate]),
+
+        // 检查文件是否有更新 - 使用EXISTS优化
+        query(`
+          SELECT EXISTS(
+            SELECT 1 FROM files
+            WHERE user_id = $1 AND uploaded_at > $2
+            LIMIT 1
+          ) as has_updates
+        `, [userId, lastUpdateDate])
+      ]);
+
+      const hasNoteUpdates = notesResult.rows[0].has_updates;
+      const hasLinkUpdates = linksResult.rows[0].has_updates;
+      const hasFileUpdates = filesResult.rows[0].has_updates;
+
       // 如果有任何类型的更新，返回hasUpdates为true
       const hasUpdates = hasNoteUpdates || hasLinkUpdates || hasFileUpdates;
+
+      console.log('📊 更新检查结果:', { hasNoteUpdates, hasLinkUpdates, hasFileUpdates, hasUpdates });
       
       return NextResponse.json({ hasUpdates, checkTime: new Date().toISOString() });
     } catch (dbError) {

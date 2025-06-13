@@ -74,7 +74,9 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
       url: file.url,
       thumbnail: file.thumbnail ? String(file.thumbnail) : undefined,
       uploadedAt: file.uploaded_at,
-      size: file.size
+      size: file.size,
+      base64_data: file.base64_data,
+      user_id: file.user_id
     }))
 
   const documentFiles = uploadedFiles
@@ -86,7 +88,9 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
       url: file.url,
       thumbnail: file.thumbnail ? String(file.thumbnail) : undefined,
       uploadedAt: file.uploaded_at,
-      size: file.size
+      size: file.size,
+      base64_data: file.base64_data,
+      user_id: file.user_id
     }))
 
   // 当标签变化时的处理函数
@@ -533,7 +537,8 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                   <div className="mb-4">
                     <FileUploader
                       accept="image/*"
-                      label="拖放图片到此处上传 (JPG, PNG, GIF, WebP, 最大5MB)"
+                      label="拖放图片到此处上传"
+                      maxSize={5}
                     />
                   </div>
                   <FileGrid files={imageFiles} showAsThumbnails={true} />
@@ -543,7 +548,8 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                   <div className="mb-4">
                     <FileUploader
                       accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                      label="拖放文档到此处上传 (PDF, DOC, DOCX, TXT, XLS, XLSX, CSV, 最大20MB)"
+                      label="拖放文档到此处上传"
+                      maxSize={20}
                     />
                   </div>
                   <FileGrid files={documentFiles} />

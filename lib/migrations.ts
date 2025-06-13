@@ -41,6 +41,9 @@ async function main() {
 
     -- Add status column if it doesn't exist (for existing databases)
     ALTER TABLE files ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active';
+
+    -- Add base64_data column for Base64 file storage (nullable for backward compatibility)
+    ALTER TABLE files ADD COLUMN IF NOT EXISTS base64_data TEXT;
   `)
 
   await pool.end()
