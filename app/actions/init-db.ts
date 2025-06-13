@@ -50,7 +50,20 @@ export async function initializeDatabase() {
     console.log("🔍 检查并添加缺失的字段...")
     await ensureTableFields()
 
+    return {
+      success: true,
+      message: "数据库表已成功初始化（包含自动字段检测）",
+    }
+  } catch (error) {
+    console.error("初始化数据库失败:", error)
 
+    return {
+      success: false,
+      message: `初始化数据库失败: ${error instanceof Error ? error.message : String(error)}`,
+      error: error instanceof Error ? error.stack : String(error),
+    }
+  }
+}
 
 // 确保所有必需的表字段都存在
 async function ensureTableFields() {
@@ -79,7 +92,22 @@ async function ensureTableFields() {
     for (const field of requiredFields) {
       if (!existingColumns.includes(field.name)) {
         console.log(`➕ 添加缺失字段: ${field.name} (${field.description})`)
-        await sql.unsafe(`ALTER TABLE files ADD COLUMN ${field.name} ${field.type}`)
+
+        // 使用具体的 ALTER TABLE 语句
+        if (field.name === 'blob_url') {
+          await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS blob_url TEXT`
+        } else if (field.name === 'thumbnail_url') {
+          await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS thumbnail_url TEXT`
+        } else if (field.name === 'status') {
+          await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`
+        } else if (field.name === 'url') {
+          await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS url TEXT`
+        } else if (field.name === 'thumbnail') {
+          await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS thumbnail TEXT`
+        } else if (field.name === 'base64_data') {
+          await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS base64_data TEXT`
+        }
+
         console.log(`✅ 成功添加字段: ${field.name}`)
       } else {
         console.log(`✓ 字段已存在: ${field.name}`)
