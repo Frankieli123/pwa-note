@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { initializeDatabase } from '@/app/actions/init-db'
+import { initializeDatabase, fixMissingFields } from '@/app/actions/init-db'
 import { seedDatabase } from '@/app/actions/seed-db'
 
 /**
@@ -45,9 +45,14 @@ export async function POST(request: Request) {
         
         return NextResponse.json(initRes)
 
+      case 'fix-fields':
+        console.log('🔧 修复缺失的数据库字段...')
+        const fixResult = await fixMissingFields()
+        return NextResponse.json(fixResult)
+
       default:
         return NextResponse.json(
-          { error: 'Invalid action. Use "init", "seed", or "init-and-seed"' },
+          { error: 'Invalid action. Use "init", "seed", "init-and-seed", or "fix-fields"' },
           { status: 400 }
         )
     }
@@ -71,7 +76,8 @@ export async function GET() {
     usage: {
       init: 'POST /api/init-db with { "action": "init" }',
       seed: 'POST /api/init-db with { "action": "seed", "userId": "user_id" }',
-      'init-and-seed': 'POST /api/init-db with { "action": "init-and-seed", "userId": "user_id" }'
+      'init-and-seed': 'POST /api/init-db with { "action": "init-and-seed", "userId": "user_id" }',
+      'fix-fields': 'POST /api/init-db with { "action": "fix-fields" }'
     }
   })
 }
