@@ -7,6 +7,7 @@ import { OnboardingAnimation } from "@/components/onboarding-animation"
 import { MainLayout } from "@/components/layout/MainLayout"
 import { AppInitializer } from "@/components/layout/AppInitializer"
 import { SidebarManager } from "@/components/layout/SidebarManager"
+import { VersionChecker } from "@/components/version-checker"
 import { useAppState } from "@/hooks/use-app-state"
 
 /**
@@ -48,6 +49,9 @@ export function AppContainer() {
           <FloatingNoteInput />
         </MainLayout>
       </SidebarManager>
+
+      {/* 版本检查和缓存管理 */}
+      <VersionChecker />
     </AppInitializer>
   )
 }

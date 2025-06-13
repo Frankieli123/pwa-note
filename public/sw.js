@@ -1,5 +1,6 @@
 // Service Worker for PWA
-const CACHE_NAME = 'quick-notes-v1';
+const APP_VERSION = '1.2.0';
+const CACHE_NAME = `quick-notes-${APP_VERSION}`;
 const urlsToCache = [
   '/',
   '/2.png',
@@ -37,11 +38,20 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          // 删除所有旧版本的缓存
+          if (cacheName !== CACHE_NAME && cacheName.startsWith('quick-notes-')) {
+            console.log('删除旧缓存:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
+});
+
+// 监听来自主线程的消息
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });

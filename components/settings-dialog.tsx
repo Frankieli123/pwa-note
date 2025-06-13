@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/components/ui/use-toast"
 import { UserAvatar } from "@/components/user-avatar"
 import { regenerateUserAvatar, getUserAvatarUrl } from "@/lib/avatar-utils"
+import { CacheClearButton } from "@/components/version-checker"
 
 // 优化 SettingsDialog 组件，减少不必要的重渲染和DOM操作
 export function SettingsDialog() {
@@ -583,6 +584,17 @@ export function SettingsDialog() {
                       </Select>
                     </>
                   )}
+                </div>
+
+                {/* 缓存清理 */}
+                <div className="space-y-2">
+                  <Label className={cn("font-apply-target", isMobile ? "text-base" : "text-sm")}>
+                    应用缓存
+                  </Label>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    如果遇到显示问题，可以清理应用缓存
+                  </div>
+                  <CacheClearButton />
                 </div>
               </div>
             </div>
