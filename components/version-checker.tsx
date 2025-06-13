@@ -46,21 +46,8 @@ export function VersionChecker() {
     }
   }
 
-  // 开发环境下显示版本信息
-  const isDev = process.env.NODE_ENV === 'development'
-  const versionInfo = isDev ? getVersionInfo() : null
-
   return (
     <>
-      {/* 开发环境版本信息 */}
-      {isDev && versionInfo && (
-        <div className="fixed bottom-4 right-4 bg-black/80 text-white text-xs p-2 rounded z-50">
-          <div>当前版本: {versionInfo.current}</div>
-          <div>存储版本: {versionInfo.stored || '未知'}</div>
-          <div>缓存版本: {versionInfo.cache}</div>
-        </div>
-      )}
-
       {/* 更新提示对话框 */}
       <AlertDialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog}>
         <AlertDialogContent>
