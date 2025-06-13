@@ -4,7 +4,7 @@ import { getFiles } from '@/app/actions/db-actions'
 /**
  * 处理强制下载文件
  */
-async function handleDownload(file: any) {
+async function handleDownload(file: { blob_url: string; type: string; name: string }) {
   try {
     // 从 Vercel Blob URL 获取文件内容
     const response = await fetch(file.blob_url)

@@ -3,6 +3,43 @@
 import { query } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 
+// 数据库行类型定义
+interface NoteRow {
+  id: number
+  user_id: string
+  content: string
+  created_at: string
+  updated_at: string
+}
+
+interface LinkRow {
+  id: number
+  user_id: string
+  url: string
+  title: string
+  created_at: string
+}
+
+interface FileRow {
+  id: number
+  user_id: string
+  name: string
+  type: string
+  size: number
+  blob_url: string
+  thumbnail_url: string | null
+  uploaded_at: string
+}
+
+interface UserSettingsRow {
+  id: number
+  user_id: string
+  font_family: string
+  font_size: string
+  sync_interval: number
+  updated_at: string
+}
+
 // Types
 export type Note = {
   id: number
@@ -49,7 +86,7 @@ export async function getNotes(userId: string, limit: number = 20, offset: numbe
 
   try {
     let queryText: string
-    let queryParams: any[]
+    let queryParams: (string | number)[]
 
     if (isLoadAll) {
       // 加载所有剩余便签（跳过前offset条）
@@ -64,7 +101,7 @@ export async function getNotes(userId: string, limit: number = 20, offset: numbe
     const result = await query(queryText, queryParams)
     console.log(`⚡ 便签加载完成: ${result.rows.length} 条 ${isLoadAll ? '(剩余全部)' : ''}`)
 
-    return result.rows.map((row: any) => ({
+    return result.rows.map((row: NoteRow) => ({
       id: row.id,
       user_id: row.user_id,
       content: row.content,
@@ -183,7 +220,7 @@ export async function getLinks(userId: string): Promise<Link[]> {
   try {
     const result = await query("SELECT * FROM links WHERE user_id = $1 ORDER BY created_at DESC", [userId])
     console.log("getLinks 结果:", result.rows)
-    return result.rows.map((row: any) => ({
+    return result.rows.map((row: LinkRow) => ({
       id: row.id,
       user_id: row.user_id,
       url: row.url,
@@ -256,7 +293,7 @@ export async function getFiles(userId: string): Promise<File[]> {
     )
     console.log(`getFiles 结果: ${result.rows.length} 个文件`)
 
-    return result.rows.map((row: any) => {
+    return result.rows.map((row: FileRow) => {
       return {
         id: row.id,
         user_id: row.user_id,
@@ -473,7 +510,7 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
     let result;
     try {
       result = await query("SELECT * FROM user_settings WHERE user_id = $1", [userId])
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 检查是否是外键约束错误
       if (error instanceof Error && 
           (error.message.includes('违反外键约束') || 
@@ -559,7 +596,7 @@ export async function updateUserSettings(
           [userId, settings.font_family, settings.font_size, settings.sync_interval]
         )
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 检查是否是外键约束错误
       if (error instanceof Error && 
           (error.message.includes('违反外键约束') || 

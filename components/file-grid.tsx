@@ -1,8 +1,7 @@
 "use client"
 
 import { Card, CardContent } from "@/components/ui/card"
-import { formatDistanceToNow } from "date-fns"
-import { zhCN } from "date-fns/locale"
+
 import { Download, FileIcon, FileTextIcon, ImageIcon, Trash2, Eye } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
@@ -36,7 +35,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null)
 
   // 直接删除文件，不显示确认弹窗
-  const handleDeleteClick = (id: string, fileName: string) => {
+  const handleDeleteClick = (id: string) => {
     deleteFile(id)
   }
 
@@ -141,7 +140,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                     size="icon"
                     variant="destructive"
                     className="h-8 w-8"
-                    onClick={() => handleDeleteClick(file.id, file.name)}
+                    onClick={() => handleDeleteClick(file.id)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -194,7 +193,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDeleteClick(file.id, file.name)}
+                    onClick={() => handleDeleteClick(file.id)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

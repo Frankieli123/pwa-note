@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { Cloud, CloudOff, AlertCircle } from "lucide-react"
+import { Cloud, CloudOff } from "lucide-react"
 import { useTime } from "@/hooks/use-time"
 import { useMobile } from "@/hooks/use-mobile"
 
@@ -14,9 +14,7 @@ interface SyncStatusProps {
   onToggle: () => void
 }
 
-export function SyncStatus({ status, lastSyncTime, isEnabled, onToggle }: SyncStatusProps) {
-  const { getRelativeTime } = useTime(); // 使用统一的时间钩子
-  const isMobile = useMobile();
+export function SyncStatus({ status, isEnabled, onToggle }: SyncStatusProps) {
 
   return (
     <TooltipProvider>

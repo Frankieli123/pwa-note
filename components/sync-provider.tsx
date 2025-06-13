@@ -3,8 +3,7 @@
 import type React from "react"
 import { createContext, useEffect, useState, useRef, useCallback, useContext } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { useSettings } from "@/hooks/use-settings"
-import { useAuth } from "@/hooks/use-auth"
+
 import { AuthContext } from "./auth-provider"
 import { useRouter } from 'next/navigation'
 import { usePathname } from 'next/navigation'
@@ -19,7 +18,7 @@ import {
   createLink as createLinkAction,
   deleteLink as deleteLinkAction,
   getFiles as getFilesAction,
-  createFile as createFileAction,
+
   deleteFile as deleteFileAction,
   Note as DbNote,
   Link as DbLink,
@@ -82,7 +81,7 @@ interface SyncContextType {
   notes: Note[]
   links: Link[]
   files: File[]
-  user: any | null
+  user: { id: string; email: string; name: string } | null
   sync: (silent?: boolean) => Promise<void>
   saveNote: (id: string, content: string, title?: string) => Promise<Note | null>
   deleteNote: (id: string) => Promise<boolean>
@@ -97,11 +96,11 @@ interface SyncContextType {
 export const SyncContext = createContext<SyncContextType | null>(null)
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
-  const { user, isLoading: authLoading } = useContext(AuthContext)
+  const { user } = useContext(AuthContext)
   const { settings } = useContext(SettingsContext)
   const syncInterval = settings?.syncInterval ? settings.syncInterval * 60 * 1000 : 5 * 60 * 1000 // Convert to milliseconds
   const autoSync = true // Assuming autoSync is always enabled
-  const syncOnStartup = true // Assuming syncOnStartup is always enabled
+
   const { toast } = useToast()
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle")
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
@@ -493,7 +492,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     try {
       let result: DbNote;
-      let clientNote: Note;
+      const clientNote: Note;
       
       // 获取客户端当前时间用于保存
       const clientTimeNow = new Date();

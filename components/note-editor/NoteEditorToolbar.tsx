@@ -32,7 +32,7 @@ export function NoteEditorToolbar({
   lastAutoSaveTime,
   className
 }: NoteEditorToolbarProps) {
-  const isMobile = useMobile()
+
   const [currentDate, setCurrentDate] = useState(new Date())
   const [isClient, setIsClient] = useState(false)
 

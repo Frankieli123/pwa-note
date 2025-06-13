@@ -52,7 +52,7 @@ export function useNoteEditorState() {
   const { saveNote } = useSync()
   const { user } = useAuth()
   const { toast } = useToast()
-  const { settings } = useSettings()
+
 
   // 加载草稿内容
   const loadDraft = useCallback(() => {

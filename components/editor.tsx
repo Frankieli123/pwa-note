@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react"
 import { cn } from "@/lib/utils"
-import { useSettings } from "@/hooks/use-settings"
+
 import { Button } from "@/components/ui/button"
 import {
   Bold,
@@ -343,7 +343,7 @@ export function Editor({ value, onChange, placeholder = "点击此处开始输�
 }
 
 // 添加防抖函数
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
+function debounce<T extends (...args: unknown[]) => unknown>(func: T, wait: number): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout | null = null
 
   return (...args: Parameters<T>) => {

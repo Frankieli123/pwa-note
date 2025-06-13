@@ -75,7 +75,7 @@ async function ensureTableFields() {
       WHERE table_name = 'files' AND table_schema = 'public'
     `
 
-    const existingColumns = filesColumns.map((row: any) => row.column_name)
+    const existingColumns = filesColumns.map((row: Record<string, unknown>) => (row as { column_name: string }).column_name)
     console.log("📋 当前 files 表字段:", existingColumns.join(', '))
 
     // 定义所有可能需要的字段

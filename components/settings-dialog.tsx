@@ -15,13 +15,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { useSettings } from "@/hooks/use-settings"
 import { useTheme } from "next-themes"
-import { Settings, Moon, Sun, RotateCcw, Type, Cloud, CloudOff, Loader2, AlertCircle, Shuffle, User } from "lucide-react"
+import { Settings, Moon, Sun, Type, Cloud, CloudOff, Loader2, Shuffle, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/components/ui/use-toast"
 import { UserAvatar } from "@/components/user-avatar"
-import { regenerateUserAvatar, getUserAvatarUrl } from "@/lib/avatar-utils"
+import { getUserAvatarUrl } from "@/lib/avatar-utils"
 
 // 优化 SettingsDialog 组件，减少不必要的重渲染和DOM操作
 export function SettingsDialog() {
@@ -89,7 +89,7 @@ export function SettingsDialog() {
   const handleFontFamilyChange = useCallback(
     (value: string) => {
       // 先更新设置
-      updateSettings({ fontFamily: value as any })
+      updateSettings({ fontFamily: value as "system" | "sans" | "serif" | "ma-shan-zheng" | "zcool-xiaowei" })
       // 使用 requestAnimationFrame 优化DOM更新
       requestAnimationFrame(() => {
         // 强制立即应用字体设置

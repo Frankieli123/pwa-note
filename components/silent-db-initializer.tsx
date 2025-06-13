@@ -1,9 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
-import { useAuth } from "@/hooks/use-auth"
-import { initializeDatabase } from "@/app/actions/init-db"
-import { seedDatabase } from "@/app/actions/seed-db"
+
 
 export function SilentDbInitializer() {
   // 禁用自动数据库初始化以提升性能

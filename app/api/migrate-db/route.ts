@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     console.log('开始数据库迁移...')
     

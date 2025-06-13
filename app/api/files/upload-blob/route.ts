@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { put } from '@vercel/blob'
 import {
   validateFileSize,
   isFileTypeSupported,
@@ -190,9 +189,9 @@ export async function GET() {
         contentType: 'multipart/form-data'
       }
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to get config',
         message: '获取配置失败'
       },

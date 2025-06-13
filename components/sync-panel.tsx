@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { useSync } from "@/hooks/use-sync"
 import { FileUploader } from "@/components/file-uploader"
@@ -25,7 +24,7 @@ interface SyncPanelProps {
 }
 
 export function SyncPanel({ onExpandChange }: SyncPanelProps) {
-  const { files, lastSync, status, isInitialized, sync, notes, deleteNote, saveNote } = useSync()
+  const { files, lastSync, status, sync, notes, deleteNote, saveNote } = useSync()
   const [activeTab, setActiveTab] = useState("notes")
   const [showLinkForm, setShowLinkForm] = useState(false)
   const isMobile = useMobile()

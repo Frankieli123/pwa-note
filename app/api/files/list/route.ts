@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
 
     // 处理返回数据
     const responseFiles = paginatedFiles.map(file => {
-      const fileData: any = {
+      const fileData: Record<string, unknown> = {
         id: file.id,
         name: file.name,
         type: file.type,
