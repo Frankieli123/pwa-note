@@ -24,10 +24,10 @@ export async function seedDatabase(userId: string) {
       ON CONFLICT DO NOTHING
     `
 
-    // Sample files (URLs will be placeholders)
+    // Sample files (使用 Vercel Blob 存储字段)
     await sql`
-      INSERT INTO files (user_id, name, type, url, thumbnail, size, uploaded_at)
-      VALUES 
+      INSERT INTO files (user_id, name, type, blob_url, thumbnail_url, size, uploaded_at)
+      VALUES
         (${userId}, '项目计划.pdf', 'application/pdf', '/placeholder.svg?text=PDF', NULL, 1024, NOW()),
         (${userId}, '风景照片.jpg', 'image/jpeg', '/placeholder.svg?text=Image', '/placeholder.svg?text=Thumbnail', 2048, NOW() - INTERVAL '1 day'),
         (${userId}, '会议记录.txt', 'text/plain', '/placeholder.svg?text=TXT', NULL, 512, NOW() - INTERVAL '2 days')
