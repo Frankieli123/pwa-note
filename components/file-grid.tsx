@@ -30,7 +30,7 @@ interface FileGridProps {
 }
 
 export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
-  const { deleteFile } = useSync()
+  const { deleteFile, user } = useSync()
   const { toast } = useToast()
   const { getRelativeTime } = useTime()
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null)
@@ -41,26 +41,36 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
   }
 
   // 处理文件下载
-  const handleDownloadClick = (file: {
+  const handleDownloadClick = async (file: {
+    id: string
     name: string
     type: string
     url: string
     blob_url?: string
   }) => {
     try {
-      // 直接使用 Blob URL 下载
-      const downloadUrl = file.blob_url || file.url
-      if (downloadUrl) {
-        const link = document.createElement('a')
-        link.href = downloadUrl
-        link.download = file.name
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-      } else {
-        throw new Error('文件URL不可用')
+      // 使用下载API强制下载文件
+      if (!user) {
+        throw new Error('用户未登录')
       }
+
+      const downloadUrl = `/api/files/download?id=${file.id}&userId=${user.id}&format=download`
+
+      // 创建隐藏的下载链接
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = file.name
+      link.style.display = 'none'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast({
+        title: "下载开始",
+        description: `正在下载 ${file.name}`,
+      })
     } catch (error) {
+      console.error('Download error:', error)
       toast({
         variant: "destructive",
         title: "下载失败",

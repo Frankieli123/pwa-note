@@ -7,9 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "migration:base64": "npx tsx scripts/run-base64-migration.ts",
-    "migration:init": "npx tsx lib/migrations.ts",
-    "test:file-retrieval": "npx tsx scripts/test-file-retrieval.ts"
+    "migration:init": "npx tsx lib/migrations.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

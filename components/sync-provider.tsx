@@ -82,6 +82,7 @@ interface SyncContextType {
   notes: Note[]
   links: Link[]
   files: File[]
+  user: any | null
   sync: (silent?: boolean) => Promise<void>
   saveNote: (id: string, content: string, title?: string) => Promise<Note | null>
   deleteNote: (id: string) => Promise<boolean>
@@ -746,38 +747,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // 上传状态锁，防止重复上传
-  const uploadingFiles = useRef<Set<string>>(new Set())
-
   // Upload a file (使用 Vercel Blob 存储)
   const uploadFile = async (
     file: globalThis.File
   ): Promise<{ id: string; url: string } | null> => {
     if (!user) return null
 
-    // 生成文件唯一标识（文件名+大小+修改时间）
-    const fileKey = `${file.name}_${file.size}_${file.lastModified}`
-
-    // 检查是否正在上传相同文件
-    if (uploadingFiles.current.has(fileKey)) {
-      console.log('文件正在上传中，跳过重复上传:', file.name)
-      return null
-    }
-
-    // 标记文件为上传中
-    uploadingFiles.current.add(fileKey)
-
-    // 导入Blob工具函数
-    const {
-      validateFileSize,
-      isFileTypeSupported
-    } = await import('@/lib/blob-utils')
-
-    // 生成临时ID和临时数据
-    const tempId = `temp_${Date.now()}`;
-    const now = new Date();
-
     try {
+      // 导入Blob工具函数
+      const {
+        validateFileSize,
+        isFileTypeSupported
+      } = await import('@/lib/blob-utils')
+
       // 验证文件类型和大小
       if (!isFileTypeSupported(file.type)) {
         throw new Error(`不支持的文件类型: ${file.type}`)
@@ -788,62 +770,15 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         throw new Error(sizeValidation.error || '文件大小验证失败')
       }
 
-      // 立即创建临时预览URL
-      const tempUrl = URL.createObjectURL(file);
-
-      // 创建临时文件对象用于UI显示
-      const tempFile: File = {
-        id: tempId,
-        name: file.name,
-        type: file.type,
-        url: tempUrl, // 使用blob URL作为临时预览
-        thumbnail: null, // 缩略图将异步生成
-        blob_url: tempUrl, // 临时使用 Object URL
-        thumbnail_url: null,
-        size: file.size,
-        user_id: user.id,
-        uploaded_at: now
-      };
-
-      // 立即更新UI - 用户看到文件已"上传完成"
-      setFiles((prev) => [tempFile, ...prev]);
-      broadcastUpdate();
-
-      // 异步处理文件上传到 Vercel Blob
-      processFileBlobUpload(file, tempId, tempUrl);
-
-      // 立即返回成功结果
-      return { id: tempId, url: tempUrl };
-
-    } catch (error) {
-      console.error("File validation failed", error);
-
-      toast({
-        variant: "destructive",
-        title: "上传失败",
-        description: error instanceof Error ? error.message : "文件验证失败",
-      });
-      return null;
-    }
-  };
-
-  // 异步处理文件上传到 Vercel Blob
-  const processFileBlobUpload = async (
-    file: globalThis.File,
-    tempId: string,
-    tempUrl: string
-  ) => {
-    try {
       // 创建 FormData 用于上传到 Vercel Blob
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('userId', user!.id)
+      formData.append('userId', user.id)
 
       // 如果是图片，生成缩略图
-      let thumbnailBlob: Blob | null = null
       if (file.type.startsWith('image/')) {
         try {
-          // 生成缩略图
+          const tempUrl = URL.createObjectURL(file)
           const canvas = document.createElement('canvas')
           const ctx = canvas.getContext('2d')
           const img = new Image()
@@ -863,19 +798,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height)
 
           // 转换为 Blob
-          thumbnailBlob = await new Promise(resolve => {
+          const thumbnailBlob = await new Promise<Blob | null>(resolve => {
             canvas.toBlob(resolve, 'image/jpeg', 0.8)
           })
 
           if (thumbnailBlob) {
             formData.append('thumbnail', thumbnailBlob)
           }
+
+          // 清理临时URL
+          URL.revokeObjectURL(tempUrl)
         } catch (error) {
           console.warn('缩略图生成失败:', error)
         }
       }
 
-      // 上传到 Vercel Blob
+      // 直接上传到 Vercel Blob
       const response = await fetch('/api/files/upload-blob', {
         method: 'POST',
         body: formData
@@ -892,63 +830,31 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 将服务器结果转换为客户端文件
-      const clientFile = mapDbFileToFile(result.file);
+      const clientFile = mapDbFileToFile(result.file)
 
       // 更新内容时间戳
-      lastContentUpdateRef.current = new Date();
+      lastContentUpdateRef.current = new Date()
 
-      // 用实际数据更新UI中的临时文件
-      setFiles((prev) => {
-        const tempIndex = prev.findIndex((f) => f.id === tempId);
-        if (tempIndex !== -1) {
-          // 清理临时URL
-          URL.revokeObjectURL(tempUrl);
+      // 更新UI
+      setFiles((prev) => [clientFile, ...prev])
+      broadcastUpdate()
 
-          return [
-            ...prev.slice(0, tempIndex),
-            clientFile,
-            ...prev.slice(tempIndex + 1),
-          ];
-        }
-        return prev;
-      });
+      console.log(`文件 ${file.name} 上传完成`)
 
-      // 广播更新（现在有了真实数据）
-      broadcastUpdate();
-
-      console.log(`文件 ${file.name} 上传到 Vercel Blob 完成`);
+      return { id: clientFile.id, url: clientFile.url }
 
     } catch (error) {
-      console.error("异步文件处理失败:", error);
-
-      // 文件上传失败，不再支持离线重试
-
-      // 更新UI显示错误状态
-      setFiles((prev) => {
-        const tempIndex = prev.findIndex((f) => f.id === tempId);
-        if (tempIndex !== -1) {
-          const errorFile = {
-            ...prev[tempIndex],
-            name: `❌ ${prev[tempIndex].name}`, // 在文件名前添加错误标记
-          };
-
-          return [
-            ...prev.slice(0, tempIndex),
-            errorFile,
-            ...prev.slice(tempIndex + 1),
-          ];
-        }
-        return prev;
-      });
-
-      // 显示错误提示，但不影响用户继续操作
+      console.error("文件上传失败:", error)
       toast({
         variant: "destructive",
-        title: "后台上传失败",
-        description: `文件 ${file.name} 上传失败，请重试`,
-      });
+        title: "上传失败",
+        description: error instanceof Error ? error.message : "文件上传失败，请重试",
+      })
+      return null
     }
-  };
+  }
+
+
 
   // Delete a file
   const deleteFile = async (id: string): Promise<boolean> => {
@@ -1031,6 +937,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         notes,
         links,
         files,
+        user,
         sync,
         saveNote,
         deleteNote,
