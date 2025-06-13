@@ -11,6 +11,7 @@ import { SyncStatus } from "@/components/sync-status"
 import { useMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { FileText, Image, Link2, StickyNote, Trash2, Copy, Check, Cloud, Save, X, Edit3 } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { LinksList } from "@/components/links-list"
 import { LinkForm } from "@/components/link-form"
 import { Button } from "@/components/ui/button"
@@ -398,7 +399,6 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                     <div
                       className="cursor-pointer"
                       onDoubleClick={() => handleDoubleClick(note)}
-                      title="双击编辑"
                     >
                       <div
                         className="text-sm line-clamp-6 whitespace-pre-wrap mb-2 rich-text-content hover:bg-muted/50 rounded transition-colors"
@@ -408,7 +408,22 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                         <span className="text-xs">
                           {getRelativeTime(note.created_at)}
                         </span>
-                        <Edit3 className="h-3 w-3 opacity-50" />
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Edit3
+                                className="h-3 w-3 opacity-50 cursor-pointer hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDoubleClick(note)
+                                }}
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>点击编辑</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                     </div>
                   )}
@@ -416,28 +431,44 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
 
                 {editingNoteId !== note.id && (
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-primary"
-                      onClick={() => handleCopyClick(note)}
-                      title="复制内容"
-                    >
-                      {copiedNoteId === note.id ? (
-                        <Check className="h-4 w-4" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDeleteClick(note.id)}
-                      title="删除便签"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            onClick={() => handleCopyClick(note)}
+                          >
+                            {copiedNoteId === note.id ? (
+                              <Check className="h-4 w-4" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>复制内容</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleDeleteClick(note.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>删除便签</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 )}
               </div>

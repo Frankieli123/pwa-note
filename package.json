@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/build-version.js && next build && node scripts/build-version.js",
+    "build:version": "node scripts/build-version.js",
     "start": "next start",
     "lint": "next lint",
     "migration:init": "npx tsx lib/migrations.ts"

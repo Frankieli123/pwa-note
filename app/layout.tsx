@@ -111,47 +111,10 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="快速笔记" />
         <link rel="manifest" href="/manifest.json" />
 
-        {/* Service Worker注册和版本管理 */}
+        {/* Service Worker注册 */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              // 版本管理和缓存清理
-              const APP_VERSION = '1.2.0';
-              const VERSION_KEY = 'app_version';
-
-              function checkAndHandleVersionUpdate() {
-                try {
-                  const storedVersion = localStorage.getItem(VERSION_KEY);
-                  if (storedVersion !== APP_VERSION) {
-                    console.log('🔄 检测到版本更新，清理缓存...');
-
-                    // 清理 localStorage（保留重要数据）
-                    const keysToKeep = ['userSettings', 'auth_user', VERSION_KEY];
-                    const keysToRemove = [];
-                    for (let i = 0; i < localStorage.length; i++) {
-                      const key = localStorage.key(i);
-                      if (key && !keysToKeep.includes(key)) {
-                        keysToRemove.push(key);
-                      }
-                    }
-                    keysToRemove.forEach(key => localStorage.removeItem(key));
-
-                    // 清理 sessionStorage
-                    sessionStorage.clear();
-
-                    // 更新版本号
-                    localStorage.setItem(VERSION_KEY, APP_VERSION);
-
-                    console.log('✅ 缓存清理完成');
-                  }
-                } catch (error) {
-                  console.warn('版本检查失败:', error);
-                }
-              }
-
-              // 页面加载时执行版本检查
-              checkAndHandleVersionUpdate();
-
               // Service Worker 注册
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {

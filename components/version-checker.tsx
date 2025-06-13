@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { handleVersionUpdate } from '@/lib/version-manager'
+import { handleVersionUpdate, APP_VERSION } from '@/lib/version-manager'
 
 /**
  * 版本检查组件
@@ -16,9 +16,12 @@ export function VersionChecker() {
         if (hasUpdate) {
           // 直接刷新页面，不显示对话框
           console.log('🔄 检测到版本更新，自动刷新页面...')
+          console.log(`📦 新版本: ${APP_VERSION}`)
           setTimeout(() => {
             window.location.reload()
           }, 500)
+        } else {
+          console.log(`✅ 当前版本: ${APP_VERSION}`)
         }
       } catch (error) {
         console.error('版本检查失败:', error)

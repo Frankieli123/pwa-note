@@ -1,5 +1,6 @@
 // Service Worker for PWA
-const APP_VERSION = '1.2.0';
+// 版本号将在构建时被替换
+const APP_VERSION = '94d452ec';
 const CACHE_NAME = `quick-notes-${APP_VERSION}`;
 const urlsToCache = [
   '/',

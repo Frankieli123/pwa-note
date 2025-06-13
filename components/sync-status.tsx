@@ -41,10 +41,8 @@ export function SyncStatus({ status, lastSyncTime, isEnabled, onToggle }: SyncSt
               {status === "error" && <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-destructive" />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
-            <span className="font-apply-target">
-              点击立即同步数据
-            </span>
+          <TooltipContent side="bottom">
+            <p>点击立即同步数据</p>
           </TooltipContent>
         </Tooltip>
       </div>

@@ -3,9 +3,15 @@
  * 解决部署后的缓存不匹配问题
  */
 
-// 应用版本号 - 每次重大更新时需要手动递增
-export const APP_VERSION = '1.2.0'
-export const CACHE_VERSION = 'v1.2.0'
+// 获取构建时的版本信息
+function getBuildVersion(): string {
+  // 在构建时，这个值会被替换为实际的 Git commit hash
+  return process.env.NEXT_PUBLIC_APP_VERSION || process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) || 'dev-' + Date.now().toString(36)
+}
+
+// 应用版本号 - 基于 Git 提交哈希自动生成
+export const APP_VERSION = getBuildVersion()
+export const CACHE_VERSION = `v${APP_VERSION}`
 
 // 版本相关的 localStorage 键名
 const VERSION_KEY = 'app_version'
