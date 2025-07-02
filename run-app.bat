@@ -8,7 +8,7 @@ echo ========================================
 echo.
 
 set "PROJECT_DIR=%~dp0"
-set "PORT=3000"
+set "PORT=3100"
 set "PACKAGE_MANAGER=npm"
 
 echo [1/6] Checking Node.js environment...
