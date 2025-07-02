@@ -492,7 +492,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     try {
       let result: DbNote;
-      const clientNote: Note;
+      let clientNote: Note;
       
       // 获取客户端当前时间用于保存
       const clientTimeNow = new Date();
