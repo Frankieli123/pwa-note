@@ -179,7 +179,7 @@ export async function uploadFileToMinio(
     const now = new Date()
     const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
 
-    const headers = {
+    const headers: Record<string, string> = {
       'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
       'Content-Type': file.type,
       'Content-Length': arrayBuffer.byteLength.toString(),
@@ -233,7 +233,7 @@ export async function uploadThumbnailToMinio(
     const now = new Date()
     const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
 
-    const headers = {
+    const headers: Record<string, string> = {
       'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
       'Content-Type': 'image/jpeg',
       'Content-Length': arrayBuffer.byteLength.toString(),
@@ -276,7 +276,7 @@ export async function deleteFileFromMinio(url: string): Promise<void> {
     const now = new Date()
     const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
 
-    const headers = {
+    const headers: Record<string, string> = {
       'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
       'x-amz-date': timeStamp
     }
@@ -310,7 +310,7 @@ export async function listUserFiles(userId: string): Promise<any[]> {
     const now = new Date()
     const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
 
-    const headers = {
+    const headers: Record<string, string> = {
       'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
       'x-amz-date': timeStamp
     }
@@ -372,7 +372,7 @@ export async function validateMinioConnection(): Promise<{ success: boolean; err
     const now = new Date()
     const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
 
-    const headers = {
+    const headers: Record<string, string> = {
       'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
       'x-amz-date': timeStamp
     }
