@@ -1,17 +1,33 @@
-import { neon } from "@neondatabase/serverless"
-
-// 移除弃用的fetchConnectionCache配置（现在默认启用）
+import { Pool } from 'pg'
 
 // 使用环境变量的连接字符串
 const CONNECTION_STRING = process.env.DATABASE_URL || ""
-console.log("数据库连接字符串:", CONNECTION_STRING ? "Neon" : "未配置")
+console.log("数据库连接字符串:", CONNECTION_STRING ? "PostgreSQL" : "未配置")
 
-// 创建 SQL 查询执行器
-export const sql = neon(CONNECTION_STRING)
+// 创建连接池
+const pool = new Pool({
+  connectionString: CONNECTION_STRING,
+  ssl: CONNECTION_STRING.includes('localhost') ? false : { rejectUnauthorized: false }
+})
+
+// 创建 SQL 查询执行器（兼容 neon 的模板字符串语法）
+export const sql = async (strings: TemplateStringsArray, ...values: any[]) => {
+  const query = strings.reduce((result, string, i) => {
+    return result + string + (values[i] ? `$${i + 1}` : '')
+  }, '')
+
+  const client = await pool.connect()
+  try {
+    const result = await client.query(query, values)
+    return result.rows
+  } finally {
+    client.release()
+  }
+}
 
 // 测试连接函数
 export async function testConnection() {
-  if (!CONNECTION_STRING || !sql) {
+  if (!CONNECTION_STRING) {
     console.log("数据库未配置，使用模拟模式")
     return { success: true, result: [{ test: 1 }], mock: true }
   }
@@ -53,16 +69,16 @@ export async function query(text: string, params: any[] = [], maxRetries: number
         setTimeout(() => reject(new Error('Query timeout')), timeoutMs)
       })
 
-      const queryPromise = sql.query(text, params)
-      const result = await Promise.race([queryPromise, timeoutPromise]) as any
-
-      if (isNotesQuery) {
-        console.log(`⚡ 便签查询完成: ${result.length} 条`)
-      } else if (process.env.NODE_ENV === 'development') {
-        console.log(`查询完成: ${result.length} 行`)
+      const client = await pool.connect()
+      try {
+        const queryPromise = client.query(text, params)
+        const result = await Promise.race([queryPromise, timeoutPromise]) as any
+        return { rows: result.rows }
+      } finally {
+        client.release()
       }
 
-      return { rows: result }
+      // 这部分代码已经在上面的 try 块中处理了
     } catch (error: any) {
       lastError = error
 
