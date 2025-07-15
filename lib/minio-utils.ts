@@ -147,6 +147,40 @@ function createAwsSignature(
 }
 
 /**
+ * 创建 MinIO bucket（如果不存在）
+ */
+async function ensureBucketExists(): Promise<void> {
+  try {
+    const path = `/${MINIO_CONFIG.bucketName}`
+    const now = new Date()
+    const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
+
+    const headers: Record<string, string> = {
+      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
+      'x-amz-date': timeStamp
+    }
+
+    const authorization = createAwsSignature('PUT', path, headers, '')
+    headers['Authorization'] = authorization
+
+    const response = await fetch(`${MINIO_CONFIG.endpoint}${path}`, {
+      method: 'PUT',
+      headers
+    })
+
+    if (response.ok || response.status === 409) {
+      // 409 表示 bucket 已存在，这也是成功的情况
+      console.log('MinIO bucket 已确保存在')
+    } else {
+      console.warn(`创建 bucket 失败: ${response.status} ${response.statusText}`)
+    }
+  } catch (error) {
+    console.warn('确保 bucket 存在时出错:', error)
+    // 不抛出错误，让上传继续尝试
+  }
+}
+
+/**
  * 上传文件到 MinIO
  */
 export async function uploadFileToMinio(
@@ -155,6 +189,9 @@ export async function uploadFileToMinio(
   folder: string = 'files'
 ): Promise<{ url: string; pathname: string }> {
   try {
+    // 确保 bucket 存在
+    await ensureBucketExists()
+
     // 验证文件类型和大小
     if (!isFileTypeSupported(file.type)) {
       throw new Error(`不支持的文件类型: ${file.type}`)
