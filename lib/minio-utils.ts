@@ -87,31 +87,63 @@ export function isImageFile(mimeType: string): boolean {
 }
 
 /**
- * 生成预签名 URL 用于文件上传
+ * 生成 AWS4-HMAC-SHA256 签名
  */
-async function generatePresignedUploadUrl(
-  objectName: string,
-  contentType: string
-): Promise<string> {
-  try {
-    // 使用 MinIO 的 presigned URL API
-    const url = new URL(`${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}/${objectName}`)
+function createAwsSignature(
+  method: string,
+  path: string,
+  headers: Record<string, string>,
+  payload: string = ''
+): string {
+  const accessKey = MINIO_CONFIG.accessKey
+  const secretKey = MINIO_CONFIG.secretKey
+  const region = MINIO_CONFIG.region
+  const service = 's3'
 
-    // 添加查询参数
-    const params = new URLSearchParams({
-      'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
-      'X-Amz-Credential': `${MINIO_CONFIG.accessKey}/${new Date().toISOString().slice(0, 10).replace(/-/g, '')}/${MINIO_CONFIG.region}/s3/aws4_request`,
-      'X-Amz-Date': new Date().toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z',
-      'X-Amz-Expires': '3600',
-      'X-Amz-SignedHeaders': 'host'
-    })
+  const now = new Date()
+  const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, '')
+  const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
 
-    url.search = params.toString()
-    return url.toString()
-  } catch (error) {
-    console.error('生成预签名 URL 失败:', error)
-    throw error
-  }
+  // 创建规范请求
+  const canonicalHeaders = Object.keys(headers)
+    .sort()
+    .map(key => `${key.toLowerCase()}:${headers[key]}\n`)
+    .join('')
+
+  const signedHeaders = Object.keys(headers)
+    .sort()
+    .map(key => key.toLowerCase())
+    .join(';')
+
+  const payloadHash = crypto.createHash('sha256').update(payload).digest('hex')
+
+  const canonicalRequest = [
+    method,
+    path,
+    '', // query string
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash
+  ].join('\n')
+
+  // 创建签名字符串
+  const algorithm = 'AWS4-HMAC-SHA256'
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`
+  const stringToSign = [
+    algorithm,
+    timeStamp,
+    credentialScope,
+    crypto.createHash('sha256').update(canonicalRequest).digest('hex')
+  ].join('\n')
+
+  // 计算签名
+  const kDate = crypto.createHmac('sha256', `AWS4${secretKey}`).update(dateStamp).digest()
+  const kRegion = crypto.createHmac('sha256', kDate).update(region).digest()
+  const kService = crypto.createHmac('sha256', kRegion).update(service).digest()
+  const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest()
+  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex')
+
+  return `${algorithm} Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
 }
 
 /**
@@ -139,20 +171,27 @@ export async function uploadFileToMinio(
     const fileExtension = file.name.split('.').pop() || ''
     const fileName = `${userId}/${folder}/${timestamp}_${randomId}.${fileExtension}`
 
-    // 使用简单的 PUT 请求上传（MinIO 支持基本认证）
+    // 使用 AWS4-HMAC-SHA256 签名上传
     const arrayBuffer = await file.arrayBuffer()
     const url = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}/${fileName}`
+    const path = `/${MINIO_CONFIG.bucketName}/${fileName}`
 
-    // 创建基本认证头
-    const auth = btoa(`${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`)
+    const now = new Date()
+    const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
+
+    const headers = {
+      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
+      'Content-Type': file.type,
+      'Content-Length': arrayBuffer.byteLength.toString(),
+      'x-amz-date': timeStamp
+    }
+
+    const authorization = createAwsSignature('PUT', path, headers, '')
+    headers['Authorization'] = authorization
 
     const response = await fetch(url, {
       method: 'PUT',
-      headers: {
-        'Content-Type': file.type,
-        'Authorization': `Basic ${auth}`,
-        'Content-Length': arrayBuffer.byteLength.toString()
-      },
+      headers,
       body: arrayBuffer
     })
 
@@ -186,20 +225,27 @@ export async function uploadThumbnailToMinio(
     const baseName = originalFileName.split('.')[0]
     const fileName = `${userId}/thumbnails/${timestamp}_${randomId}_${baseName}_thumb.jpg`
 
-    // 使用简单的 PUT 请求上传
+    // 使用 AWS4-HMAC-SHA256 签名上传
     const arrayBuffer = await thumbnailBlob.arrayBuffer()
     const url = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}/${fileName}`
+    const path = `/${MINIO_CONFIG.bucketName}/${fileName}`
 
-    // 创建基本认证头
-    const auth = btoa(`${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`)
+    const now = new Date()
+    const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
+
+    const headers = {
+      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
+      'Content-Type': 'image/jpeg',
+      'Content-Length': arrayBuffer.byteLength.toString(),
+      'x-amz-date': timeStamp
+    }
+
+    const authorization = createAwsSignature('PUT', path, headers, '')
+    headers['Authorization'] = authorization
 
     const response = await fetch(url, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Authorization': `Basic ${auth}`,
-        'Content-Length': arrayBuffer.byteLength.toString()
-      },
+      headers,
       body: arrayBuffer
     })
 
@@ -223,14 +269,24 @@ export async function uploadThumbnailToMinio(
  */
 export async function deleteFileFromMinio(url: string): Promise<void> {
   try {
-    // 创建基本认证头
-    const auth = btoa(`${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`)
+    // 从 URL 中提取路径
+    const urlObj = new URL(url)
+    const path = urlObj.pathname
+
+    const now = new Date()
+    const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
+
+    const headers = {
+      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
+      'x-amz-date': timeStamp
+    }
+
+    const authorization = createAwsSignature('DELETE', path, headers, '')
+    headers['Authorization'] = authorization
 
     const response = await fetch(url, {
       method: 'DELETE',
-      headers: {
-        'Authorization': `Basic ${auth}`
-      }
+      headers
     })
 
     if (!response.ok && response.status !== 404) {
@@ -249,15 +305,22 @@ export async function deleteFileFromMinio(url: string): Promise<void> {
 export async function listUserFiles(userId: string): Promise<any[]> {
   try {
     const url = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}?list-type=2&prefix=${userId}/`
+    const path = `/${MINIO_CONFIG.bucketName}?list-type=2&prefix=${userId}/`
 
-    // 创建基本认证头
-    const auth = btoa(`${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`)
+    const now = new Date()
+    const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
+
+    const headers = {
+      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
+      'x-amz-date': timeStamp
+    }
+
+    const authorization = createAwsSignature('GET', path, headers, '')
+    headers['Authorization'] = authorization
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'Authorization': `Basic ${auth}`
-      }
+      headers
     })
 
     if (!response.ok) {
@@ -304,15 +367,22 @@ export async function validateMinioConnection(): Promise<{ success: boolean; err
   try {
     // 尝试列出 bucket 来验证连接
     const url = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}?list-type=2&max-keys=1`
+    const path = `/${MINIO_CONFIG.bucketName}?list-type=2&max-keys=1`
 
-    // 创建基本认证头
-    const auth = btoa(`${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`)
+    const now = new Date()
+    const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
+
+    const headers = {
+      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
+      'x-amz-date': timeStamp
+    }
+
+    const authorization = createAwsSignature('GET', path, headers, '')
+    headers['Authorization'] = authorization
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'Authorization': `Basic ${auth}`
-      }
+      headers
     })
 
     if (!response.ok) {
