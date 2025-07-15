@@ -7,7 +7,7 @@ console.log("数据库连接字符串:", CONNECTION_STRING ? "PostgreSQL" : "未
 // 创建连接池
 const pool = new Pool({
   connectionString: CONNECTION_STRING,
-  ssl: CONNECTION_STRING.includes('localhost') ? false : { rejectUnauthorized: false }
+  ssl: false // 禁用 SSL，因为自托管 PostgreSQL 通常不需要 SSL
 })
 
 // 创建 SQL 查询执行器（兼容 neon 的模板字符串语法）
