@@ -67,8 +67,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 获取所有文件（根据参数决定是否包含Base64数据）
-    const allFiles = await getFiles(userId, includeBase64)
+    // 获取所有文件（只支持 Blob 存储，不再支持 Base64）
+    const allFiles = await getFiles(userId)
 
     // 按类型过滤
     let filteredFiles = allFiles
@@ -225,8 +225,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 获取用户的所有文件（不包含Base64数据以提高性能）
-    const allFiles = await getFiles(userId, false)
+    // 获取用户的所有文件（只支持 Blob 存储）
+    const allFiles = await getFiles(userId)
     const requestedFiles = allFiles.filter(file => 
       fileIds.includes(file.id.toString()) || fileIds.includes(file.id)
     )

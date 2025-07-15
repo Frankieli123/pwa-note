@@ -812,8 +812,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 直接上传到 Vercel Blob
-      const response = await fetch('/api/files/upload-blob', {
+      // 直接上传到 MinIO
+      const response = await fetch('/api/files/upload', {
         method: 'POST',
         body: formData
       })

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getFileWithBlob, deleteFile } from '@/app/actions/db-actions'
+import { getFileWithMinio, deleteFile } from '@/app/actions/db-actions'
 
 /**
  * 获取单个文件详情（包含Blob URL）
@@ -39,7 +39,7 @@ export async function GET(
     console.log(`📥 API请求获取文件: ${fileId}`)
 
     // 获取文件详情
-    const file = await getFileWithBlob(fileId, userId)
+    const file = await getFileWithMinio(fileId, userId)
 
     if (!file) {
       return NextResponse.json(
@@ -58,8 +58,8 @@ export async function GET(
         name: file.name,
         type: file.type,
         size: file.size,
-        url: file.blob_url,
-        blob_url: file.blob_url,
+        url: file.minio_url,
+        minio_url: file.minio_url,
         thumbnail: file.thumbnail_url,
         thumbnail_url: file.thumbnail_url,
         uploaded_at: file.uploaded_at

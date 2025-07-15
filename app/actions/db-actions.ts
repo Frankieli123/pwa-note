@@ -26,7 +26,7 @@ interface FileRow {
   name: string
   type: string
   size: number
-  blob_url: string
+  minio_url: string
   thumbnail_url: string | null
   uploaded_at: string
 }
@@ -62,10 +62,10 @@ export type File = {
   user_id: string
   name: string
   type: string
-  url: string // 使用 blob_url 作为主要 URL
+  url: string // 使用 minio_url 作为主要 URL
   thumbnail: string | null // 使用 thumbnail_url 作为缩略图
-  blob_url: string // Vercel Blob 存储的文件URL（必需）
-  thumbnail_url: string | null // Vercel Blob 存储的缩略图URL
+  minio_url: string // MinIO 对象存储的文件URL（必需）
+  thumbnail_url: string | null // MinIO 对象存储的缩略图URL
   size: number
   uploaded_at: Date
 }
@@ -283,12 +283,12 @@ export async function deleteLink(id: number, userId: string): Promise<void> {
   }
 }
 
-// Files actions (只支持 Vercel Blob 存储)
+// Files actions (只支持 MinIO 对象存储)
 export async function getFiles(userId: string): Promise<File[]> {
-  console.log("服务器操作: getFiles (Blob only)", { userId })
+  console.log("服务器操作: getFiles (MinIO only)", { userId })
   try {
     const result = await query(
-      "SELECT id, user_id, name, type, size, blob_url, thumbnail_url, uploaded_at FROM files WHERE user_id = $1 ORDER BY uploaded_at DESC",
+      "SELECT id, user_id, name, type, size, minio_url, thumbnail_url, uploaded_at FROM files WHERE user_id = $1 ORDER BY uploaded_at DESC",
       [userId]
     )
     console.log(`getFiles 结果: ${result.rows.length} 个文件`)
@@ -299,9 +299,9 @@ export async function getFiles(userId: string): Promise<File[]> {
         user_id: row.user_id,
         name: row.name,
         type: row.type,
-        url: row.blob_url, // 使用 blob_url 作为主要 URL
+        url: row.minio_url, // 使用 minio_url 作为主要 URL
         thumbnail: row.thumbnail_url,
-        blob_url: row.blob_url,
+        minio_url: row.minio_url,
         thumbnail_url: row.thumbnail_url,
         size: row.size,
         uploaded_at: row.uploaded_at
@@ -318,30 +318,30 @@ export async function createFile(
   fileData: {
     name: string
     type: string
-    blob_url: string // Vercel Blob URL（必需）
-    thumbnail_url?: string // Vercel Blob 缩略图URL
+    minio_url: string // MinIO URL（必需）
+    thumbnail_url?: string // MinIO 缩略图URL
     size: number
   },
 ): Promise<File> {
-  console.log("服务器操作: createFile (Blob only)", { userId, fileData })
+  console.log("服务器操作: createFile (MinIO only)", { userId, fileData })
 
-  // 验证必需的 blob_url
-  if (!fileData.blob_url) {
-    throw new Error("blob_url is required")
+  // 验证必需的 minio_url
+  if (!fileData.minio_url) {
+    throw new Error("minio_url is required")
   }
 
   try {
     const result = await query(
       `INSERT INTO files (
         user_id, name, type, size,
-        blob_url, thumbnail_url
+        minio_url, thumbnail_url
       ) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [
         userId,
         fileData.name,
         fileData.type,
         fileData.size,
-        fileData.blob_url,
+        fileData.minio_url,
         fileData.thumbnail_url || null
       ],
     )
@@ -353,9 +353,9 @@ export async function createFile(
       user_id: row.user_id,
       name: row.name,
       type: row.type,
-      url: row.blob_url, // 使用 blob_url 作为主要 URL
+      url: row.minio_url, // 使用 minio_url 作为主要 URL
       thumbnail: row.thumbnail_url,
-      blob_url: row.blob_url,
+      minio_url: row.minio_url,
       thumbnail_url: row.thumbnail_url,
       size: row.size,
       uploaded_at: row.uploaded_at
@@ -371,7 +371,7 @@ export async function createFile(
 }
 
 /**
- * 创建文件记录（只支持 Vercel Blob 存储）
+ * 创建文件记录（只支持 MinIO 对象存储）
  */
 export async function createFileAction(
   userId: string,
@@ -379,21 +379,21 @@ export async function createFileAction(
     name: string
     type: string
     size: number
-    blob_url: string // Vercel Blob URL（必需）
-    thumbnail_url?: string // Vercel Blob 缩略图URL
+    minio_url: string // MinIO URL（必需）
+    thumbnail_url?: string // MinIO 缩略图URL
   }
 ): Promise<File> {
-  console.log("服务器操作: createFileAction (Blob only)", { userId, fileData })
+  console.log("服务器操作: createFileAction (MinIO only)", { userId, fileData })
 
-  // 验证必需的 blob_url
-  if (!fileData.blob_url) {
-    throw new Error("blob_url is required")
+  // 验证必需的 minio_url
+  if (!fileData.minio_url) {
+    throw new Error("minio_url is required")
   }
 
   try {
     const result = await query(
-      "INSERT INTO files (user_id, name, type, size, blob_url, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-      [userId, fileData.name, fileData.type, fileData.size, fileData.blob_url, fileData.thumbnail_url || null],
+      "INSERT INTO files (user_id, name, type, size, minio_url, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+      [userId, fileData.name, fileData.type, fileData.size, fileData.minio_url, fileData.thumbnail_url || null],
     )
 
     const row = result.rows[0];
@@ -403,9 +403,9 @@ export async function createFileAction(
       user_id: row.user_id,
       name: row.name,
       type: row.type,
-      url: row.blob_url, // 使用 blob_url 作为主要 URL
+      url: row.minio_url, // 使用 minio_url 作为主要 URL
       thumbnail: row.thumbnail_url,
-      blob_url: row.blob_url,
+      minio_url: row.minio_url,
       thumbnail_url: row.thumbnail_url,
       size: row.size,
       uploaded_at: row.uploaded_at
@@ -423,32 +423,32 @@ export async function createFileAction(
 export async function deleteFile(id: number, userId: string): Promise<void> {
   console.log("服务器操作: deleteFile", { id, userId })
   try {
-    // 获取文件信息以便删除 Blob 存储的文件
-    const fileResult = await query("SELECT blob_url, thumbnail_url FROM files WHERE id = $1 AND user_id = $2", [id, userId])
+    // 获取文件信息以便删除 MinIO 存储的文件
+    const fileResult = await query("SELECT minio_url, thumbnail_url FROM files WHERE id = $1 AND user_id = $2", [id, userId])
 
     if (fileResult.rows.length > 0) {
       const file = fileResult.rows[0]
 
-      // 删除 Blob 存储的主文件
-      if (file.blob_url) {
+      // 删除 MinIO 存储的主文件
+      if (file.minio_url) {
         try {
-          const { deleteFileFromBlob } = await import('@/lib/blob-utils')
-          await deleteFileFromBlob(file.blob_url)
-          console.log("Blob 文件删除成功")
+          const { deleteFileFromMinio } = await import('@/lib/minio-utils')
+          await deleteFileFromMinio(file.minio_url)
+          console.log("MinIO 文件删除成功")
         } catch (error) {
-          console.warn("删除 Blob 文件失败:", error)
-          // 继续删除数据库记录，即使 Blob 删除失败
+          console.warn("删除 MinIO 文件失败:", error)
+          // 继续删除数据库记录，即使 MinIO 删除失败
         }
       }
 
-      // 删除 Blob 存储的缩略图
+      // 删除 MinIO 存储的缩略图
       if (file.thumbnail_url) {
         try {
-          const { deleteFileFromBlob } = await import('@/lib/blob-utils')
-          await deleteFileFromBlob(file.thumbnail_url)
-          console.log("Blob 缩略图删除成功")
+          const { deleteFileFromMinio } = await import('@/lib/minio-utils')
+          await deleteFileFromMinio(file.thumbnail_url)
+          console.log("MinIO 缩略图删除成功")
         } catch (error) {
-          console.warn("删除 Blob 缩略图失败:", error)
+          console.warn("删除 MinIO 缩略图失败:", error)
         }
       }
     }
@@ -463,9 +463,9 @@ export async function deleteFile(id: number, userId: string): Promise<void> {
   }
 }
 
-// Get file with blob data (for download/preview)
-export async function getFileWithBlob(id: number, userId: string): Promise<File | null> {
-  console.log("服务器操作: getFileWithBlob", { id, userId })
+// Get file with MinIO data (for download/preview)
+export async function getFileWithMinio(id: number, userId: string): Promise<File | null> {
+  console.log("服务器操作: getFileWithMinio", { id, userId })
   try {
     const result = await query(
       "SELECT * FROM files WHERE id = $1 AND user_id = $2",
@@ -482,15 +482,15 @@ export async function getFileWithBlob(id: number, userId: string): Promise<File 
       user_id: row.user_id,
       name: row.name,
       type: row.type,
-      url: row.blob_url, // 使用 blob_url 作为主要 URL
+      url: row.minio_url, // 使用 minio_url 作为主要 URL
       thumbnail: row.thumbnail_url,
-      blob_url: row.blob_url,
+      minio_url: row.minio_url,
       thumbnail_url: row.thumbnail_url,
       size: row.size,
       uploaded_at: row.uploaded_at
     } as File
   } catch (error) {
-    console.error("getFileWithBlob 错误:", error)
+    console.error("getFileWithMinio 错误:", error)
     throw error
   }
 }

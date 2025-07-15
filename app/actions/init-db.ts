@@ -30,14 +30,14 @@ export async function initializeDatabase() {
     `
     console.log("links 表已创建或已存在")
 
-    // 创建 files 表（使用 Vercel Blob 存储）
+    // 创建 files 表（使用 MinIO 对象存储）
     await sql`
       CREATE TABLE IF NOT EXISTS files (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
         name VARCHAR(255) NOT NULL,
         type VARCHAR(100) NOT NULL,
-        blob_url TEXT NOT NULL,
+        minio_url TEXT NOT NULL,
         thumbnail_url TEXT,
         size INTEGER NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'active',

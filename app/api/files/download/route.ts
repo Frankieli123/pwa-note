@@ -4,10 +4,10 @@ import { getFiles } from '@/app/actions/db-actions'
 /**
  * 处理强制下载文件
  */
-async function handleDownload(file: { blob_url: string; type: string; name: string }) {
+async function handleDownload(file: { minio_url: string; type: string; name: string }) {
   try {
-    // 从 Vercel Blob URL 获取文件内容
-    const response = await fetch(file.blob_url)
+    // 从 MinIO URL 获取文件内容
+    const response = await fetch(file.minio_url)
 
     if (!response.ok) {
       throw new Error(`Failed to fetch file: ${response.status}`)
