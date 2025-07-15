@@ -19,46 +19,9 @@ interface FileUploaderProps {
   onUploadSuccess?: (url: string) => void // 上传成功回调
 }
 
-// 文件类型配置
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-const ALLOWED_DOCUMENT_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'text/csv'
-]
-
-const MAX_IMAGE_SIZE = 5 // MB
-const MAX_DOCUMENT_SIZE = 20 // MB
-
-// 文件验证函数
-const validateFile = (file: File): { isValid: boolean; error?: string } => {
-  const isImage = ALLOWED_IMAGE_TYPES.includes(file.type)
-  const isDocument = ALLOWED_DOCUMENT_TYPES.includes(file.type)
-
-  // 检查文件类型
-  if (!isImage && !isDocument) {
-    return {
-      isValid: false,
-      error: `不支持的文件类型`
-    }
-  }
-
-  // 检查文件大小
-  const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_DOCUMENT_SIZE
-  const fileSizeMB = file.size / (1024 * 1024)
-
-  if (fileSizeMB > maxSize) {
-    return {
-      isValid: false,
-      error: `文件大小超过限制: ${fileSizeMB.toFixed(1)}MB，${isImage ? '图片' : '文档'}最大${maxSize}MB`
-    }
-  }
-
-  return { isValid: true }
+// 文件验证函数（现在不限制类型和大小）
+const validateFile = (_file: File): { isValid: boolean; error?: string } => {
+  return { isValid: true } // 不限制文件格式和大小
 }
 
 export function FileUploader({

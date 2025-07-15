@@ -54,29 +54,17 @@ export function getAllSupportedTypes(): string[] {
 }
 
 /**
- * 验证文件类型是否支持
+ * 验证文件类型是否支持（现在支持所有类型）
  */
 export function isFileTypeSupported(mimeType: string): boolean {
-  return getAllSupportedTypes().includes(mimeType)
+  return true // 不限制文件格式
 }
 
 /**
- * 验证文件大小是否符合要求
+ * 验证文件大小是否符合要求（现在不限制大小）
  */
 export function validateFileSize(file: File): { valid: boolean; error?: string } {
-  const allTypes = { ...SUPPORTED_FILE_TYPES.images, ...SUPPORTED_FILE_TYPES.documents }
-  const typeConfig = allTypes[file.type as keyof typeof allTypes]
-  
-  if (!typeConfig) {
-    return { valid: false, error: `不支持的文件类型: ${file.type}` }
-  }
-  
-  if (file.size > typeConfig.maxSize) {
-    const maxSizeMB = typeConfig.maxSize / (1024 * 1024)
-    return { valid: false, error: `文件大小超过限制 (最大 ${maxSizeMB}MB)` }
-  }
-  
-  return { valid: true }
+  return { valid: true } // 不限制文件大小
 }
 
 /**

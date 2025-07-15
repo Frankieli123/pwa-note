@@ -169,20 +169,12 @@ export async function GET() {
       success: true,
       config: {
         maxSizes: {
-          images: '5MB',
-          documents: '10MB'
+          images: '无限制',
+          documents: '无限制'
         },
         supportedTypes: {
-          images: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-          documents: [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'text/plain',
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'text/csv'
-          ]
+          images: '支持所有图片格式',
+          documents: '支持所有文件格式'
         },
         endpoint: '/api/files/upload',
         method: 'POST',
