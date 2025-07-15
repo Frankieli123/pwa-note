@@ -49,7 +49,7 @@ export function LinksList({ onAddClick }: LinksListProps) {
                     </a>
                     <div className="text-xs text-muted-foreground truncate mt-1 font-apply-target">{link.url}</div>
                     <div className="text-xs text-muted-foreground mt-1 font-apply-target">
-                      {getRelativeTime(link.createdAt)}
+                      {getRelativeTime(link.created_at)}
                     </div>
                   </div>
 

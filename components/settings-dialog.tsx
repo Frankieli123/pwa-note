@@ -18,6 +18,12 @@ import { useTheme } from "next-themes"
 import { Settings, Moon, Sun, Type, Cloud, CloudOff, Loader2, Shuffle, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMobile } from "@/hooks/use-mobile"
+
+// 头像配置类型定义
+interface AvatarConfig {
+  style: string
+  seed: string
+}
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/components/ui/use-toast"
 import { UserAvatar } from "@/components/user-avatar"
@@ -34,7 +40,7 @@ export function SettingsDialog() {
   const { user } = useAuth()
 
   // 头像相关状态
-  const [tempAvatarConfig, setTempAvatarConfig] = useState(null)
+  const [tempAvatarConfig, setTempAvatarConfig] = useState<AvatarConfig | null>(null)
   const [avatarChanged, setAvatarChanged] = useState(false)
 
   // 确保组件已挂载，避免水合不匹配
@@ -89,7 +95,7 @@ export function SettingsDialog() {
   const handleFontFamilyChange = useCallback(
     (value: string) => {
       // 先更新设置
-      updateSettings({ fontFamily: value as "system" | "sans" | "serif" | "ma-shan-zheng" | "zcool-xiaowei" })
+      updateSettings({ fontFamily: value as any })
       // 使用 requestAnimationFrame 优化DOM更新
       requestAnimationFrame(() => {
         // 强制立即应用字体设置
@@ -230,8 +236,8 @@ export function SettingsDialog() {
             font_family: settings.fontFamily,
             font_size: settings.fontSize,
             sync_interval: settings.syncInterval,
-            avatar_style: tempAvatarConfig.style,
-            avatar_seed: tempAvatarConfig.seed
+            avatar_style: tempAvatarConfig?.style,
+            avatar_seed: tempAvatarConfig?.seed
           })
 
           // 保存头像配置到数据库（通过设置同步系统）

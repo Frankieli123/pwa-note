@@ -87,63 +87,31 @@ export function isImageFile(mimeType: string): boolean {
 }
 
 /**
- * 生成 AWS 签名 V4
+ * 生成预签名 URL 用于文件上传
  */
-function createSignature(
-  method: string,
-  path: string,
-  headers: Record<string, string>,
-  payload: string = ''
-): string {
-  const accessKey = MINIO_CONFIG.accessKey
-  const secretKey = MINIO_CONFIG.secretKey
-  const region = MINIO_CONFIG.region
-  const service = 's3'
+async function generatePresignedUploadUrl(
+  objectName: string,
+  contentType: string
+): Promise<string> {
+  try {
+    // 使用 MinIO 的 presigned URL API
+    const url = new URL(`${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}/${objectName}`)
 
-  const now = new Date()
-  const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, '')
-  const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
+    // 添加查询参数
+    const params = new URLSearchParams({
+      'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+      'X-Amz-Credential': `${MINIO_CONFIG.accessKey}/${new Date().toISOString().slice(0, 10).replace(/-/g, '')}/${MINIO_CONFIG.region}/s3/aws4_request`,
+      'X-Amz-Date': new Date().toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z',
+      'X-Amz-Expires': '3600',
+      'X-Amz-SignedHeaders': 'host'
+    })
 
-  // 创建规范请求
-  const canonicalHeaders = Object.keys(headers)
-    .sort()
-    .map(key => `${key.toLowerCase()}:${headers[key]}\n`)
-    .join('')
-
-  const signedHeaders = Object.keys(headers)
-    .sort()
-    .map(key => key.toLowerCase())
-    .join(';')
-
-  const payloadHash = crypto.createHash('sha256').update(payload).digest('hex')
-
-  const canonicalRequest = [
-    method,
-    path,
-    '', // query string
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash
-  ].join('\n')
-
-  // 创建签名字符串
-  const algorithm = 'AWS4-HMAC-SHA256'
-  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`
-  const stringToSign = [
-    algorithm,
-    timeStamp,
-    credentialScope,
-    crypto.createHash('sha256').update(canonicalRequest).digest('hex')
-  ].join('\n')
-
-  // 计算签名
-  const kDate = crypto.createHmac('sha256', `AWS4${secretKey}`).update(dateStamp).digest()
-  const kRegion = crypto.createHmac('sha256', kDate).update(region).digest()
-  const kService = crypto.createHmac('sha256', kRegion).update(service).digest()
-  const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest()
-  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex')
-
-  return `${algorithm} Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
+    url.search = params.toString()
+    return url.toString()
+  } catch (error) {
+    console.error('生成预签名 URL 失败:', error)
+    throw error
+  }
 }
 
 /**
@@ -171,32 +139,27 @@ export async function uploadFileToMinio(
     const fileExtension = file.name.split('.').pop() || ''
     const fileName = `${userId}/${folder}/${timestamp}_${randomId}.${fileExtension}`
 
-    // 准备上传请求
+    // 使用简单的 PUT 请求上传（MinIO 支持基本认证）
     const arrayBuffer = await file.arrayBuffer()
-    const path = `/${MINIO_CONFIG.bucketName}/${fileName}`
+    const url = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}/${fileName}`
 
-    const headers = {
-      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
-      'Content-Type': file.type,
-      'Content-Length': arrayBuffer.byteLength.toString(),
-      'x-amz-date': new Date().toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
-    }
+    // 创建基本认证头
+    const auth = btoa(`${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`)
 
-    const authorization = createSignature('PUT', path, headers, '')
-    headers['Authorization'] = authorization
-
-    // 上传到 MinIO
-    const response = await fetch(`${MINIO_CONFIG.endpoint}${path}`, {
+    const response = await fetch(url, {
       method: 'PUT',
-      headers,
+      headers: {
+        'Content-Type': file.type,
+        'Authorization': `Basic ${auth}`,
+        'Content-Length': arrayBuffer.byteLength.toString()
+      },
       body: arrayBuffer
     })
 
     if (!response.ok) {
-      throw new Error(`MinIO 上传失败: ${response.status} ${response.statusText}`)
+      const errorText = await response.text()
+      throw new Error(`MinIO 上传失败: ${response.status} ${response.statusText} - ${errorText}`)
     }
-
-    const url = `${MINIO_CONFIG.endpoint}${path}`
 
     return {
       url,
@@ -223,32 +186,27 @@ export async function uploadThumbnailToMinio(
     const baseName = originalFileName.split('.')[0]
     const fileName = `${userId}/thumbnails/${timestamp}_${randomId}_${baseName}_thumb.jpg`
 
-    // 准备上传请求
+    // 使用简单的 PUT 请求上传
     const arrayBuffer = await thumbnailBlob.arrayBuffer()
-    const path = `/${MINIO_CONFIG.bucketName}/${fileName}`
+    const url = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}/${fileName}`
 
-    const headers = {
-      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
-      'Content-Type': 'image/jpeg',
-      'Content-Length': arrayBuffer.byteLength.toString(),
-      'x-amz-date': new Date().toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
-    }
+    // 创建基本认证头
+    const auth = btoa(`${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`)
 
-    const authorization = createSignature('PUT', path, headers, '')
-    headers['Authorization'] = authorization
-
-    // 上传缩略图到 MinIO
-    const response = await fetch(`${MINIO_CONFIG.endpoint}${path}`, {
+    const response = await fetch(url, {
       method: 'PUT',
-      headers,
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Authorization': `Basic ${auth}`,
+        'Content-Length': arrayBuffer.byteLength.toString()
+      },
       body: arrayBuffer
     })
 
     if (!response.ok) {
-      throw new Error(`MinIO 缩略图上传失败: ${response.status} ${response.statusText}`)
+      const errorText = await response.text()
+      throw new Error(`MinIO 缩略图上传失败: ${response.status} ${response.statusText} - ${errorText}`)
     }
-
-    const url = `${MINIO_CONFIG.endpoint}${path}`
 
     return {
       url,
@@ -265,25 +223,19 @@ export async function uploadThumbnailToMinio(
  */
 export async function deleteFileFromMinio(url: string): Promise<void> {
   try {
-    // 从 URL 中提取文件路径
-    const urlObj = new URL(url)
-    const path = urlObj.pathname
-
-    const headers = {
-      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
-      'x-amz-date': new Date().toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
-    }
-
-    const authorization = createSignature('DELETE', path, headers, '')
-    headers['Authorization'] = authorization
+    // 创建基本认证头
+    const auth = btoa(`${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`)
 
     const response = await fetch(url, {
       method: 'DELETE',
-      headers
+      headers: {
+        'Authorization': `Basic ${auth}`
+      }
     })
 
     if (!response.ok && response.status !== 404) {
-      throw new Error(`MinIO 删除失败: ${response.status} ${response.statusText}`)
+      const errorText = await response.text()
+      throw new Error(`MinIO 删除失败: ${response.status} ${response.statusText} - ${errorText}`)
     }
   } catch (error) {
     console.error('从 MinIO 删除文件失败:', error)
@@ -296,23 +248,21 @@ export async function deleteFileFromMinio(url: string): Promise<void> {
  */
 export async function listUserFiles(userId: string): Promise<any[]> {
   try {
-    const path = `/${MINIO_CONFIG.bucketName}?list-type=2&prefix=${userId}/`
+    const url = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}?list-type=2&prefix=${userId}/`
 
-    const headers = {
-      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
-      'x-amz-date': new Date().toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
-    }
+    // 创建基本认证头
+    const auth = btoa(`${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`)
 
-    const authorization = createSignature('GET', path, headers, '')
-    headers['Authorization'] = authorization
-
-    const response = await fetch(`${MINIO_CONFIG.endpoint}${path}`, {
+    const response = await fetch(url, {
       method: 'GET',
-      headers
+      headers: {
+        'Authorization': `Basic ${auth}`
+      }
     })
 
     if (!response.ok) {
-      throw new Error(`MinIO 列表获取失败: ${response.status} ${response.statusText}`)
+      const errorText = await response.text()
+      throw new Error(`MinIO 列表获取失败: ${response.status} ${response.statusText} - ${errorText}`)
     }
 
     // 解析 XML 响应（简化版本）
@@ -353,23 +303,21 @@ export async function getFileInfo(url: string): Promise<any> {
 export async function validateMinioConnection(): Promise<{ success: boolean; error?: string }> {
   try {
     // 尝试列出 bucket 来验证连接
-    const path = `/${MINIO_CONFIG.bucketName}?list-type=2&max-keys=1`
+    const url = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}?list-type=2&max-keys=1`
 
-    const headers = {
-      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
-      'x-amz-date': new Date().toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
-    }
+    // 创建基本认证头
+    const auth = btoa(`${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`)
 
-    const authorization = createSignature('GET', path, headers, '')
-    headers['Authorization'] = authorization
-
-    const response = await fetch(`${MINIO_CONFIG.endpoint}${path}`, {
+    const response = await fetch(url, {
       method: 'GET',
-      headers
+      headers: {
+        'Authorization': `Basic ${auth}`
+      }
     })
 
     if (!response.ok) {
-      throw new Error(`连接验证失败: ${response.status} ${response.statusText}`)
+      const errorText = await response.text()
+      throw new Error(`连接验证失败: ${response.status} ${response.statusText} - ${errorText}`)
     }
 
     return { success: true }

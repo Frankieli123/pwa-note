@@ -69,8 +69,7 @@ const mapDbLinkToLink = (dbLink: DbLink): Link => ({
 const mapDbFileToFile = (dbFile: DbFile): File => ({
   ...dbFile,
   id: String(dbFile.id),
-  thumbnail: dbFile.thumbnail || undefined,
-  base64_data: dbFile.base64_data || undefined
+  thumbnail: dbFile.thumbnail || undefined
 })
 
 type SyncStatus = "idle" | "syncing" | "error" | "success"
@@ -81,7 +80,7 @@ interface SyncContextType {
   notes: Note[]
   links: Link[]
   files: File[]
-  user: { id: string; email: string; name: string } | null
+  user: { id: string; username: string; avatar?: string; avatarConfig?: any; dbAvatarConfig?: any; deviceInfo?: any } | null
   sync: (silent?: boolean) => Promise<void>
   saveNote: (id: string, content: string, title?: string) => Promise<Note | null>
   deleteNote: (id: string) => Promise<boolean>
@@ -753,11 +752,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (!user) return null
 
     try {
-      // 导入Blob工具函数
+      // 导入MinIO工具函数
       const {
         validateFileSize,
         isFileTypeSupported
-      } = await import('@/lib/blob-utils')
+      } = await import('@/lib/minio-utils')
 
       // 验证文件类型和大小
       if (!isFileTypeSupported(file.type)) {

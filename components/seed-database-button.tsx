@@ -26,7 +26,7 @@ export function SeedDatabaseButton() {
   }>({})
   const { toast } = useToast()
   const { user } = useAuth()
-  const { syncNow } = useSync()
+  const { sync } = useSync()
 
   const handleSeed = async () => {
     if (!user) {
@@ -59,7 +59,7 @@ export function SeedDatabaseButton() {
           description: response.message,
         })
         // 刷新数据
-        await syncNow()
+        await sync()
       } else {
         toast({
           title: "失败",

@@ -4,7 +4,7 @@
  * 检查缩略图存储情况和空间占用
  */
 
-import { listUserFiles, getFileInfo } from '@/lib/blob-utils'
+import { listUserFiles, getFileInfo } from '@/lib/minio-utils'
 
 async function checkThumbnailStorage() {
   console.log('🔍 检查缩略图存储情况...\n')

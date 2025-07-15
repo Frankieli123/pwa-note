@@ -125,10 +125,8 @@ export async function GET(request: NextRequest) {
         uploaded_at: file.uploaded_at
       }
 
-      // 根据参数决定是否包含Base64数据
-      if (includeBase64) {
-        fileData.base64_data = file.base64_data
-      }
+      // MinIO 存储不支持 Base64 数据，忽略 includeBase64 参数
+      // 所有文件数据都通过 MinIO URL 访问
 
       return fileData
     })

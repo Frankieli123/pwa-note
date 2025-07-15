@@ -70,7 +70,7 @@ export async function GET(request: Request) {
           hasUpdates: existsValue
         },
         comparison: {
-          performanceGainPercent: parseFloat(performanceGain),
+          performanceGainPercent: parseFloat(performanceGain.toString()),
           resultsMatch: resultsMatch,
           recommendation: existsDuration < countDuration ? 
             'EXISTS查询更快' : 'COUNT查询更快'

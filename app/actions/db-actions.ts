@@ -496,7 +496,8 @@ export async function getFileWithMinio(id: number, userId: string): Promise<File
 }
 
 // 保持向后兼容的别名
-export const getFileWithBase64 = getFileWithBlob
+export const getFileWithBase64 = getFileWithMinio
+export const getFileWithBlob = getFileWithMinio
 
 
 

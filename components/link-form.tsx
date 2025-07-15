@@ -42,11 +42,7 @@ export function LinkForm({ onComplete }: LinkFormProps) {
       setIsSubmitting(true)
 
       // 保存链接
-      await saveLink({
-        url: urlToValidate,
-        title: title || urlToValidate,
-        createdAt: new Date(),
-      })
+      await saveLink(urlToValidate, title || urlToValidate)
 
       // 重置表单
       setUrl("")

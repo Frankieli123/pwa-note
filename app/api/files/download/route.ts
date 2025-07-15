@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    if (!file.blob_url) {
+    if (!file.minio_url) {
       return NextResponse.json(
         {
           error: 'File data not available',
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
           // 如果要求强制下载，使用download格式
           return await handleDownload(file)
         }
-        return NextResponse.redirect(file.blob_url, 302)
+        return NextResponse.redirect(file.minio_url, 302)
 
       case 'download':
         // 强制下载文件
@@ -125,8 +125,8 @@ export async function GET(request: NextRequest) {
             name: file.name,
             type: file.type,
             size: file.size,
-            url: file.blob_url,
-            blob_url: file.blob_url,
+            url: file.minio_url,
+            minio_url: file.minio_url,
             thumbnail: file.thumbnail_url,
             thumbnail_url: file.thumbnail_url,
             uploaded_at: file.uploaded_at
@@ -197,10 +197,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 如果是图片文件但没有缩略图，返回原图 URL
-    if (file.type.startsWith('image/') && file.blob_url) {
+    if (file.type.startsWith('image/') && file.minio_url) {
       return NextResponse.json({
         success: true,
-        thumbnail: file.blob_url,
+        thumbnail: file.minio_url,
         isOriginal: true
       })
     }
