@@ -102,8 +102,9 @@ export async function POST(request: NextRequest) {
       thumbnailUrl
     })
 
+    let insertResult: any[]
     try {
-      const insertResult = await sql`
+      insertResult = await sql`
         INSERT INTO files (
           user_id,
           name,
