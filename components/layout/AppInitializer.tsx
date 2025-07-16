@@ -24,8 +24,18 @@ export function AppInitializer({ children, onShowOnboarding }: AppInitializerPro
   // 初始化逻辑
   useEffect(() => {
     // 新用户引导检测
-    if (!authLoading && !user && typeof window !== "undefined" && !localStorage.getItem("onboardingShown")) {
-      onShowOnboarding()
+    if (typeof window !== "undefined") {
+      const hasAuthToken = localStorage.getItem("authToken")
+      const hasShownOnboarding = localStorage.getItem("onboardingShown")
+
+      // 只有在没有token、没有用户、没有显示过引导的情况下才显示引导
+      // 如果有authToken说明用户已登录过，即使暂时没有user状态也不显示引导
+      if (!authLoading && !user && !hasAuthToken && !hasShownOnboarding) {
+        console.log("检测到新用户，显示引导页面")
+        onShowOnboarding()
+      } else if (hasAuthToken && !user && !authLoading) {
+        console.log("检测到已登录用户但状态未加载，等待认证完成")
+      }
     }
   }, [authLoading, user, onShowOnboarding])
 
