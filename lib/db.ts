@@ -13,7 +13,7 @@ const pool = new Pool({
 // 创建 SQL 查询执行器（兼容 neon 的模板字符串语法）
 export const sql = async (strings: TemplateStringsArray, ...values: any[]) => {
   const query = strings.reduce((result, string, i) => {
-    return result + string + (values[i] ? `$${i + 1}` : '')
+    return result + string + (values[i] !== undefined ? `$${i + 1}` : '')
   }, '')
 
   const client = await pool.connect()
