@@ -95,22 +95,22 @@ export async function POST(request: NextRequest) {
     console.log('💾 保存文件元数据到数据库...')
     const insertResult = await sql`
       INSERT INTO files (
-        user_id, 
-        name, 
-        type, 
-        size, 
-        minio_url, 
+        user_id,
+        name,
+        type,
+        minio_url,
         thumbnail_url,
+        size,
         status,
         uploaded_at
       )
       VALUES (
-        ${userId}, 
-        ${file.name}, 
-        ${file.type}, 
-        ${file.size}, 
-        ${mainFileResult.url}, 
+        ${userId},
+        ${file.name},
+        ${file.type},
+        ${mainFileResult.url},
         ${thumbnailUrl},
+        ${file.size},
         'active',
         NOW()
       )
