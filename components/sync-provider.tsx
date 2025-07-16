@@ -126,7 +126,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     console.log('初始化客户端时间:', clientNow);
   }, []);
   
-  // Load data when user changes (优化版本 - 快速初始化)
+  // Load data when user ID changes (优化版本 - 避免头像更新触发重复加载)
   useEffect(() => {
     if (!user) {
       setNotes([])
@@ -145,6 +145,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         lastSyncTimeRef.current = clientNow;
         lastContentUpdateRef.current = clientNow;
 
+        console.log("🔄 用户ID变化，开始加载数据:", user.id)
         // 快速同步 - 只加载最近的数据
         await syncOptimized(false)
         setIsInitialized(true)
@@ -155,7 +156,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
 
     loadInitialData()
-  }, [user])
+  }, [user?.id]) // 只依赖用户ID，避免头像配置更新触发重复加载
 
   // Set up sync timer and update checker
   useEffect(() => {
@@ -359,8 +360,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setSyncStatus("success")
       }
 
-      // 恢复强制刷新以保证多端同步
-      router.refresh()
+      // 移除不必要的页面刷新，避免重复加载
+      // router.refresh() - 已移除，减少不必要的页面刷新
     } catch (error) {
       console.error("❌ 便签加载失败", error)
 
@@ -410,8 +411,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setSyncStatus("success")
       }
 
-      // 恢复强制刷新以保证多端同步
-      router.refresh()
+      // 移除不必要的页面刷新，避免重复加载
+      // router.refresh() - 已移除，减少不必要的页面刷新
     } catch (error) {
       console.error("Sync failed", error)
 
@@ -567,13 +568,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     
     // 立即更新UI
     setNotes((prev) => prev.filter((n) => n.id !== id))
-    
+
     // If on the note's page, redirect to home
     if (pathname.includes(id)) {
       router.push("/")
-    } else {
-      router.refresh()
     }
+    // 移除不必要的router.refresh()，UI已通过状态更新
     
     // 广播更新到其他标签页
     broadcastUpdate();
