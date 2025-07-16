@@ -102,32 +102,45 @@ export async function POST(request: NextRequest) {
       thumbnailUrl
     })
 
-    const insertResult = await sql`
-      INSERT INTO files (
-        user_id,
-        name,
-        type,
-        minio_url,
-        thumbnail_url,
-        size,
-        status,
-        uploaded_at
-      )
-      VALUES (
-        ${userId},
-        ${file.name},
-        ${file.type},
-        ${mainFileResult.url},
-        ${thumbnailUrl || null},
-        ${file.size},
-        'active',
-        NOW()
-      )
-      RETURNING id, user_id, name, type, size, minio_url, thumbnail_url, uploaded_at
-    `
-    
-    if (insertResult.length === 0) {
-      throw new Error('数据库插入失败')
+    try {
+      const insertResult = await sql`
+        INSERT INTO files (
+          user_id,
+          name,
+          type,
+          minio_url,
+          thumbnail_url,
+          size,
+          status,
+          uploaded_at
+        )
+        VALUES (
+          ${userId},
+          ${file.name},
+          ${file.type},
+          ${mainFileResult.url},
+          ${thumbnailUrl || null},
+          ${Number(file.size)},
+          'active',
+          NOW()
+        )
+        RETURNING id, user_id, name, type, size, minio_url, thumbnail_url, uploaded_at
+      `
+
+      if (insertResult.length === 0) {
+        throw new Error('数据库插入失败')
+      }
+    } catch (dbError) {
+      console.error('❌ 数据库插入失败:', dbError)
+      console.error('插入数据详情:', {
+        userId,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        minioUrl: mainFileResult.url,
+        thumbnailUrl
+      })
+      throw new Error(`数据库插入失败: ${dbError instanceof Error ? dbError.message : String(dbError)}`)
     }
     
     const savedFile = insertResult[0]
