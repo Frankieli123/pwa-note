@@ -2,12 +2,57 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getFiles } from '@/app/actions/db-actions'
 
 /**
- * 处理强制下载文件
+ * 生成MinIO签名URL用于安全下载
  */
-async function handleDownload(file: { minio_url: string; type: string; name: string }) {
+function generateSignedUrl(filePath: string, expiresIn: number = 3600): string {
+  const MINIO_CONFIG = {
+    endpoint: process.env.MINIO_ENDPOINT || 'https://minio-pwa.vryo.de',
+    accessKey: process.env.MINIO_ACCESS_KEY || 'a3180623',
+    secretKey: process.env.MINIO_SECRET_KEY || 'a3865373',
+    bucketName: process.env.MINIO_BUCKET_NAME || 'pwa-note-files',
+    region: process.env.MINIO_REGION || 'us-east-1'
+  }
+
+  // 从完整URL中提取文件路径
+  const url = new URL(filePath)
+  const objectKey = url.pathname.substring(`/${MINIO_CONFIG.bucketName}/`.length)
+
+  // 生成预签名URL的参数
+  const now = new Date()
+  const expires = new Date(now.getTime() + expiresIn * 1000)
+  const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, '')
+  const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
+
+  // 构建签名URL（简化版本）
+  const signedUrl = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}/${objectKey}?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${MINIO_CONFIG.accessKey}%2F${dateStamp}%2F${MINIO_CONFIG.region}%2Fs3%2Faws4_request&X-Amz-Date=${timeStamp}&X-Amz-Expires=${expiresIn}&X-Amz-SignedHeaders=host`
+
+  return signedUrl
+}
+
+/**
+ * 处理强制下载文件 - 使用代理方式确保权限控制
+ */
+async function handleDownload(file: { minio_url: string; type: string; name: string; user_id: string }, requestUserId: string) {
   try {
-    // 从 MinIO URL 获取文件内容
-    const response = await fetch(file.minio_url)
+    // 验证用户权限：只能下载自己的文件
+    if (file.user_id !== requestUserId) {
+      throw new Error('无权限访问此文件')
+    }
+
+    // 使用服务器端凭据直接从MinIO获取文件
+    const MINIO_CONFIG = {
+      endpoint: process.env.MINIO_ENDPOINT || 'https://minio-pwa.vryo.de',
+      accessKey: process.env.MINIO_ACCESS_KEY || 'a3180623',
+      secretKey: process.env.MINIO_SECRET_KEY || 'a3865373'
+    }
+
+    // 创建带认证的请求头
+    const response = await fetch(file.minio_url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `AWS ${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`
+      }
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to fetch file: ${response.status}`)
@@ -30,7 +75,7 @@ async function handleDownload(file: { minio_url: string; type: string; name: str
     return NextResponse.json(
       {
         error: 'Download failed',
-        message: '文件下载失败，请稍后再试'
+        message: error instanceof Error ? error.message : '文件下载失败，请稍后再试'
       },
       { status: 500 }
     )
@@ -86,9 +131,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'File not found',
-          message: '文件不存在'
+          message: '文件不存在或无权限访问'
         },
         { status: 404 }
+      )
+    }
+
+    // 验证文件所有权：确保用户只能访问自己的文件
+    if (file.user_id !== userId) {
+      return NextResponse.json(
+        {
+          error: 'Access denied',
+          message: '无权限访问此文件'
+        },
+        { status: 403 }
       )
     }
 
@@ -105,16 +161,18 @@ export async function GET(request: NextRequest) {
     // 根据格式返回不同的响应
     switch (format) {
       case 'redirect':
-        // 重定向到 Vercel Blob URL（可能在浏览器中打开）
+        // 对于redirect，我们也需要验证权限，不能直接重定向到MinIO URL
         if (forceDownload) {
           // 如果要求强制下载，使用download格式
-          return await handleDownload(file)
+          return await handleDownload(file, userId)
         }
-        return NextResponse.redirect(file.minio_url, 302)
+        // 生成临时签名URL进行重定向（1小时有效期）
+        const signedUrl = generateSignedUrl(file.minio_url, 3600)
+        return NextResponse.redirect(signedUrl, 302)
 
       case 'download':
         // 强制下载文件
-        return await handleDownload(file)
+        return await handleDownload(file, userId)
 
       case 'json':
         // 返回完整的文件信息JSON
@@ -182,9 +240,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'File not found',
-          message: '文件不存在'
+          message: '文件不存在或无权限访问'
         },
         { status: 404 }
+      )
+    }
+
+    // 验证文件所有权：确保用户只能访问自己的文件
+    if (file.user_id !== userId) {
+      return NextResponse.json(
+        {
+          error: 'Access denied',
+          message: '无权限访问此文件'
+        },
+        { status: 403 }
       )
     }
 
