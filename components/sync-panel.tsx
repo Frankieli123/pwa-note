@@ -539,19 +539,19 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
               )}>
                 <TabsTrigger value="notes" className={cn("rounded-md text-base font-normal", isMobile ? "px-2 py-1" : "px-4")}>
                   <StickyNote className="h-4 w-4 mr-1" />
-                  <span>便签</span>
+                  <span className="font-apply-target">便签</span>
                 </TabsTrigger>
                 <TabsTrigger value="docFiles" className={cn("rounded-md text-base font-normal", isMobile ? "px-2 py-1" : "px-4")}>
                   <FileText className="h-4 w-4 mr-1" />
-                  <span>文件</span>
+                  <span className="font-apply-target">文件</span>
                 </TabsTrigger>
                 <TabsTrigger value="imageFiles" className={cn("rounded-md text-base font-normal", isMobile ? "px-2 py-1" : "px-4")}>
                   <Image className="h-4 w-4 mr-1" />
-                  <span>图片</span>
+                  <span className="font-apply-target">图片</span>
                 </TabsTrigger>
                 <TabsTrigger value="links" className={cn("rounded-md text-base font-normal", isMobile ? "px-2 py-1" : "px-4")}>
                   <Link2 className="h-4 w-4 mr-1" />
-                  <span>链接</span>
+                  <span className="font-apply-target">链接</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -592,7 +592,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                       onClick={() => setShowLinkForm(true)}
                     >
                       <Link2 className="h-4 w-4 mr-2" />
-                      添加新链接
+                      <span className="font-apply-target">添加新链接</span>
                     </Button>
                   ) : (
                     <div className="mb-4 pt-4">

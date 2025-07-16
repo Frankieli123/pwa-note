@@ -188,22 +188,22 @@ export function FileUploader({
           <Upload className="h-6 w-6 text-muted-foreground mb-1" />
         )}
 
-        <p className="text-sm text-muted-foreground">{isDragActive ? "放下文件以上传" : label}</p>
+        <p className="text-sm text-muted-foreground font-apply-target">{isDragActive ? "放下文件以上传" : label}</p>
 
         {!onClick && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-            <span>或</span>
+            <span className="font-apply-target">或</span>
             <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={open}>
-              <span>选择文件</span>
+              <span className="font-apply-target">选择文件</span>
             </Button>
-            <span>· 最大{maxSize}MB</span>
+            <span className="font-apply-target">· 最大{maxSize}MB</span>
           </div>
         )}
 
         {isUploading && (
           <div className="w-full mt-2">
             <Progress value={uploadProgress} className="h-1" />
-            <p className="text-xs text-muted-foreground mt-1">上传中... {uploadProgress}%</p>
+            <p className="text-xs text-muted-foreground mt-1 font-apply-target">上传中... {uploadProgress}%</p>
           </div>
         )}
       </div>

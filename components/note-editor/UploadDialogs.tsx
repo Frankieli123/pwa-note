@@ -44,10 +44,10 @@ export function UploadDialogs({
       <Dialog open={isUploadDialogOpen} onOpenChange={onUploadDialogClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="font-apply-target">
               {uploadType === "image" ? "上传图片" : "上传文件"}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="font-apply-target">
               {uploadType === "image"
                 ? "选择要上传的图片文件"
                 : "选择要上传的文件"
@@ -70,7 +70,7 @@ export function UploadDialogs({
           
           <DialogFooter>
             <Button variant="outline" onClick={onUploadDialogClose}>
-              取消
+              <span className="font-apply-target">取消</span>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -80,25 +80,25 @@ export function UploadDialogs({
       <Dialog open={isErrorDialogOpen} onOpenChange={onErrorDialogClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-destructive">保存失败</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-destructive font-apply-target">保存失败</DialogTitle>
+            <DialogDescription className="font-apply-target">
               保存便签时遇到了问题，请稍后重试。
             </DialogDescription>
           </DialogHeader>
-          
+
           {saveError && (
             <div className="py-4">
               <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-                <p className="text-sm text-destructive font-mono">
+                <p className="text-sm text-destructive font-mono font-apply-target">
                   {saveError}
                 </p>
               </div>
             </div>
           )}
-          
+
           <DialogFooter>
             <Button onClick={onErrorDialogClose}>
-              确定
+              <span className="font-apply-target">确定</span>
             </Button>
           </DialogFooter>
         </DialogContent>
