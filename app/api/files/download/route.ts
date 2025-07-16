@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getFiles } from '@/app/actions/db-actions'
+import { downloadFileFromMinio } from '@/lib/minio-utils'
 
 /**
  * 生成MinIO签名URL用于安全下载
@@ -30,7 +31,7 @@ function generateSignedUrl(filePath: string, expiresIn: number = 3600): string {
 }
 
 /**
- * 处理强制下载文件 - 使用代理方式确保权限控制
+ * 处理强制下载文件 - 使用正确的MinIO认证
  */
 async function handleDownload(file: { minio_url: string; type: string; name: string; user_id: string }, requestUserId: string) {
   try {
@@ -39,26 +40,8 @@ async function handleDownload(file: { minio_url: string; type: string; name: str
       throw new Error('无权限访问此文件')
     }
 
-    // 使用服务器端凭据直接从MinIO获取文件
-    const MINIO_CONFIG = {
-      endpoint: process.env.MINIO_ENDPOINT || 'https://minio-pwa.vryo.de',
-      accessKey: process.env.MINIO_ACCESS_KEY || 'a3180623',
-      secretKey: process.env.MINIO_SECRET_KEY || 'a3865373'
-    }
-
-    // 创建带认证的请求头
-    const response = await fetch(file.minio_url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `AWS ${MINIO_CONFIG.accessKey}:${MINIO_CONFIG.secretKey}`
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch file: ${response.status}`)
-    }
-
-    const fileBuffer = await response.arrayBuffer()
+    // 使用正确的MinIO下载方法
+    const fileBuffer = await downloadFileFromMinio(file.minio_url)
 
     // 设置下载响应头
     const headers = new Headers()

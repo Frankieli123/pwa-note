@@ -290,6 +290,50 @@ export async function uploadThumbnailToMinio(
 }
 
 /**
+ * 从 MinIO 下载文件
+ */
+export async function downloadFileFromMinio(fileUrl: string): Promise<ArrayBuffer> {
+  try {
+    const url = new URL(fileUrl)
+    const objectKey = url.pathname.substring(`/${MINIO_CONFIG.bucketName}/`.length)
+
+    console.log(`📥 下载 MinIO 文件: ${objectKey}`)
+
+    const downloadUrl = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}/${objectKey}`
+    const path = `/${MINIO_CONFIG.bucketName}/${objectKey}`
+
+    const now = new Date()
+    const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
+
+    const headers: Record<string, string> = {
+      'Host': MINIO_CONFIG.endpoint.replace(/^https?:\/\//, ''),
+      'x-amz-date': timeStamp
+    }
+
+    const authorization = createAwsSignature('GET', path, headers, '')
+    headers['Authorization'] = authorization
+
+    const response = await fetch(downloadUrl, {
+      method: 'GET',
+      headers
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`MinIO 下载失败: ${response.status} ${response.statusText} - ${errorText}`)
+    }
+
+    const fileBuffer = await response.arrayBuffer()
+    console.log(`✅ MinIO 文件下载成功: ${objectKey}, 大小: ${fileBuffer.byteLength} bytes`)
+
+    return fileBuffer
+  } catch (error) {
+    console.error('❌ MinIO 文件下载失败:', error)
+    throw error
+  }
+}
+
+/**
  * 从 MinIO 删除文件
  */
 export async function deleteFileFromMinio(url: string): Promise<void> {
