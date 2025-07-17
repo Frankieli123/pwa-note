@@ -161,136 +161,26 @@
   }
 }
 
-/* 富文本编辑器样式 */
-.editor-content {
+/* 简单文本编辑器样式 */
+.simple-text-editor {
   min-height: 200px;
-  /* 移除强制字体大小，让编辑器跟随用户设置 */
+  padding: 1rem;
+  border: none;
+  outline: none;
+  font-size: inherit;
+  line-height: 1.6;
+  color: inherit;
+  background: transparent;
+  resize: none;
+  width: 100%;
 }
 
-.editor-content h1 {
-  font-size: 1.5rem;
-  font-weight: bold;
-  margin: 1rem 0;
+.simple-text-editor:focus {
+  outline: none;
 }
 
-.editor-content h2 {
-  font-size: 1.25rem;
-  font-weight: bold;
-  margin: 0.75rem 0;
-}
-
-.editor-content blockquote {
-  border-left: 3px solid hsl(var(--primary));
-  padding-left: 1rem;
-  margin: 1rem 0;
+.simple-text-editor::placeholder {
   color: hsl(var(--muted-foreground));
-  font-style: italic;
-}
-
-.editor-content ul {
-  list-style-type: disc;
-  margin-left: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-.editor-content ol {
-  list-style-type: decimal;
-  margin-left: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-.editor-content pre {
-  background-color: hsl(var(--muted));
-  padding: 0.75rem;
-  border-radius: 0.5rem;
-  margin: 1rem 0;
-  overflow-x: auto;
-  font-family: var(--font-jetbrains-mono), monospace;
-  font-size: 0.875rem;
-}
-
-.editor-content code {
-  font-family: var(--font-jetbrains-mono), monospace;
-  font-size: 0.875rem;
-}
-
-.editor-content a {
-  color: hsl(var(--primary));
-  text-decoration: underline;
-}
-
-.editor-content img {
-  max-width: 100%;
-  height: auto;
-  margin: 1rem 0;
-  border-radius: 0.5rem;
-}
-
-/* 富文本内容在便签中的显示样式 */
-.rich-text-content {
-  overflow: hidden;
-  /* 移除强制字体大小，让它跟随用户设置 */
-}
-
-.rich-text-content * {
-  /* 移除强制字体大小，让它跟随用户设置 */
-  line-height: 1.5;
-}
-
-.rich-text-content h1,
-.rich-text-content h2,
-.rich-text-content h3,
-.rich-text-content h4,
-.rich-text-content h5,
-.rich-text-content h6,
-.rich-text-content p,
-.rich-text-content span,
-.rich-text-content div,
-.rich-text-content li,
-.rich-text-content blockquote,
-.rich-text-content code,
-.rich-text-content pre {
-  /* 移除强制字体大小，让它跟随用户设置 */
-  line-height: 1.5;
-}
-
-.rich-text-content h1 {
-  font-weight: bold;
-  margin: 0.5rem 0;
-}
-
-.rich-text-content h2 {
-  font-weight: bold;
-  margin: 0.5rem 0;
-}
-
-.rich-text-content blockquote {
-  border-left: 2px solid hsl(var(--primary));
-  padding-left: 0.5rem;
-  margin: 0.5rem 0;
-  color: hsl(var(--muted-foreground));
-  font-style: italic;
-}
-
-.rich-text-content ul,
-.rich-text-content ol {
-  margin-left: 1.25rem;
-  margin-bottom: 0.5rem;
-}
-
-.rich-text-content pre {
-  background-color: hsl(var(--muted));
-  padding: 0.5rem;
-  border-radius: 0.25rem;
-  margin: 0.5rem 0;
-  overflow-x: auto;
-}
-
-.rich-text-content img {
-  max-width: 100%;
-  height: auto;
-  margin: 0.5rem 0;
-  border-radius: 0.25rem;
 }
 
 /* 版权信息专用样式 - 使用系统默认字体 */

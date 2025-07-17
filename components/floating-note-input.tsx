@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { Editor } from "@/components/editor"
+import { SimpleTextEditor } from "@/components/simple-text-editor"
 import { useSettings } from "@/hooks/use-settings"
 import { useNoteEditorState } from "@/components/note-editor/NoteEditorState"
 import { AutoSaveManager } from "@/components/note-editor/AutoSaveManager"
@@ -95,7 +95,7 @@ export function FloatingNoteInput() {
           )
         }
         editor={
-          <Editor
+          <SimpleTextEditor
             value={content}
             onChange={setContent}
             placeholder="点击此处开始输入"

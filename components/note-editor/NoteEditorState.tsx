@@ -6,19 +6,35 @@ import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 import { useSettings } from "@/hooks/use-settings"
 
-// 检查内容是否真正为空（包括只有HTML标签和HTML实体的情况）
+// HTML转纯文本的转换函数
+export const htmlToText = (html: string): string => {
+  if (!html) return ''
+
+  // 创建临时DOM元素来正确解析HTML
+  const tempDiv = document.createElement('div')
+  let processedHtml = html
+
+  // 处理各种HTML换行元素，转换为换行符
+  processedHtml = processedHtml.replace(/<br\s*\/?>/gi, '\n')
+  processedHtml = processedHtml.replace(/<\/div>/gi, '\n')
+  processedHtml = processedHtml.replace(/<\/p>/gi, '\n')
+  processedHtml = processedHtml.replace(/<\/li>/gi, '\n')
+
+  tempDiv.innerHTML = processedHtml
+  let textContent = tempDiv.textContent || tempDiv.innerText || ''
+
+  // 清理多余的换行符
+  textContent = textContent.replace(/\n{3,}/g, '\n\n').trim()
+
+  return textContent
+}
+
+// 检查内容是否真正为空（纯文本版本）
 export const isContentEmpty = (content: string): boolean => {
   if (!content) return true
 
-  // 创建临时DOM元素来正确解析HTML实体
-  const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = content
-
-  // 获取纯文本内容（这会自动处理HTML实体）
-  const textOnly = tempDiv.textContent || tempDiv.innerText || ''
-
-  // 检查是否只有空白字符、换行符等
-  return !textOnly.trim() || textOnly.trim().replace(/\s/g, '') === ''
+  // 对于纯文本，直接检查是否只有空白字符
+  return !content.trim() || content.trim().replace(/\s/g, '') === ''
 }
 
 /**
