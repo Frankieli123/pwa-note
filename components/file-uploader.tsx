@@ -196,7 +196,6 @@ export function FileUploader({
             <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={open}>
               <span className="font-apply-target">选择文件</span>
             </Button>
-            <span className="font-apply-target">· 最大{maxSize}MB</span>
           </div>
         )}
 

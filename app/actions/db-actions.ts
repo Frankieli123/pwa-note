@@ -80,8 +80,9 @@ export type UserSettings = {
 }
 
 // Notes actions (超快速版本 - 支持分页和全量加载)
-export async function getNotes(userId: string, limit: number = 20, offset: number = 0): Promise<Note[]> {
-  const isLoadAll = limit === -1
+export async function getNotes(userId: string, limit?: number, offset: number = 0): Promise<Note[]> {
+  // 如果没有传递limit参数或limit为-1，则加载所有数据
+  const isLoadAll = limit === undefined || limit === -1
   console.log("⚡ 加载便签:", { userId, limit: isLoadAll ? '全部' : limit, offset })
 
   try {
@@ -89,9 +90,14 @@ export async function getNotes(userId: string, limit: number = 20, offset: numbe
     let queryParams: (string | number)[]
 
     if (isLoadAll) {
-      // 加载所有剩余便签（跳过前offset条）
-      queryText = "SELECT id, user_id, content, created_at, updated_at FROM notes WHERE user_id = $1 ORDER BY created_at DESC OFFSET $2"
-      queryParams = [userId, offset]
+      // 加载所有便签（如果有offset则跳过前offset条）
+      if (offset > 0) {
+        queryText = "SELECT id, user_id, content, created_at, updated_at FROM notes WHERE user_id = $1 ORDER BY created_at DESC OFFSET $2"
+        queryParams = [userId, offset]
+      } else {
+        queryText = "SELECT id, user_id, content, created_at, updated_at FROM notes WHERE user_id = $1 ORDER BY created_at DESC"
+        queryParams = [userId]
+      }
     } else {
       // 分页加载指定数量
       queryText = "SELECT id, user_id, content, created_at, updated_at FROM notes WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
@@ -99,7 +105,7 @@ export async function getNotes(userId: string, limit: number = 20, offset: numbe
     }
 
     const result = await query(queryText, queryParams)
-    console.log(`⚡ 便签加载完成: ${result.rows.length} 条 ${isLoadAll ? '(剩余全部)' : ''}`)
+    console.log(`⚡ 便签加载完成: ${result.rows.length} 条 ${isLoadAll ? '(全部)' : ''}`)
 
     return result.rows.map((row: NoteRow) => ({
       id: row.id,

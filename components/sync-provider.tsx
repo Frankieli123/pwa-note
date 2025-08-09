@@ -376,7 +376,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // 完整同步函数 - 加载所有数据
+  // 完整同步函数 - 边加载边显示所有数据
   const sync = async (silent = false) => {
     if (!user) return
 
@@ -388,23 +388,38 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       // Process pending offline operations
       await handlePendingOperations()
 
-      const [notesData, linksData, filesData] = await Promise.all([
-        getNotesAction(user.id),
-        getLinksAction(user.id),
-        getFilesAction(user.id),
-      ])
+      // 第一步：优先加载便签数据（所有便签，不限制数量）
+      console.log('🚀 开始优先加载所有便签...')
+      const notesData = await getNotesAction(user.id) // 不传递limit参数，加载所有便签
 
-      // Map DB types to client types with null checks
+      // 立即显示所有便签
       setNotes(notesData ? notesData.map(mapDbNoteToNote) : [])
-      setLinks(linksData ? linksData.map(mapDbLinkToLink) : [])
-      setFiles(filesData ? filesData.map(mapDbFileToFile) : [])
-      
+      console.log('⚡ 便签优先加载完成，共', notesData?.length || 0, '条')
+
+      // 第二步：后台异步加载其他数据
+      setTimeout(async () => {
+        try {
+          console.log('📂 开始后台加载链接和文件...')
+          const [linksData, filesData] = await Promise.all([
+            getLinksAction(user.id),
+            getFilesAction(user.id),
+          ])
+
+          // 更新其他数据
+          setLinks(linksData ? linksData.map(mapDbLinkToLink) : [])
+          setFiles(filesData ? filesData.map(mapDbFileToFile) : [])
+          console.log('✅ 后台数据加载完成')
+        } catch (error) {
+          console.error("❌ 后台数据加载失败", error)
+        }
+      }, 100) // 100ms后加载其他数据
+
       // 直接使用客户端当前时间
       const clientNow = new Date();
       setLastSyncTime(clientNow);
       lastSyncTimeRef.current = clientNow;
       lastContentUpdateRef.current = clientNow; // 同时更新内容时间戳
-      
+
       console.log('同步操作更新时间为(客户端时间):', clientNow);
 
       if (!silent) {

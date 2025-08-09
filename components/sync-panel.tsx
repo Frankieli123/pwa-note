@@ -556,7 +556,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
               </TabsList>
 
               <div className={cn(
-                "flex-1 overflow-auto relative",
+                "flex-1 relative",
                 isMobile && "h-[calc(80vh-52px)]" // 确保内容区域有足够高度：总高度减去标题栏和标签栏高度
               )}>
                 <TabsContent value="notes" className="flex-1 absolute inset-0 px-3 py-2 mt-0 overflow-auto">
@@ -568,7 +568,6 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                     <FileUploader
                       accept="image/*"
                       label="拖放图片到此处上传"
-                      maxSize={5}
                     />
                   </div>
                   <FileGrid files={imageFiles} showAsThumbnails={true} />
@@ -579,7 +578,6 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                     <FileUploader
                       accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
                       label="拖放文档到此处上传"
-                      maxSize={20}
                     />
                   </div>
                   <FileGrid files={documentFiles} />
