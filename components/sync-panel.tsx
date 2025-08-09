@@ -121,21 +121,28 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
     // 开始编辑当前笔记
     setEditingNoteId(note.id)
 
-    // 将HTML内容转换为纯文本用于编辑，正确处理换行
-    const tempDiv = document.createElement("div")
-    let html = note.content
+    // 将HTML内容转换为纯文本用于编辑（如果是HTML格式）
+    let textContent: string
+    if (note.content.includes('<') && note.content.includes('>')) {
+      // 使用HTML转纯文本逻辑
+      const tempDiv = document.createElement("div")
+      let html = note.content
 
-    // 处理各种HTML换行元素，转换为换行符
-    html = html.replace(/<br\s*\/?>/gi, '\n')
-    html = html.replace(/<\/div>/gi, '\n')
-    html = html.replace(/<\/p>/gi, '\n')
-    html = html.replace(/<\/li>/gi, '\n')
+      // 处理各种HTML换行元素，转换为换行符
+      html = html.replace(/<br\s*\/?>/gi, '\n')
+      html = html.replace(/<\/div>/gi, '\n')
+      html = html.replace(/<\/p>/gi, '\n')
+      html = html.replace(/<\/li>/gi, '\n')
 
-    tempDiv.innerHTML = html
-    let textContent = tempDiv.textContent || tempDiv.innerText || ""
+      tempDiv.innerHTML = html
+      textContent = tempDiv.textContent || tempDiv.innerText || ""
 
-    // 清理多余的换行符
-    textContent = textContent.replace(/\n{3,}/g, '\n\n').trim()
+      // 清理多余的换行符
+      textContent = textContent.replace(/\n{3,}/g, '\n\n').trim()
+    } else {
+      // 已经是纯文本，直接使用
+      textContent = note.content
+    }
 
     setEditingContent(textContent)
 
@@ -172,8 +179,8 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
       return
     }
 
-    // 将纯文本转换为HTML格式，保持换行
-    const htmlContent = trimmedContent.replace(/\n/g, '<br>')
+    // 直接保存纯文本内容，不再转换为HTML
+    const textContent = trimmedContent
 
     // 立即退出编辑模式，给用户即时反馈
     setEditingNoteId(null)
@@ -181,7 +188,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
 
     // 后台保存到数据库，saveNote函数内部已经处理了UI更新和错误处理
     try {
-      const result = await saveNote(editingNoteId, htmlContent)
+      const result = await saveNote(editingNoteId, textContent)
       if (result) {
         toast({
           title: "保存成功",
@@ -400,9 +407,27 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                       onDoubleClick={() => handleDoubleClick(note)}
                     >
                       <div
-                        className="text-sm line-clamp-6 whitespace-pre-wrap mb-2 rich-text-content hover:bg-muted/50 rounded transition-colors"
-                        dangerouslySetInnerHTML={{ __html: note.content }}
-                      />
+                        className="text-sm line-clamp-6 whitespace-pre-wrap mb-2 font-apply-target hover:bg-muted/50 rounded transition-colors"
+                      >
+                        {(() => {
+                          // 如果内容包含HTML标签，转换为纯文本；否则直接显示
+                          if (note.content.includes('<') && note.content.includes('>')) {
+                            // 使用HTML转纯文本函数
+                            const tempDiv = document.createElement('div')
+                            let html = note.content
+                            html = html.replace(/<br\s*\/?>/gi, '\n')
+                            html = html.replace(/<\/div>/gi, '\n')
+                            html = html.replace(/<\/p>/gi, '\n')
+                            html = html.replace(/<\/li>/gi, '\n')
+                            tempDiv.innerHTML = html
+                            let textContent = tempDiv.textContent || tempDiv.innerText || ''
+                            return textContent.replace(/\n{3,}/g, '\n\n').trim()
+                          } else {
+                            // 已经是纯文本，直接显示
+                            return note.content
+                          }
+                        })()}
+                      </div>
                       <div className="text-xs text-muted-foreground flex items-center gap-2">
                         <span className="text-xs">
                           {getRelativeTime(note.created_at)}
