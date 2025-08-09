@@ -121,30 +121,8 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
     // 开始编辑当前笔记
     setEditingNoteId(note.id)
 
-    // 将HTML内容转换为纯文本用于编辑（如果是HTML格式）
-    let textContent: string
-    if (note.content.includes('<') && note.content.includes('>')) {
-      // 使用HTML转纯文本逻辑
-      const tempDiv = document.createElement("div")
-      let html = note.content
-
-      // 处理各种HTML换行元素，转换为换行符
-      html = html.replace(/<br\s*\/?>/gi, '\n')
-      html = html.replace(/<\/div>/gi, '\n')
-      html = html.replace(/<\/p>/gi, '\n')
-      html = html.replace(/<\/li>/gi, '\n')
-
-      tempDiv.innerHTML = html
-      textContent = tempDiv.textContent || tempDiv.innerText || ""
-
-      // 清理多余的换行符
-      textContent = textContent.replace(/\n{3,}/g, '\n\n').trim()
-    } else {
-      // 已经是纯文本，直接使用
-      textContent = note.content
-    }
-
-    setEditingContent(textContent)
+    // 直接使用纯文本内容进行编辑
+    setEditingContent(note.content)
 
     // 延迟聚焦到文本框，不全选文本
     setTimeout(() => {
@@ -231,48 +209,13 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
 
   // 处理复制笔记内容
   const handleCopyClick = (note: any) => {
-    // 创建一个临时div来获取纯文本内容，并正确处理换行
-    const tempDiv = document.createElement("div")
-    tempDiv.innerHTML = note.content
-    
-    // 采用更简单的方法处理HTML到纯文本的转换
-    // 首先将常见的HTML块级元素替换为特定的标记
-    let html = tempDiv.innerHTML
-    
-    // 处理div元素（这是最常见的换行来源）
-    html = html.replace(/<div[^>]*>/gi, '{DIV_START}')
-    html = html.replace(/<\/div>/gi, '{DIV_END}')
-    
-    // 处理其他块级元素
-    html = html.replace(/<p[^>]*>/gi, '{P_START}')
-    html = html.replace(/<\/p>/gi, '{P_END}')
-    html = html.replace(/<br\s*\/?>/gi, '{BR}')
-    html = html.replace(/<li[^>]*>/gi, '{LI_START}')
-    html = html.replace(/<\/li>/gi, '{LI_END}')
-    
-    // 再次应用处理后的HTML并获取文本
-    tempDiv.innerHTML = html
-    let textContent = tempDiv.textContent || tempDiv.innerText || ""
-    
-    // 用换行符替换标记
-    textContent = textContent
-      .replace(/\{DIV_START\}/g, '\n')
-      .replace(/\{DIV_END\}/g, '')
-      .replace(/\{P_START\}/g, '\n')
-      .replace(/\{P_END\}/g, '')
-      .replace(/\{BR\}/g, '\n')
-      .replace(/\{LI_START\}/g, '\n• ')
-      .replace(/\{LI_END\}/g, '')
-    
-    // 清理多余空行和空格，但确保只有单个换行符
-    const cleanedText = textContent
-      .replace(/\n{2,}/g, '\n')  // 两个或更多换行符替换为一个
-      .replace(/^\s+|\s+$/g, '') // 移除首尾空白字符
+    // 直接使用纯文本内容
+    const textContent = note.content
     
     // 添加fallback机制，防止navigator.clipboard不可用
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(cleanedText)
+        navigator.clipboard.writeText(textContent)
           .then(() => {
             setCopiedNoteId(note.id)
             toast({
@@ -280,7 +223,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
               description: "便签内容已成功复制",
               duration: 2000,
             })
-            
+
             // 2秒后重置复制状态
             setTimeout(() => {
               setCopiedNoteId(null)
@@ -288,14 +231,14 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
           })
           .catch(err => {
             console.error('复制失败:', err)
-            fallbackCopy(cleanedText, note.id)
+            fallbackCopy(textContent, note.id)
           })
       } else {
-        fallbackCopy(cleanedText, note.id)
+        fallbackCopy(textContent, note.id)
       }
     } catch (error) {
       console.error('复制错误:', error)
-      fallbackCopy(cleanedText, note.id)
+      fallbackCopy(textContent, note.id)
     }
   }
   
@@ -409,24 +352,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                       <div
                         className="text-sm line-clamp-6 whitespace-pre-wrap mb-2 font-apply-target hover:bg-muted/50 rounded transition-colors"
                       >
-                        {(() => {
-                          // 如果内容包含HTML标签，转换为纯文本；否则直接显示
-                          if (note.content.includes('<') && note.content.includes('>')) {
-                            // 使用HTML转纯文本函数
-                            const tempDiv = document.createElement('div')
-                            let html = note.content
-                            html = html.replace(/<br\s*\/?>/gi, '\n')
-                            html = html.replace(/<\/div>/gi, '\n')
-                            html = html.replace(/<\/p>/gi, '\n')
-                            html = html.replace(/<\/li>/gi, '\n')
-                            tempDiv.innerHTML = html
-                            let textContent = tempDiv.textContent || tempDiv.innerText || ''
-                            return textContent.replace(/\n{3,}/g, '\n\n').trim()
-                          } else {
-                            // 已经是纯文本，直接显示
-                            return note.content
-                          }
-                        })()}
+                        {note.content}
                       </div>
                       <div className="text-xs text-muted-foreground flex items-center gap-2">
                         <span className="text-xs">
