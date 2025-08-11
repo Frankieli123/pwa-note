@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useTime } from "@/hooks/use-time"
 import { useToast } from "@/hooks/use-toast"
+import { htmlToText } from "@/components/note-editor/NoteEditorState"
 
 // 添加onExpandChange回调属性
 interface SyncPanelProps {
@@ -121,8 +122,11 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
     // 开始编辑当前笔记
     setEditingNoteId(note.id)
 
-    // 直接使用纯文本内容进行编辑
-    setEditingContent(note.content)
+    // 智能处理内容：如果是HTML格式则转换为纯文本
+    const contentForEdit = note.content.includes('<') && note.content.includes('>')
+      ? htmlToText(note.content)
+      : note.content
+    setEditingContent(contentForEdit)
 
     // 延迟聚焦到文本框，不全选文本
     setTimeout(() => {
@@ -209,8 +213,10 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
 
   // 处理复制笔记内容
   const handleCopyClick = (note: any) => {
-    // 直接使用纯文本内容
-    const textContent = note.content
+    // 智能处理内容：如果是HTML格式则转换为纯文本
+    const textContent = note.content.includes('<') && note.content.includes('>')
+      ? htmlToText(note.content)
+      : note.content
     
     // 添加fallback机制，防止navigator.clipboard不可用
     try {
@@ -352,7 +358,14 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                       <div
                         className="text-sm line-clamp-6 whitespace-pre-wrap mb-2 font-apply-target hover:bg-muted/50 rounded transition-colors"
                       >
-                        {note.content}
+                        {(() => {
+                          // 检测HTML格式并转换为纯文本
+                          if (note.content.includes('<') && note.content.includes('>')) {
+                            return htmlToText(note.content)
+                          } else {
+                            return note.content // 已经是纯文本
+                          }
+                        })()}
                       </div>
                       <div className="text-xs text-muted-foreground flex items-center gap-2">
                         <span className="text-xs">
