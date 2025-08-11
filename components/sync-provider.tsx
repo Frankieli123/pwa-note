@@ -112,6 +112,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [notes, setNotes] = useState<Note[]>([])
   const [links, setLinks] = useState<Link[]>([])
 
+  // 安全的设置便签函数，确保没有重复ID
+  const setNotesWithDeduplication = useCallback((newNotes: Note[]) => {
+    const uniqueNotes = newNotes.filter((note, index, array) =>
+      array.findIndex(n => n.id === note.id) === index
+    )
+
+    if (uniqueNotes.length !== newNotes.length) {
+      console.warn('⚠️ 检测到重复便签ID，已自动去重:', newNotes.length - uniqueNotes.length, '条')
+    }
+
+    setNotes(uniqueNotes)
+  }, [])
+
   // 游标分页相关状态
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
   const [hasMoreNotes, setHasMoreNotes] = useState(true)
@@ -138,10 +151,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   // Load data when user ID changes (优化版本 - 避免头像更新触发重复加载)
   useEffect(() => {
     if (!user) {
-      setNotes([])
+      setNotesWithDeduplication([])
       setLinks([])
       setFiles([])
       setIsInitialized(false)
+      // 重置分页状态
+      setHasMoreNotes(true)
+      setNextCursor(undefined)
+      setIsLoadingMore(false)
       return
     }
 
@@ -315,13 +332,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       // Process pending offline operations
       await handlePendingOperations()
 
-      // 第一步：优先加载便签数据（最近20条）
+      // 第一步：优先加载便签数据（最近50条）
       console.log('🚀 开始优先加载便签...')
-      const notesData = await getNotesAction(user.id, 20, 0)
+      const notesData = await getNotesAction(user.id, 50, 0)
 
       // 立即显示便签
-      setNotes(notesData ? notesData.map(mapDbNoteToNote) : [])
+      setNotesWithDeduplication(notesData ? notesData.map(mapDbNoteToNote) : [])
       console.log('⚡ 便签优先加载完成，共', notesData?.length || 0, '条')
+
+      // 设置是否还有更多数据（如果返回的数据少于50条，说明没有更多了）
+      const hasMore = notesData && notesData.length === 50
+      setHasMoreNotes(hasMore)
+      console.log('📊 设置hasMoreNotes:', hasMore)
 
       // 第二步：后台异步加载其他数据
       setTimeout(async () => {
@@ -341,23 +363,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         }
       }, 100) // 100ms后加载其他数据
 
-      // 第三步：后台加载剩余便签（如果有的话）
-      setTimeout(async () => {
-        try {
-          if (notesData && notesData.length === 20) {
-            console.log('📝 开始后台加载剩余便签...')
-            const remainingNotesData = await getNotesAction(user.id, -1, 20) // -1表示加载所有剩余
-
-            if (remainingNotesData && remainingNotesData.length > 0) {
-              const remainingNotes = remainingNotesData.map(mapDbNoteToNote)
-              setNotes(prev => [...prev, ...remainingNotes])
-              console.log('📚 剩余便签加载完成，共', remainingNotesData.length, '条')
-            }
-          }
-        } catch (error) {
-          console.error("❌ 剩余便签加载失败", error)
-        }
-      }, 500) // 500ms后加载剩余便签
+      // 移除第三步：不再后台加载所有剩余便签，改为无限滚动按需加载
 
       // 直接使用客户端当前时间
       const clientNow = new Date();
@@ -397,13 +403,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       // Process pending offline operations
       await handlePendingOperations()
 
-      // 第一步：优先加载便签数据（所有便签，不限制数量）
-      console.log('🚀 开始优先加载所有便签...')
-      const notesData = await getNotesAction(user.id) // 不传递limit参数，加载所有便签
+      // 第一步：优先加载便签数据（最近50条，支持无限滚动）
+      console.log('🚀 开始优先加载便签...')
+      const notesData = await getNotesAction(user.id, 50, 0)
 
-      // 立即显示所有便签
-      setNotes(notesData ? notesData.map(mapDbNoteToNote) : [])
+      // 立即显示便签
+      setNotesWithDeduplication(notesData ? notesData.map(mapDbNoteToNote) : [])
       console.log('⚡ 便签优先加载完成，共', notesData?.length || 0, '条')
+
+      // 设置是否还有更多数据
+      const hasMore = notesData && notesData.length === 50
+      setHasMoreNotes(hasMore)
+      console.log('📊 设置hasMoreNotes:', hasMore)
 
       // 第二步：后台异步加载其他数据
       setTimeout(async () => {
@@ -934,11 +945,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('📖 手动加载更多便签...')
       const currentCount = notes.length
-      const moreNotesData = await getNotesAction(user.id, 20, currentCount)
+      const moreNotesData = await getNotesAction(user.id, 50, currentCount)
 
       if (moreNotesData && moreNotesData.length > 0) {
         const moreNotes = moreNotesData.map(mapDbNoteToNote)
-        setNotes(prev => [...prev, ...moreNotes])
+
+        // 去重处理
+        setNotes(prev => {
+          const existingIds = new Set(prev.map(note => note.id))
+          const newNotes = moreNotes.filter(note => !existingIds.has(note.id))
+          return [...prev, ...newNotes]
+        })
+
         console.log('📚 加载更多便签完成，新增', moreNotesData.length, '条')
         return true
       } else {
@@ -959,12 +977,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🚀 游标分页加载更多便签...', { nextCursor })
 
-      const response = await fetch(`/api/notes/cursor?userId=${user.id}&limit=20${nextCursor ? `&cursor=${nextCursor}` : ''}`)
+      const response = await fetch(`/api/notes/cursor?userId=${user.id}&limit=50${nextCursor ? `&cursor=${nextCursor}` : ''}`)
       const result = await response.json()
 
       if (result.success && result.data.length > 0) {
         const moreNotes = result.data.map(mapDbNoteToNote)
-        setNotes(prev => [...prev, ...moreNotes])
+
+        // 去重处理：过滤掉已存在的便签ID
+        setNotes(prev => {
+          const existingIds = new Set(prev.map(note => note.id))
+          const newNotes = moreNotes.filter(note => !existingIds.has(note.id))
+
+          console.log('🚀 游标分页去重：原有', prev.length, '条，新增', newNotes.length, '条，过滤重复', moreNotes.length - newNotes.length, '条')
+
+          return [...prev, ...newNotes]
+        })
+
         setNextCursor(result.pagination.nextCursor)
         setHasMoreNotes(result.pagination.hasMore)
 

@@ -32,13 +32,11 @@ export function AppContainer() {
     handleSyncPanelToggle,
   } = useAppState()
 
-  // 条件渲染：新用户引导
-  if (showOnboarding) {
-    return <OnboardingAnimation onComplete={handleOnboardingComplete} />
-  }
-
   return (
-    <AppInitializer onShowOnboarding={handleShowOnboarding}>
+    <AppInitializer
+      onShowOnboarding={handleShowOnboarding}
+      showOnboarding={showOnboarding}
+    >
       <SidebarManager sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
         <MainLayout
           statusBar={<StatusBar onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />}
@@ -52,6 +50,11 @@ export function AppContainer() {
 
       {/* 版本检查和缓存管理 */}
       <VersionChecker />
+
+      {/* 新用户引导覆盖层 */}
+      {showOnboarding && (
+        <OnboardingAnimation onComplete={handleOnboardingComplete} />
+      )}
     </AppInitializer>
   )
 }

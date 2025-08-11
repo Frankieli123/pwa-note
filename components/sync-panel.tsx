@@ -120,11 +120,6 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
 
   // 使用虚拟滚动渲染便签列表（支持9999条便签）
   const renderNotes = () => {
-    // 计算容器高度
-    const containerHeight = isMobile
-      ? window.innerHeight * 0.6 // 移动端60%屏幕高度
-      : 500 // 桌面端固定500px
-
     return (
       <VirtualNotesList
         notes={notes}
@@ -133,7 +128,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
         isLoading={isLoadingMore}
         onDeleteNote={deleteNote}
         onSaveNote={saveNote}
-        containerHeight={containerHeight}
+        containerHeight={0} // 设为0，让组件自动计算高度
       />
     )
   }
@@ -215,49 +210,54 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                 </TabsTrigger>
               </TabsList>
 
-              <div className={cn(
-                "flex-1 relative",
-                isMobile && "h-[calc(80vh-52px)]" // 确保内容区域有足够高度：总高度减去标题栏和标签栏高度
-              )}>
-                <TabsContent value="notes" className="flex-1 absolute inset-0 px-3 py-2 mt-0 overflow-auto">
-                  {renderNotes()}
-                </TabsContent>
-
-                <TabsContent value="imageFiles" className="flex-1 absolute inset-0 px-3 py-2 mt-0 overflow-auto">
-                  <div className="mb-4">
-                    <FileUploader
-                      accept="image/*"
-                      label="拖放图片到此处上传"
-                    />
+              <div className="flex-1 relative">
+                <TabsContent value="notes" className="absolute inset-0 py-0 mt-0">
+                  <div className="px-3 py-2 h-full">
+                    {renderNotes()}
                   </div>
-                  <FileGrid files={imageFiles} showAsThumbnails={true} />
                 </TabsContent>
 
-                <TabsContent value="docFiles" className="flex-1 absolute inset-0 px-3 py-2 mt-0 overflow-auto">
-                  <div className="mb-4">
-                    <FileUploader
-                      accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                      label="拖放文档到此处上传"
-                    />
-                  </div>
-                  <FileGrid files={documentFiles} />
-                </TabsContent>
-
-                <TabsContent value="links" className="flex-1 absolute inset-0 px-3 py-2 mt-0 overflow-auto">
-                  {!showLinkForm ? (
-                    <Button
-                      className={cn("w-full mb-4 text-sm", isMobile && "py-1")}
-                      onClick={() => setShowLinkForm(true)}
-                    >
-                      <Link2 className="h-4 w-4 mr-2" />
-                      <span className="font-apply-target">添加新链接</span>
-                    </Button>
-                  ) : (
-                    <div className="mb-4 pt-4">
-                      <LinkForm onComplete={() => setShowLinkForm(false)} />
+                <TabsContent value="imageFiles" className="absolute inset-0 py-0 mt-0 overflow-auto">
+                  <div className="p-3">
+                    <div className="mb-4">
+                      <FileUploader
+                        accept="image/*"
+                        label="拖放图片到此处上传"
+                      />
                     </div>
-                  )}
-                  <LinksList />
+                    <FileGrid files={imageFiles} showAsThumbnails={true} />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="docFiles" className="absolute inset-0 py-0 mt-0 overflow-auto">
+                  <div className="p-3">
+                    <div className="mb-4">
+                      <FileUploader
+                        accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                        label="拖放文档到此处上传"
+                      />
+                    </div>
+                    <FileGrid files={documentFiles} />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="links" className="absolute inset-0 py-0 mt-0 overflow-auto">
+                  <div className="p-3">
+                    {!showLinkForm ? (
+                      <Button
+                        className={cn("w-full mb-4 text-sm", isMobile && "py-1")}
+                        onClick={() => setShowLinkForm(true)}
+                      >
+                        <Link2 className="h-4 w-4 mr-2" />
+                        <span className="font-apply-target">添加新链接</span>
+                      </Button>
+                    ) : (
+                      <div className="mb-4 pt-4">
+                        <LinkForm onComplete={() => setShowLinkForm(false)} />
+                      </div>
+                    )}
+                    <LinksList />
+                  </div>
                 </TabsContent>
               </div>
             </Tabs>

@@ -22,15 +22,15 @@ export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
     e.preventDefault()
     if (!username) return
 
-    // 立即显示UI，不等待登录完成
-    onComplete()
-
-    // 后台异步处理登录
     try {
+      // 执行登录
       await login(username)
+
+      // 登录成功后完成引导流程
+      onComplete()
     } catch (error) {
       console.error("登录失败:", error)
-      // 登录失败时可以显示toast，但不影响UI流程
+      // 登录失败时保持在引导页面，用户可以重试
     }
   }
 
@@ -55,7 +55,7 @@ export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
   const currentStep = steps[step]
 
   return (
-    <div className="fixed inset-0 bg-background flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center p-4">
       <div className="max-w-md w-full space-y-8 text-center">
         <div
           className={cn(

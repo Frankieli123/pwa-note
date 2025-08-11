@@ -54,7 +54,7 @@ export function PerformanceMonitor({
   const [isMonitoring, setIsMonitoring] = useState(false)
   const frameCountRef = useRef(0)
   const lastTimeRef = useRef(performance.now())
-  const animationFrameRef = useRef<number>()
+  const animationFrameRef = useRef<number | undefined>(undefined)
 
   // 测量渲染性能
   const measureRenderPerformance = () => {

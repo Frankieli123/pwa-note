@@ -1,7 +1,6 @@
 "use client"
 
-import React, { useState, useRef, useCallback } from 'react'
-import { VirtualList } from './VirtualList'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -10,8 +9,6 @@ import { Copy, Check, Trash2, Edit3, Save, X } from 'lucide-react'
 import { useTime } from '@/hooks/use-time'
 import { useToast } from '@/hooks/use-toast'
 import { htmlToText } from '@/components/note-editor/NoteEditorState'
-import { usePreloadStrategy } from '@/hooks/use-preload-strategy'
-import { cn } from '@/lib/utils'
 
 interface Note {
   id: string
@@ -48,58 +45,18 @@ export function VirtualNotesList({
   hasMore = false,
   isLoading = false,
   onDeleteNote,
-  onSaveNote,
-  className,
-  containerHeight = 600
+  onSaveNote
 }: VirtualNotesListProps) {
   const { getRelativeTime } = useTime()
   const { toast } = useToast()
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // 编辑状态
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState("")
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  // 预加载策略
-  const { resetPreloadState, triggerPreloadCheck } = usePreloadStrategy(
-    containerRef,
-    {
-      threshold: 300, // 距离底部300px时开始预加载
-      debounceMs: 150,
-      maxPreloadBatches: 2,
-      enableIntersectionObserver: true
-    },
-    {
-      onPreload: async () => {
-        if (onLoadMore && hasMore && !isLoading) {
-          return await onLoadMore()
-        }
-        return false
-      },
-      onVisibilityChange: (isVisible) => {
-        if (isVisible) {
-          console.log('📱 便签列表变为可见，检查预加载')
-        }
-      }
-    }
-  )
-
-  // 估算每个便签项的高度（根据内容动态调整）
-  const estimateItemHeight = useCallback((note: Note) => {
-    const baseHeight = 120 // 基础高度
-    const contentLength = note.content.length
-    const extraHeight = Math.min(Math.floor(contentLength / 100) * 20, 200) // 根据内容长度增加高度
-    return baseHeight + extraHeight
-  }, [])
-
-  // 计算平均项目高度
-  const averageItemHeight = React.useMemo(() => {
-    if (notes.length === 0) return 150
-    const totalHeight = notes.reduce((sum, note) => sum + estimateItemHeight(note), 0)
-    return Math.max(150, Math.floor(totalHeight / notes.length))
-  }, [notes, estimateItemHeight])
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   // 处理双击编辑
   const handleDoubleClick = useCallback((note: Note) => {
@@ -218,13 +175,32 @@ export function VirtualNotesList({
     }
   }, [onDeleteNote])
 
+  // 处理滚动事件，实现无限滚动
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget
+    const scrollTop = target.scrollTop
+    const scrollHeight = target.scrollHeight
+    const clientHeight = target.clientHeight
+
+    // 当滚动到距离底部200px时触发加载更多
+    const threshold = 200
+    const isNearBottom = scrollTop + clientHeight >= scrollHeight - threshold
+
+    if (isNearBottom && hasMore && !isLoading && !isLoadingMore && onLoadMore) {
+      setIsLoadingMore(true)
+      onLoadMore().finally(() => {
+        setIsLoadingMore(false)
+      })
+    }
+  }, [hasMore, isLoading, isLoadingMore, onLoadMore])
+
   // 渲染单个便签项
-  const renderNoteItem = useCallback((note: Note, index: number) => {
+  const renderNoteItem = useCallback((note: Note) => {
     const isEditing = editingNoteId === note.id
 
     return (
-      <Card className="mx-3 mb-4 overflow-hidden rounded-xl">
-        <CardContent className="p-3">
+      <Card className="mb-3 overflow-hidden rounded-xl">
+        <CardContent className="p-3 flex flex-col">
           <div className="flex justify-between items-start gap-2">
             <div className="flex-1 min-w-0 font-apply-target">
               {isEditing ? (
@@ -255,13 +231,19 @@ export function VirtualNotesList({
               ) : (
                 // 显示模式
                 <div className="cursor-pointer" onDoubleClick={() => handleDoubleClick(note)}>
-                  <div className="text-sm line-clamp-6 whitespace-pre-wrap mb-2 font-apply-target hover:bg-muted/50 rounded transition-colors">
+                  <div className="text-sm whitespace-pre-wrap font-apply-target hover:bg-muted/50 rounded transition-colors overflow-hidden mb-2">
                     {(() => {
-                      if (note.content.includes('<') && note.content.includes('>')) {
-                        return htmlToText(note.content)
-                      } else {
-                        return note.content
-                      }
+                      const content = note.content.includes('<') && note.content.includes('>')
+                        ? htmlToText(note.content)
+                        : note.content
+
+                      // 根据内容长度决定显示行数
+                      const isShortContent = content.length <= 20
+                      return (
+                        <div className={isShortContent ? "line-clamp-1" : "line-clamp-3"}>
+                          {content}
+                        </div>
+                      )
                     })()}
                   </div>
                   <div className="text-xs text-muted-foreground flex items-center gap-2">
@@ -348,25 +330,43 @@ export function VirtualNotesList({
 
   if (notes.length === 0) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm font-apply-target">
+      <div
+        ref={containerRef}
+        className="w-full h-full flex items-center justify-center text-muted-foreground text-sm font-apply-target"
+      >
         暂无保存的便签
       </div>
     )
   }
 
   return (
-    <div ref={containerRef} className="w-full h-full">
-      <VirtualList
-        items={notes}
-        itemHeight={averageItemHeight}
-        containerHeight={containerHeight}
-        renderItem={renderNoteItem}
-        onLoadMore={onLoadMore}
-        hasMore={hasMore}
-        isLoading={isLoading}
-        className={className}
-        overscan={3}
-      />
+    <div ref={containerRef} className="w-full h-full overflow-auto" onScroll={handleScroll}>
+      <div className="space-y-0">
+        {notes.map((note) => (
+          <div key={note.id}>
+            {renderNoteItem(note)}
+          </div>
+        ))}
+
+        {/* 加载更多指示器 */}
+        {(isLoading || isLoadingMore) && (
+          <div className="flex items-center justify-center py-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+              <span>加载中...</span>
+            </div>
+          </div>
+        )}
+
+        {/* 没有更多数据指示器 */}
+        {!hasMore && notes.length > 0 && (
+          <div className="flex items-center justify-center py-4">
+            <div className="text-xs text-muted-foreground">
+              已加载全部 {notes.length} 条数据
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
