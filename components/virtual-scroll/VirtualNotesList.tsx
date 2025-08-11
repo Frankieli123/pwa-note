@@ -10,6 +10,7 @@ import { Copy, Check, Trash2, Edit3, Save, X } from 'lucide-react'
 import { useTime } from '@/hooks/use-time'
 import { useToast } from '@/hooks/use-toast'
 import { htmlToText } from '@/components/note-editor/NoteEditorState'
+import { usePreloadStrategy } from '@/hooks/use-preload-strategy'
 import { cn } from '@/lib/utils'
 
 interface Note {
@@ -53,12 +54,37 @@ export function VirtualNotesList({
 }: VirtualNotesListProps) {
   const { getRelativeTime } = useTime()
   const { toast } = useToast()
-  
+
   // 编辑状态
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState("")
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // 预加载策略
+  const { resetPreloadState, triggerPreloadCheck } = usePreloadStrategy(
+    containerRef,
+    {
+      threshold: 300, // 距离底部300px时开始预加载
+      debounceMs: 150,
+      maxPreloadBatches: 2,
+      enableIntersectionObserver: true
+    },
+    {
+      onPreload: async () => {
+        if (onLoadMore && hasMore && !isLoading) {
+          return await onLoadMore()
+        }
+        return false
+      },
+      onVisibilityChange: (isVisible) => {
+        if (isVisible) {
+          console.log('📱 便签列表变为可见，检查预加载')
+        }
+      }
+    }
+  )
 
   // 估算每个便签项的高度（根据内容动态调整）
   const estimateItemHeight = useCallback((note: Note) => {
@@ -329,16 +355,18 @@ export function VirtualNotesList({
   }
 
   return (
-    <VirtualList
-      items={notes}
-      itemHeight={averageItemHeight}
-      containerHeight={containerHeight}
-      renderItem={renderNoteItem}
-      onLoadMore={onLoadMore}
-      hasMore={hasMore}
-      isLoading={isLoading}
-      className={className}
-      overscan={3}
-    />
+    <div ref={containerRef} className="w-full h-full">
+      <VirtualList
+        items={notes}
+        itemHeight={averageItemHeight}
+        containerHeight={containerHeight}
+        renderItem={renderNoteItem}
+        onLoadMore={onLoadMore}
+        hasMore={hasMore}
+        isLoading={isLoading}
+        className={className}
+        overscan={3}
+      />
+    </div>
   )
 }
