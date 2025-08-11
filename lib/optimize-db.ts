@@ -3,56 +3,72 @@
 import { sql } from "@/lib/db"
 
 /**
- * 数据库性能优化 - 添加关键索引
- * 解决check-updates API查询慢的问题
+ * 数据库性能优化 - 针对9999条便签场景优化
+ * 添加关键索引，优化分页查询性能
  */
 export async function optimizeDatabase() {
-  console.log("🚀 开始数据库性能优化...")
+  console.log("🚀 开始数据库性能优化（9999条便签场景）...")
 
   try {
-    // 1. 为notes表添加复合索引
+    // 1. 为notes表添加高性能复合索引
     console.log("📝 优化notes表索引...")
+
+    // 主要查询索引：按用户和创建时间降序（用于分页查询）
     await sql`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notes_user_created 
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notes_user_created_desc
       ON notes (user_id, created_at DESC)
     `
-    
+
+    // 更新时间索引：用于检查更新
     await sql`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notes_user_updated 
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notes_user_updated_desc
       ON notes (user_id, updated_at DESC)
+    `
+
+    // 覆盖索引：包含常用字段，减少回表查询
+    await sql`
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notes_user_created_covering
+      ON notes (user_id, created_at DESC)
+      INCLUDE (id, content, updated_at)
     `
 
     // 2. 为links表添加复合索引
     console.log("🔗 优化links表索引...")
     await sql`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_links_user_created 
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_links_user_created_desc
       ON links (user_id, created_at DESC)
     `
 
     // 3. 为files表添加复合索引
     console.log("📁 优化files表索引...")
     await sql`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_user_uploaded 
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_user_uploaded_desc
       ON files (user_id, uploaded_at DESC)
     `
 
-    // 4. 为user_settings表添加索引（如果存在）
+    // 4. 为user_settings表添加索引
     console.log("⚙️ 优化user_settings表索引...")
     await sql`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_settings_user_id 
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_settings_user_id
       ON user_settings (user_id)
     `
 
+    // 5. 添加统计信息更新
+    console.log("📊 更新表统计信息...")
+    await sql`ANALYZE notes`
+    await sql`ANALYZE links`
+    await sql`ANALYZE files`
+
     console.log("✅ 数据库索引优化完成！")
-    
+
     return {
       success: true,
-      message: "数据库索引优化成功，查询性能将显著提升"
+      message: "数据库索引优化成功，支持9999条便签的高性能查询"
     }
 
   } catch (error) {
     console.error("❌ 数据库优化失败:", error)
-    
+
     return {
       success: false,
       message: `数据库优化失败: ${error instanceof Error ? error.message : String(error)}`

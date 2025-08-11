@@ -90,6 +90,9 @@ interface SyncContextType {
   deleteFile: (id: string) => Promise<boolean>
   isInitialized: boolean
   loadMoreNotes: () => Promise<boolean>
+  loadMoreNotesCursor: () => Promise<boolean>
+  hasMoreNotes: boolean
+  isLoadingMore: boolean
 }
 
 export const SyncContext = createContext<SyncContextType | null>(null)
@@ -108,6 +111,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [files, setFiles] = useState<File[]>([])
   const [notes, setNotes] = useState<Note[]>([])
   const [links, setLinks] = useState<Link[]>([])
+
+  // 游标分页相关状态
+  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
+  const [hasMoreNotes, setHasMoreNotes] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+
   const router = useRouter()
   const pathname = usePathname()
   const syncTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -918,7 +927,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // 手动加载更多便签
+  // 手动加载更多便签（传统分页）
   const loadMoreNotes = async (): Promise<boolean> => {
     if (!user) return false
 
@@ -942,6 +951,38 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // 游标分页加载更多便签（高性能版本）
+  const loadMoreNotesCursor = async (): Promise<boolean> => {
+    if (!user || !hasMoreNotes || isLoadingMore) return false
+
+    setIsLoadingMore(true)
+    try {
+      console.log('🚀 游标分页加载更多便签...', { nextCursor })
+
+      const response = await fetch(`/api/notes/cursor?userId=${user.id}&limit=20${nextCursor ? `&cursor=${nextCursor}` : ''}`)
+      const result = await response.json()
+
+      if (result.success && result.data.length > 0) {
+        const moreNotes = result.data.map(mapDbNoteToNote)
+        setNotes(prev => [...prev, ...moreNotes])
+        setNextCursor(result.pagination.nextCursor)
+        setHasMoreNotes(result.pagination.hasMore)
+
+        console.log('🚀 游标分页完成，新增', result.data.length, '条，hasMore:', result.pagination.hasMore)
+        return true
+      } else {
+        console.log('📭 没有更多便签了')
+        setHasMoreNotes(false)
+        return false
+      }
+    } catch (error) {
+      console.error("❌ 游标分页加载失败", error)
+      return false
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }
+
   return (
     <SyncContext.Provider
       value={{
@@ -960,6 +1001,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         deleteFile,
         isInitialized,
         loadMoreNotes,
+        loadMoreNotesCursor,
+        hasMoreNotes,
+        isLoadingMore,
       }}
     >
       {children}

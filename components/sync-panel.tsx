@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useTime } from "@/hooks/use-time"
 import { useToast } from "@/hooks/use-toast"
 import { htmlToText } from "@/components/note-editor/NoteEditorState"
+import { VirtualNotesList } from "@/components/virtual-scroll/VirtualNotesList"
 
 // 添加onExpandChange回调属性
 interface SyncPanelProps {
@@ -25,21 +26,26 @@ interface SyncPanelProps {
 }
 
 export function SyncPanel({ onExpandChange }: SyncPanelProps) {
-  const { files, lastSync, status, sync, notes, deleteNote, saveNote } = useSync()
+  const {
+    files,
+    lastSync,
+    status,
+    sync,
+    notes,
+    deleteNote,
+    saveNote,
+    loadMoreNotesCursor,
+    hasMoreNotes,
+    isLoadingMore
+  } = useSync()
   const [activeTab, setActiveTab] = useState("notes")
   const [showLinkForm, setShowLinkForm] = useState(false)
   const isMobile = useMobile()
   const { toast } = useToast()
-  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
   const [isCollapsed, setIsCollapsed] = useState(isMobile ? true : false)
   const { getRelativeTime } = useTime();
   const uploadedFiles = files || []; // Provide a default empty array if files is undefined
   const isSyncEnabled = true; // Default to true since it's not provided by context
-
-  // 编辑状态管理
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
-  const [editingContent, setEditingContent] = useState("")
-  const editTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   // 当展开状态变化时通知父组件
   useEffect(() => {
@@ -106,339 +112,29 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
     }
   };
 
-  // 删除笔记 - 直接删除，不再弹出确认对话框
-  const handleDeleteClick = (id: string) => {
-    deleteNote(id)
-  }
 
-  // 处理双击编辑
-  const handleDoubleClick = (note: any) => {
-    // 如果已经在编辑其他笔记，先取消编辑
-    if (editingNoteId && editingNoteId !== note.id) {
-      setEditingNoteId(null)
-      setEditingContent("")
-    }
 
-    // 开始编辑当前笔记
-    setEditingNoteId(note.id)
 
-    // 智能处理内容：如果是HTML格式则转换为纯文本
-    const contentForEdit = note.content.includes('<') && note.content.includes('>')
-      ? htmlToText(note.content)
-      : note.content
-    setEditingContent(contentForEdit)
 
-    // 延迟聚焦到文本框，不全选文本
-    setTimeout(() => {
-      if (editTextareaRef.current) {
-        editTextareaRef.current.focus()
-        // 将光标移到文本末尾
-        const length = editTextareaRef.current.value.length
-        editTextareaRef.current.setSelectionRange(length, length)
-      }
-    }, 100)
-  }
 
-  // 保存编辑
-  const handleSaveEdit = async () => {
-    if (!editingNoteId || !saveNote) return
 
-    // 检查内容是否为空或只有空白字符
-    const trimmedContent = editingContent.trim()
-    if (!trimmedContent) {
-      // 如果内容为空，直接删除这个笔记
-      setEditingNoteId(null)
-      setEditingContent("")
-
-      // 删除空白笔记
-      await handleDeleteClick(editingNoteId)
-
-      toast({
-        title: "已删除空白便签",
-        description: "空白内容的便签已被删除",
-        duration: 2000,
-      })
-      return
-    }
-
-    // 直接保存纯文本内容，不再转换为HTML
-    const textContent = trimmedContent
-
-    // 立即退出编辑模式，给用户即时反馈
-    setEditingNoteId(null)
-    setEditingContent("")
-
-    // 后台保存到数据库，saveNote函数内部已经处理了UI更新和错误处理
-    try {
-      const result = await saveNote(editingNoteId, textContent)
-      if (result) {
-        toast({
-          title: "保存成功",
-          description: "便签已更新",
-          duration: 2000,
-        })
-      } else {
-        toast({
-          title: "保存失败",
-          description: "无法保存便签，但本地已更新",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("保存编辑失败:", error)
-      toast({
-        title: "保存失败",
-        description: "网络错误，但本地已更新",
-        variant: "destructive",
-      })
-    }
-  }
-
-  // 取消编辑
-  const handleCancelEdit = () => {
-    setEditingNoteId(null)
-    setEditingContent("")
-  }
-
-  // 处理键盘快捷键
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault()
-      handleSaveEdit()
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      handleCancelEdit()
-    }
-  }
-
-  // 处理复制笔记内容
-  const handleCopyClick = (note: any) => {
-    // 智能处理内容：如果是HTML格式则转换为纯文本
-    const textContent = note.content.includes('<') && note.content.includes('>')
-      ? htmlToText(note.content)
-      : note.content
-    
-    // 添加fallback机制，防止navigator.clipboard不可用
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(textContent)
-          .then(() => {
-            setCopiedNoteId(note.id)
-            toast({
-              title: "已复制到剪贴板",
-              description: "便签内容已成功复制",
-              duration: 2000,
-            })
-
-            // 2秒后重置复制状态
-            setTimeout(() => {
-              setCopiedNoteId(null)
-            }, 2000)
-          })
-          .catch(err => {
-            console.error('复制失败:', err)
-            fallbackCopy(textContent, note.id)
-          })
-      } else {
-        fallbackCopy(textContent, note.id)
-      }
-    } catch (error) {
-      console.error('复制错误:', error)
-      fallbackCopy(textContent, note.id)
-    }
-  }
-  
-  // 复制文本的备选方法
-  const fallbackCopy = (text: string, noteId: string) => {
-    try {
-      // 创建临时textarea元素（textarea比div更适合保留换行符）
-      const textArea = document.createElement("textarea")
-      textArea.value = text
-      
-      // 确保textarea不可见
-      textArea.style.position = "fixed"
-      textArea.style.left = "-999999px"
-      textArea.style.top = "-999999px"
-      document.body.appendChild(textArea)
-      
-      // 选择文本并复制
-      textArea.focus()
-      textArea.select()
-      const successful = document.execCommand('copy')
-      
-      // 移除临时元素
-      document.body.removeChild(textArea)
-      
-      if (successful) {
-        setCopiedNoteId(noteId)
-        toast({
-          title: "已复制到剪贴板",
-          description: "便签内容已成功复制",
-          duration: 2000,
-        })
-        
-        // 2秒后重置复制状态
-        setTimeout(() => {
-          setCopiedNoteId(null)
-        }, 2000)
-      } else {
-        toast({
-          title: "复制失败",
-          description: "无法复制内容到剪贴板",
-          variant: "destructive",
-        })
-      }
-    } catch (err) {
-      console.error('备选复制方法失败:', err)
-      toast({
-        title: "复制失败",
-        description: "无法复制内容到剪贴板",
-        variant: "destructive",
-      })
-    }
-  }
-
-  // 修改 renderNotes 函数，支持富文本显示和编辑
+  // 使用虚拟滚动渲染便签列表（支持9999条便签）
   const renderNotes = () => {
-    if (notes.length === 0) {
-      return (
-        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm font-apply-target">
-          暂无保存的便签
-        </div>
-      )
-    }
+    // 计算容器高度
+    const containerHeight = isMobile
+      ? window.innerHeight * 0.6 // 移动端60%屏幕高度
+      : 500 // 桌面端固定500px
 
     return (
-      <div className="grid gap-4">
-        {notes.map((note) => (
-          <Card key={note.id} className="overflow-hidden rounded-xl">
-            <CardContent className="p-3">
-              <div className="flex justify-between items-start gap-2">
-                <div className="flex-1 min-w-0 font-apply-target">
-                  {editingNoteId === note.id ? (
-                    // 编辑模式
-                    <div className="space-y-3">
-                      <Textarea
-                        ref={editTextareaRef}
-                        value={editingContent}
-                        onChange={(e) => setEditingContent(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="min-h-[100px] resize-none text-base"
-                        placeholder="编辑便签内容..."
-                      />
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={handleSaveEdit}
-                          className="h-7 px-2 text-xs"
-                        >
-                          <Save className="h-3 w-3 mr-1" />
-                          保存
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleCancelEdit}
-                          className="h-7 px-2 text-xs"
-                        >
-                          <X className="h-3 w-3 mr-1" />
-                          取消
-                        </Button>
-                        <span className="text-xs text-muted-foreground">
-                          Ctrl+Enter 保存，Esc 取消
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    // 显示模式
-                    <div
-                      className="cursor-pointer"
-                      onDoubleClick={() => handleDoubleClick(note)}
-                    >
-                      <div
-                        className="text-sm line-clamp-6 whitespace-pre-wrap mb-2 font-apply-target hover:bg-muted/50 rounded transition-colors"
-                      >
-                        {(() => {
-                          // 检测HTML格式并转换为纯文本
-                          if (note.content.includes('<') && note.content.includes('>')) {
-                            return htmlToText(note.content)
-                          } else {
-                            return note.content // 已经是纯文本
-                          }
-                        })()}
-                      </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-2">
-                        <span className="text-xs">
-                          {getRelativeTime(note.created_at)}
-                        </span>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Edit3
-                                className="h-3 w-3 opacity-50 cursor-pointer hover:opacity-100 transition-opacity"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDoubleClick(note)
-                                }}
-                              />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>点击编辑</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {editingNoteId !== note.id && (
-                  <div className="flex items-center gap-1">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-primary"
-                            onClick={() => handleCopyClick(note)}
-                          >
-                            {copiedNoteId === note.id ? (
-                              <Check className="h-4 w-4" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>复制内容</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleDeleteClick(note.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>删除便签</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <VirtualNotesList
+        notes={notes}
+        onLoadMore={loadMoreNotesCursor}
+        hasMore={hasMoreNotes}
+        isLoading={isLoadingMore}
+        onDeleteNote={deleteNote}
+        onSaveNote={saveNote}
+        containerHeight={containerHeight}
+      />
     )
   }
 

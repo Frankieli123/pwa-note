@@ -79,7 +79,7 @@ export type UserSettings = {
   updated_at: Date
 }
 
-// Notes actions (超快速版本 - 支持分页和全量加载)
+// Notes actions (高性能版本 - 支持游标分页和传统分页)
 export async function getNotes(userId: string, limit?: number, offset: number = 0): Promise<Note[]> {
   // 如果没有传递limit参数或limit为-1，则加载所有数据
   const isLoadAll = limit === undefined || limit === -1
@@ -116,6 +116,71 @@ export async function getNotes(userId: string, limit?: number, offset: number = 
     })) as Note[]
   } catch (error) {
     console.error("❌ 便签加载失败:", error)
+    throw error
+  }
+}
+
+// 高性能游标分页查询（适用于大数据量场景）
+export async function getNotesCursor(
+  userId: string,
+  limit: number = 20,
+  cursor?: string
+): Promise<{ notes: Note[], nextCursor?: string, hasMore: boolean }> {
+  console.log("🚀 游标分页加载便签:", { userId, limit, cursor })
+
+  try {
+    let queryText: string
+    let queryParams: (string | number)[]
+
+    if (cursor) {
+      // 使用游标分页（基于created_at时间戳）
+      queryText = `
+        SELECT id, user_id, content, created_at, updated_at
+        FROM notes
+        WHERE user_id = $1 AND created_at < $2
+        ORDER BY created_at DESC
+        LIMIT $3
+      `
+      queryParams = [userId, cursor, limit + 1] // 多查询1条用于判断是否还有更多
+    } else {
+      // 首次查询
+      queryText = `
+        SELECT id, user_id, content, created_at, updated_at
+        FROM notes
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2
+      `
+      queryParams = [userId, limit + 1]
+    }
+
+    const result = await query(queryText, queryParams)
+    const rows = result.rows as NoteRow[]
+
+    // 判断是否还有更多数据
+    const hasMore = rows.length > limit
+    const notes = hasMore ? rows.slice(0, limit) : rows
+
+    // 生成下一页游标
+    const nextCursor = hasMore && notes.length > 0
+      ? notes[notes.length - 1].created_at
+      : undefined
+
+    console.log(`🚀 游标分页完成: ${notes.length} 条，hasMore: ${hasMore}`)
+
+    return {
+      notes: notes.map(row => ({
+        id: row.id,
+        user_id: row.user_id,
+        content: row.content,
+        created_at: new Date(row.created_at),
+        updated_at: new Date(row.updated_at)
+      })) as Note[],
+      nextCursor,
+      hasMore
+    }
+  } catch (error) {
+    console.error("❌ 游标分页加载失败:", error)
     throw error
   }
 }
