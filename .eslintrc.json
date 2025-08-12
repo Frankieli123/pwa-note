@@ -1,0 +1,25 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["@radix-ui/react-*"],
+            "message": "请使用 shadcn/ui 封装组件（从 '@/components/ui/*' 导入），不要在业务代码中直接使用 Radix 原语。"
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["components/ui/**/*"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ]
+}
+

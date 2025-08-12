@@ -172,12 +172,13 @@ export function VirtualList<T>({
 
   // 滚动到指定索引
   const scrollToIndex = useCallback((index: number) => {
-    if (containerRef.current) {
-      const targetScrollTop = index * itemHeight
+    if (containerRef.current && index < items.length) {
+      // 使用itemPositions来获取准确的位置，如果不存在则使用估算
+      const targetScrollTop = itemPositions[index]?.top || (index * (typeof itemHeight === 'number' ? itemHeight : estimatedItemHeight))
       containerRef.current.scrollTop = targetScrollTop
       setScrollTop(targetScrollTop)
     }
-  }, [itemHeight])
+  }, [itemHeight, itemPositions, items.length, estimatedItemHeight])
 
   return (
     <div

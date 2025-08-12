@@ -953,7 +953,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         // 去重处理
         setNotes(prev => {
           const existingIds = new Set(prev.map(note => note.id))
-          const newNotes = moreNotes.filter(note => !existingIds.has(note.id))
+          const newNotes = moreNotes.filter((note: Note) => !existingIds.has(note.id))
           return [...prev, ...newNotes]
         })
 
@@ -986,7 +986,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         // 去重处理：过滤掉已存在的便签ID
         setNotes(prev => {
           const existingIds = new Set(prev.map(note => note.id))
-          const newNotes = moreNotes.filter(note => !existingIds.has(note.id))
+          const newNotes = moreNotes.filter((note: Note) => !existingIds.has(note.id))
 
           console.log('🚀 游标分页去重：原有', prev.length, '条，新增', newNotes.length, '条，过滤重复', moreNotes.length - newNotes.length, '条')
 
