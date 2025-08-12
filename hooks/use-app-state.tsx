@@ -22,7 +22,7 @@ export function useAppState() {
   // 事件处理函数
   const handleOnboardingComplete = useCallback(() => {
     setShowOnboarding(false)
-    localStorage.setItem("onboardingShown", "true")
+    localStorage.setItem("hasShownOnboarding", "true")
   }, [])
 
   const handleShowOnboarding = useCallback(() => {

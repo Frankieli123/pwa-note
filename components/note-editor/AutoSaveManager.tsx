@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useSync } from "@/hooks/use-sync"
 import { useSettings } from "@/hooks/use-settings"
@@ -39,9 +39,14 @@ export function AutoSaveManager({
   // 自动保存逻辑
   useEffect(() => {
     if (typeof window === "undefined") return
-    
-    // 调试信息
-    console.log("自动保存间隔设置为:", settings.syncInterval, "秒")
+
+    // 调试信息：仅在间隔发生变化时打印
+    const prevIntervalRef = (window as any).__prevAutoSaveIntervalRef || { current: undefined }
+    if (prevIntervalRef.current !== settings.syncInterval) {
+      console.log("自动保存间隔设置为:", settings.syncInterval, "秒")
+      prevIntervalRef.current = settings.syncInterval
+      ;(window as any).__prevAutoSaveIntervalRef = prevIntervalRef
+    }
 
     // 内容没变，不需要设置新的计时器
     if (content === lastContentRef.current) return

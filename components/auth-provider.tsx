@@ -6,6 +6,14 @@ import { createContext, useEffect, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { getOrCreateUserAvatarConfig, getUserAvatarUrl, getUserAvatarConfigFromDB, cleanExpiredAvatarCache, type AvatarConfig } from "@/lib/avatar-utils"
 
+// 认证状态枚举
+export enum AuthStatus {
+  INITIALIZING = "INITIALIZING",     // 初始化中
+  CHECKING = "CHECKING",             // 检查认证状态中
+  AUTHENTICATED = "AUTHENTICATED",   // 已认证
+  UNAUTHENTICATED = "UNAUTHENTICATED" // 未认证
+}
+
 type User = {
   id: string
   username: string
@@ -22,6 +30,9 @@ type User = {
 type AuthContextType = {
   user: User | null
   isLoading: boolean
+  authStatus: AuthStatus
+  isAuthenticated: boolean
+  isInitializing: boolean
   login: (username: string) => Promise<void>
   logout: () => void
 }
@@ -60,8 +71,18 @@ function getDeviceType(): "mobile" | "tablet" | "desktop" {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [authStatus, setAuthStatus] = useState<AuthStatus>(AuthStatus.INITIALIZING)
   const { toast } = useToast()
+
+  // 计算派生状态
+  const isLoading = authStatus === AuthStatus.INITIALIZING || authStatus === AuthStatus.CHECKING
+  const isAuthenticated = authStatus === AuthStatus.AUTHENTICATED && user !== null
+  const isInitializing = authStatus === AuthStatus.INITIALIZING || authStatus === AuthStatus.CHECKING
+
+  // 认证状态变化日志
+  useEffect(() => {
+    console.log(`[AuthProvider] 认证状态变化: ${authStatus}, 用户: ${user?.username || 'null'}, isLoading: ${isLoading}`)
+  }, [authStatus, user, isLoading])
 
   // 监听存储变化，实现设置更新同步
   useEffect(() => {
@@ -132,34 +153,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window === "undefined") {
-      setIsLoading(false)
+      setAuthStatus(AuthStatus.UNAUTHENTICATED)
       return
     }
 
     // 清理过期的头像缓存
     cleanExpiredAvatarCache()
 
-    // Check existing session
+    // 原子化的认证检查函数
     const checkAuth = async () => {
+      console.log('[AuthProvider] 开始认证检查')
+      setAuthStatus(AuthStatus.CHECKING)
+
       try {
         // In a real app, this would verify token with backend
         const token = localStorage.getItem("authToken")
+
         if (token) {
+          console.log('[AuthProvider] 发现认证令牌，检查用户数据')
+
           // Try to get user info from local storage
           const savedUser = localStorage.getItem("userData")
           if (savedUser) {
             const userData = JSON.parse(savedUser)
+            console.log('[AuthProvider] 从本地存储加载用户数据:', userData.username)
+
+            // 原子化状态更新：同时设置用户和认证状态
             setUser(userData)
-            // 异步加载数据库中的头像配置
+            setAuthStatus(AuthStatus.AUTHENTICATED)
+
+            // 异步加载数据库中的头像配置（不影响认证状态）
             if (userData.id) {
               loadUserAvatarFromDB(userData.id)
             }
           } else {
+            console.log('[AuthProvider] 令牌存在但无用户数据，创建默认用户')
+
             // If no user data but token exists, set default user
             const defaultUsername = "默认用户"
             const userId = generateUserId(defaultUsername)
             const deviceType = getDeviceType();
-            
+
             const defaultUser = {
               id: userId,
               username: defaultUsername,
@@ -169,16 +203,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               },
             }
 
+            // 原子化状态更新
             setUser(defaultUser)
+            setAuthStatus(AuthStatus.AUTHENTICATED)
+            localStorage.setItem("userData", JSON.stringify(defaultUser))
 
             // 异步加载数据库中的头像配置
             loadUserAvatarFromDB(userId)
           }
+        } else {
+          console.log('[AuthProvider] 无认证令牌，设置为未认证状态')
+          setUser(null)
+          setAuthStatus(AuthStatus.UNAUTHENTICATED)
         }
       } catch (error) {
-        console.error("认证检查失败:", error)
-      } finally {
-        setIsLoading(false)
+        console.error("[AuthProvider] 认证检查失败:", error)
+        setUser(null)
+        setAuthStatus(AuthStatus.UNAUTHENTICATED)
       }
     }
 
@@ -186,7 +227,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const login = async (username: string) => {
-    setIsLoading(true)
+    console.log('[AuthProvider] 开始登录流程:', username)
+    setAuthStatus(AuthStatus.CHECKING)
+
     try {
       // 先清除任何现有的登录状态，确保干净的环境
       localStorage.removeItem("authToken")
@@ -214,9 +257,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 保存用户数据到本地存储
       localStorage.setItem("userData", JSON.stringify(newUser))
 
-      // 立即设置用户状态，不等待数据库操作
+      // 原子化状态更新：同时设置用户和认证状态
       setUser(newUser)
-      setIsLoading(false) // 立即结束loading状态
+      setAuthStatus(AuthStatus.AUTHENTICATED)
+      console.log('[AuthProvider] 登录成功，用户状态已更新')
 
       // 显示成功消息
       toast({
@@ -288,21 +332,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }, 100) // 100ms后开始后台处理
 
     } catch (error) {
-      console.error("登录失败:", error)
+      console.error("[AuthProvider] 登录失败:", error)
+      setUser(null)
+      setAuthStatus(AuthStatus.UNAUTHENTICATED)
       toast({
         title: "登录失败",
         description: "请重试",
         variant: "destructive",
       })
-      setIsLoading(false)
     }
   }
 
   const logout = () => {
+    console.log('[AuthProvider] 开始退出登录')
     localStorage.removeItem("authToken")
     localStorage.removeItem("refreshToken")
     localStorage.removeItem("userData")
+
+    // 原子化状态更新
     setUser(null)
+    setAuthStatus(AuthStatus.UNAUTHENTICATED)
+
     toast({
       title: "已退出登录",
       description: "您已成功退出登录",
@@ -310,7 +360,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{
+      user,
+      isLoading,
+      authStatus,
+      isAuthenticated,
+      isInitializing,
+      login,
+      logout
+    }}>
       {children}
     </AuthContext.Provider>
   )

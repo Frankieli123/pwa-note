@@ -332,10 +332,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false)
 
   useEffect(() => {
-    if (isClient && isInitialized) {
-      applyFontSettings()
+    if (!isClient || !isInitialized) return
+
+    // 仅在字体设置真正发生变化时打印一次日志
+    const w = window as unknown as { __lastFontLog?: string }
+    const key = `${settings.fontFamily}:${settings.fontSize}`
+    if (w.__lastFontLog !== key && process.env.NODE_ENV === "development") {
+      console.log("应用字体设置:", settings.fontFamily, settings.fontSize)
+      w.__lastFontLog = key
     }
-  }, [settings, isClient, isInitialized])
+
+    // 直接应用字体设置，避免对未初始化的回调引用
+    document.documentElement.setAttribute('data-font-family', settings.fontFamily)
+    document.documentElement.setAttribute('data-font-size', settings.fontSize)
+  }, [settings.fontFamily, settings.fontSize, isClient, isInitialized])
   
   // 手动同步函数 - 可在设置对话框中调用
   const syncSettings = useCallback(async () => {
