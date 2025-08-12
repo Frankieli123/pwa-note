@@ -40,6 +40,9 @@ type AuthContextType = {
 export const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
+  authStatus: AuthStatus.INITIALIZING,
+  isAuthenticated: false,
+  isInitializing: true,
   login: async () => {},
   logout: () => {},
 })
