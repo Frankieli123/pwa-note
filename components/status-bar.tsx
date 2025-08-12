@@ -6,6 +6,7 @@ import { SettingsDialog } from "@/components/settings-dialog"
 import { AppHeader } from "@/components/layout/AppHeader"
 import { UserMenu } from "@/components/layout/UserMenu"
 import { SidebarToggle } from "@/components/layout/SidebarToggle"
+import { SearchButton } from "@/components/search-button"
 
 interface StatusBarProps {
   onToggleSidebar: () => void
@@ -45,6 +46,9 @@ export function StatusBar({ onToggleSidebar, sidebarOpen, className }: StatusBar
 
         {/* 操作按钮区域 */}
         <div className="flex items-center gap-1 sm:gap-2 justify-end px-3">
+          {/* 搜索按钮 */}
+          <SearchButton />
+
           {/* 桌面端侧边栏切换按钮 */}
           {!isMobile && (
             <SidebarToggle
