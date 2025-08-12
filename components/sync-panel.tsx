@@ -190,21 +190,39 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
             <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col h-full">
               <TabsList className={cn(
                 "w-full bg-transparent rounded-none px-2 sticky top-0 z-10",
-                isMobile ? "justify-between py-1 h-10" : "justify-start p-2 h-12"
+                isMobile ? "justify-between py-1 h-10" : "justify-center p-2 h-12 gap-2"
               )}>
-                <TabsTrigger value="notes" className={cn("rounded-md text-base font-normal", isMobile ? "px-2 py-1" : "px-4")}>
+                <TabsTrigger value="notes" className={cn(
+                  "rounded-md font-normal",
+                  // 响应式字体大小：极小宽度text-base，中等宽度text-sm，大宽度text-base
+                  "text-base sm:text-sm lg:text-base",
+                  // 响应式内边距：配合字体大小调整
+                  isMobile ? "px-2 py-1" : "px-1 sm:px-2 lg:px-4"
+                )}>
                   <StickyNote className="h-4 w-4 mr-1" />
                   <span className="font-apply-target">便签</span>
                 </TabsTrigger>
-                <TabsTrigger value="docFiles" className={cn("rounded-md text-base font-normal", isMobile ? "px-2 py-1" : "px-4")}>
+                <TabsTrigger value="docFiles" className={cn(
+                  "rounded-md font-normal",
+                  "text-base sm:text-sm lg:text-base",
+                  isMobile ? "px-2 py-1" : "px-1 sm:px-2 lg:px-4"
+                )}>
                   <FileText className="h-4 w-4 mr-1" />
                   <span className="font-apply-target">文件</span>
                 </TabsTrigger>
-                <TabsTrigger value="imageFiles" className={cn("rounded-md text-base font-normal", isMobile ? "px-2 py-1" : "px-4")}>
+                <TabsTrigger value="imageFiles" className={cn(
+                  "rounded-md font-normal",
+                  "text-base sm:text-sm lg:text-base",
+                  isMobile ? "px-2 py-1" : "px-1 sm:px-2 lg:px-4"
+                )}>
                   <Image className="h-4 w-4 mr-1" />
                   <span className="font-apply-target">图片</span>
                 </TabsTrigger>
-                <TabsTrigger value="links" className={cn("rounded-md text-base font-normal", isMobile ? "px-2 py-1" : "px-4")}>
+                <TabsTrigger value="links" className={cn(
+                  "rounded-md font-normal",
+                  "text-base sm:text-sm lg:text-base",
+                  isMobile ? "px-2 py-1" : "px-1 sm:px-2 lg:px-4"
+                )}>
                   <Link2 className="h-4 w-4 mr-1" />
                   <span className="font-apply-target">链接</span>
                 </TabsTrigger>
