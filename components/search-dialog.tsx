@@ -31,13 +31,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   const abortControllerRef = useRef<AbortController | null>(null)
   const isRestoringFromCache = useRef(false)
 
-  if (!syncContext) {
-    return null
-  }
-
-  const { notes, files, links, user, saveNote, deleteNote } = syncContext
-
-  // 搜索缓存工具函数
+  // 搜索缓存工具函数 - 移到条件语句之前
   const saveSearchToCache = useCallback((query: string, results: any) => {
     try {
       const cacheData = {
@@ -67,29 +61,14 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     return null
   }, [])
 
-  // 组件初始化时恢复搜索缓存
-  useEffect(() => {
-    if (open) {
-      const cached = loadSearchFromCache()
-      if (cached) {
-        isRestoringFromCache.current = true
-        setSearchQuery(cached.query)
-        setServerResults(cached.results)
-        console.log('🔄 恢复搜索缓存:', cached)
-        // 短暂延迟后重置标志位，确保防抖搜索不会触发
-        setTimeout(() => {
-          isRestoringFromCache.current = false
-        }, 500) // 给足够时间让防抖搜索跳过
-      }
-    }
-  }, [open]) // 移除 loadSearchFromCache 依赖，避免无限循环
-
-  // 服务端搜索函数
+  // 服务端搜索函数 - 移到条件语句之前
   const searchServer = useCallback(async (query: string) => {
-    if (!user || !query.trim()) {
+    if (!syncContext?.user || !query.trim()) {
       setServerResults({ notes: [], files: [], links: [] })
       return
     }
+
+    const user = syncContext.user
 
     // 取消之前的请求
     if (abortControllerRef.current) {
@@ -139,7 +118,24 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
         setIsSearching(false)
       }
     }
-  }, [user, saveSearchToCache])
+  }, [saveSearchToCache])
+
+  // 组件初始化时恢复搜索缓存
+  useEffect(() => {
+    if (open && syncContext) {
+      const cached = loadSearchFromCache()
+      if (cached) {
+        isRestoringFromCache.current = true
+        setSearchQuery(cached.query)
+        setServerResults(cached.results)
+        console.log('🔄 恢复搜索缓存:', cached)
+        // 短暂延迟后重置标志位，确保防抖搜索不会触发
+        setTimeout(() => {
+          isRestoringFromCache.current = false
+        }, 500) // 给足够时间让防抖搜索跳过
+      }
+    }
+  }, [open, loadSearchFromCache])
 
   // 防抖搜索
   useEffect(() => {
@@ -159,10 +155,11 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   // 监听便签列表变化，重新搜索以更新结果
   useEffect(() => {
     // 如果正在从缓存恢复，跳过搜索
-    if (isRestoringFromCache.current) {
+    if (isRestoringFromCache.current || !syncContext) {
       return
     }
 
+    const notes = syncContext.notes
     if (searchQuery.trim() && notes.length > 0) {
       // 当便签列表发生变化且有搜索查询时，重新搜索
       const timer = setTimeout(() => {
@@ -171,7 +168,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
 
       return () => clearTimeout(timer)
     }
-  }, [notes, searchQuery, searchServer])
+  }, [syncContext?.notes, searchQuery, searchServer])
 
   // 组件卸载时清理
   useEffect(() => {
@@ -204,6 +201,13 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
       links: serverResults.links || []
     }
   }, [searchQuery, serverResults])
+
+  // 条件检查
+  if (!syncContext) {
+    return null
+  }
+
+  const { notes, files, links, user, saveNote, deleteNote } = syncContext
 
   // 添加调试信息
   console.log('🔍 搜索状态:', {
@@ -384,7 +388,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
 
             {/* 无结果时显示 */}
             {searchResults.notes.length === 0 && searchResults.files.length === 0 && searchResults.links.length === 0 && (
-              <CommandEmpty>未找到包含 "{searchQuery}" 的结果</CommandEmpty>
+              <CommandEmpty>未找到包含 &quot;{searchQuery}&quot; 的结果</CommandEmpty>
             )}
           </>
         )}
