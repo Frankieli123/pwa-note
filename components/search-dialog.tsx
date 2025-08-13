@@ -1,9 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { useContext, useState, useMemo, useEffect, useCallback } from "react"
+import { useContext, useState, useMemo, useEffect, useCallback, useRef } from "react"
 import { Search, FileText, Link as LinkIcon, File, Loader2 } from "lucide-react"
 import { SyncContext } from "@/components/sync-provider"
+import { SearchResultNoteItem } from "@/components/search-result-note-item"
 import {
   CommandDialog,
   CommandEmpty,
@@ -27,12 +28,61 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     files: any[]
     links: any[]
   }>({ notes: [], files: [], links: [] })
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const isRestoringFromCache = useRef(false)
 
   if (!syncContext) {
     return null
   }
 
-  const { notes, files, links, user } = syncContext
+  const { notes, files, links, user, saveNote, deleteNote } = syncContext
+
+  // 搜索缓存工具函数
+  const saveSearchToCache = useCallback((query: string, results: any) => {
+    try {
+      const cacheData = {
+        query,
+        results,
+        timestamp: Date.now()
+      }
+      localStorage.setItem('search-cache', JSON.stringify(cacheData))
+    } catch (error) {
+      console.error('保存搜索缓存失败:', error)
+    }
+  }, [])
+
+  const loadSearchFromCache = useCallback(() => {
+    try {
+      const cached = localStorage.getItem('search-cache')
+      if (cached) {
+        const cacheData = JSON.parse(cached)
+        // 缓存有效期：1小时
+        if (Date.now() - cacheData.timestamp < 60 * 60 * 1000) {
+          return cacheData
+        }
+      }
+    } catch (error) {
+      console.error('加载搜索缓存失败:', error)
+    }
+    return null
+  }, [])
+
+  // 组件初始化时恢复搜索缓存
+  useEffect(() => {
+    if (open) {
+      const cached = loadSearchFromCache()
+      if (cached) {
+        isRestoringFromCache.current = true
+        setSearchQuery(cached.query)
+        setServerResults(cached.results)
+        console.log('🔄 恢复搜索缓存:', cached)
+        // 短暂延迟后重置标志位，确保防抖搜索不会触发
+        setTimeout(() => {
+          isRestoringFromCache.current = false
+        }, 500) // 给足够时间让防抖搜索跳过
+      }
+    }
+  }, [open]) // 移除 loadSearchFromCache 依赖，避免无限循环
 
   // 服务端搜索函数
   const searchServer = useCallback(async (query: string) => {
@@ -41,37 +91,96 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
       return
     }
 
+    // 取消之前的请求
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    // 创建新的 AbortController
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
+
     setIsSearching(true)
+
     try {
       console.log('🔍 发起搜索请求:', { userId: user.id, query })
-      const response = await fetch(`/api/search?userId=${user.id}&q=${encodeURIComponent(query)}&limit=10`)
-      const result = await response.json()
+      const response = await fetch(
+        `/api/search?userId=${user.id}&q=${encodeURIComponent(query)}&limit=10`,
+        { signal: abortController.signal }
+      )
 
+      if (abortController.signal.aborted) {
+        console.log('🚫 搜索请求被取消')
+        return
+      }
+
+      const result = await response.json()
       console.log('📡 搜索响应:', result)
 
       if (result.success) {
         console.log('✅ 搜索成功，设置结果:', result.data)
         setServerResults(result.data)
+
+        // 保存搜索结果到缓存
+        saveSearchToCache(query, result.data)
       } else {
         console.error('❌ 搜索失败:', result.error)
         setServerResults({ notes: [], files: [], links: [] })
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('🚫 搜索请求被中止')
+        return
+      }
       console.error('❌ 搜索请求失败:', error)
       setServerResults({ notes: [], files: [], links: [] })
     } finally {
-      setIsSearching(false)
+      if (!abortController.signal.aborted) {
+        setIsSearching(false)
+      }
     }
-  }, [user])
+  }, [user, saveSearchToCache])
 
   // 防抖搜索
   useEffect(() => {
+    // 如果正在从缓存恢复，跳过搜索
+    if (isRestoringFromCache.current) {
+      console.log('🚫 跳过搜索：正在从缓存恢复')
+      return
+    }
+
     const timer = setTimeout(() => {
       searchServer(searchQuery)
     }, 300) // 300ms防抖
 
     return () => clearTimeout(timer)
   }, [searchQuery, searchServer])
+
+  // 监听便签列表变化，重新搜索以更新结果
+  useEffect(() => {
+    // 如果正在从缓存恢复，跳过搜索
+    if (isRestoringFromCache.current) {
+      return
+    }
+
+    if (searchQuery.trim() && notes.length > 0) {
+      // 当便签列表发生变化且有搜索查询时，重新搜索
+      const timer = setTimeout(() => {
+        searchServer(searchQuery)
+      }, 100) // 短延迟，避免频繁搜索
+
+      return () => clearTimeout(timer)
+    }
+  }, [notes, searchQuery, searchServer])
+
+  // 组件卸载时清理
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [])
 
   // 对话框关闭时重置搜索状态
   useEffect(() => {
@@ -187,21 +296,40 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
                 {searchResults.notes.map((note, index) => {
                   console.log(`📝 渲染便签 ${index + 1}:`, note)
 
+                  // 包装操作函数以在操作后刷新搜索结果
+                  const handleSaveNote = async (id: string, content: string) => {
+                    const result = await saveNote(id, content)
+                    // 操作成功后，短延迟重新搜索以更新结果
+                    if (result) {
+                      setTimeout(() => searchServer(searchQuery), 200)
+                    }
+                    return result
+                  }
+
+                  const handleDeleteNote = async (id: string) => {
+                    const result = await deleteNote(id)
+                    // 操作成功后，短延迟重新搜索以更新结果
+                    if (result) {
+                      setTimeout(() => searchServer(searchQuery), 200)
+                    }
+                    return result
+                  }
+
                   return (
                     <CommandItem
                       key={`note-${note.id}`}
-                      value={`${note.title || '无标题'} ${note.content || ''}`}
-                      onSelect={() => handleNoteClick(note)}
+                      value={`${note.title || '无标题'} ${note.content || ''} ${note.id}`}
+                      onSelect={() => {}} // 禁用默认选择行为
+                      className="p-0 h-auto cursor-pointer"
                     >
-                      <FileText className="mr-2 h-4 w-4 text-blue-500" />
-                      <div className="flex-1">
-                        <div className="font-medium">
-                          {note.title || "无标题便签"}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {note.content ? note.content.substring(0, 80) + (note.content.length > 80 ? "..." : "") : '无内容'}
-                        </div>
-                      </div>
+                      <SearchResultNoteItem
+                        note={note}
+                        searchQuery={searchQuery}
+                        onSaveNote={handleSaveNote}
+                        onDeleteNote={handleDeleteNote}
+                        onClose={() => onOpenChange(false)}
+                        className="w-full"
+                      />
                     </CommandItem>
                   )
                 })}
