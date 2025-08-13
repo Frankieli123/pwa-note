@@ -275,7 +275,6 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
       open={open}
       onOpenChange={onOpenChange}
       aria-label="搜索便签、文件和链接"
-      shouldFilter={false}
     >
       <CommandInput
         placeholder="搜索便签、文件、链接..."

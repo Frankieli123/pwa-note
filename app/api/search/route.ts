@@ -129,7 +129,7 @@ async function searchNotes(userId: string, searchQuery: string, limit: number) {
 
     console.log('📝 便签SQL执行结果:', {
       rowCount: result.rows.length,
-      sampleContent: result.rows.slice(0, 2).map(row => ({
+      sampleContent: result.rows.slice(0, 2).map((row: any) => ({
         id: row.id,
         content: row.content.substring(0, 50) + '...'
       }))

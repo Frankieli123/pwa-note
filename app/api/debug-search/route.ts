@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       LIMIT 10
     `, [userId])
 
-    console.log('📝 用户便签示例:', allNotes.rows.map(note => ({
+    console.log('📝 用户便签示例:', allNotes.rows.map((note: any) => ({
       id: note.id,
       content: note.content.substring(0, 50) + '...',
       created_at: note.created_at
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         exactMatch: exactMatch.rows.length,
         likeMatch: likeMatch.rows.length,
         ilikeMatch: ilikeMatch.rows.length,
-        ilikeResults: ilikeMatch.rows.map(row => ({
+        ilikeResults: ilikeMatch.rows.map((row: any) => ({
           id: row.id,
           content: row.content.substring(0, 100) + '...'
         }))
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         totalNotes: allNotes.rows.length,
-        sampleNotes: allNotes.rows.map(note => ({
+        sampleNotes: allNotes.rows.map((note: any) => ({
           id: note.id,
           content: note.content.substring(0, 100) + '...',
           created_at: note.created_at
