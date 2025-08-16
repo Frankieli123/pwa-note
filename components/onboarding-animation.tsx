@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/hooks/use-auth"
@@ -15,8 +15,41 @@ interface OnboardingAnimationProps {
 
 export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
   const [username, setUsername] = useState("")
-  const [step, setStep] = useState(0)
   const { login, isLoading } = useAuth()
+
+  // 使用sessionStorage持久化step状态
+  const [step, setStep] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedStep = sessionStorage.getItem('onboarding-step')
+      return savedStep ? parseInt(savedStep, 10) : 0
+    }
+    return 0
+  })
+
+  // 添加组件挂载和step变化的调试日志
+  useEffect(() => {
+    console.log('[OnboardingAnimation] 组件挂载，从sessionStorage恢复step:', step)
+    return () => {
+      console.log('[OnboardingAnimation] 组件卸载，最终step:', step)
+    }
+  }, [])
+
+  // 当step变化时保存到sessionStorage
+  useEffect(() => {
+    console.log('[OnboardingAnimation] step变化:', step)
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('onboarding-step', step.toString())
+    }
+  }, [step])
+
+  // 完成引导时清除sessionStorage
+  const handleComplete = () => {
+    console.log('[OnboardingAnimation] 引导完成，清除sessionStorage')
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('onboarding-step')
+    }
+    onComplete()
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,7 +60,7 @@ export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
       await login(username)
 
       // 登录成功后完成引导流程
-      onComplete()
+      handleComplete()
     } catch (error) {
       console.error("登录失败:", error)
       // 登录失败时保持在引导页面，用户可以重试
@@ -70,7 +103,7 @@ export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
           <p className="text-muted-foreground mb-8">{currentStep?.description}</p>
 
           {step < steps.length - 1 ? (
-            <Button onClick={() => setStep((s) => s + 1)}>
+            <Button onClick={() => setStep(step + 1)}>
               继续
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
@@ -86,7 +119,7 @@ export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "创建账户中..." : "开始使用"}
               </Button>
-              <Button variant="ghost" onClick={onComplete} className="w-full">
+              <Button variant="ghost" onClick={handleComplete} className="w-full">
                 暂时跳过
               </Button>
             </form>

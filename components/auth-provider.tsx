@@ -234,15 +234,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthStatus(AuthStatus.CHECKING)
 
     try {
-      // 先清除任何现有的登录状态，确保干净的环境
-      localStorage.removeItem("authToken")
-      localStorage.removeItem("refreshToken")
-      localStorage.removeItem("userData")
-
       // 模拟登录 - 在真实应用中，您会调用API
       const mockToken = "mock-jwt-token-" + Math.random().toString(36).substring(2)
-      localStorage.setItem("authToken", mockToken)
-      localStorage.setItem("refreshToken", "mock-refresh-token-" + Math.random().toString(36).substring(2))
+      const mockRefreshToken = "mock-refresh-token-" + Math.random().toString(36).substring(2)
 
       const userId = generateUserId(username)
       const deviceType = getDeviceType();
@@ -257,7 +251,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       }
 
-      // 保存用户数据到本地存储
+      // 原子化操作：同时更新localStorage和状态，避免时间窗口
+      console.log('[AuthProvider] 原子化更新认证状态和本地存储')
+
+      // 批量更新localStorage，减少中间状态
+      localStorage.setItem("authToken", mockToken)
+      localStorage.setItem("refreshToken", mockRefreshToken)
       localStorage.setItem("userData", JSON.stringify(newUser))
 
       // 原子化状态更新：同时设置用户和认证状态
@@ -274,9 +273,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 后台异步加载数据库中的头像配置，不阻塞UI
       setTimeout(async () => {
         try {
+          console.log(`[AuthProvider] 开始加载用户 ${userId} 的头像配置`)
           const dbAvatarConfig = await getUserAvatarConfigFromDB(userId)
           if (dbAvatarConfig) {
-            console.log(`从数据库加载用户 ${userId} 的头像配置:`, dbAvatarConfig)
+            console.log(`[AuthProvider] 从数据库加载用户 ${userId} 的头像配置:`, dbAvatarConfig)
             setUser(prevUser => {
               if (prevUser && prevUser.id === userId) {
                 const updatedUser = {
@@ -309,8 +309,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             })
           }
         } catch (error) {
-          console.error(`加载用户 ${userId} 头像配置失败:`, error)
-          // 如果加载失败，使用本地生成的配置
+          console.error(`[AuthProvider] 加载用户 ${userId} 头像配置失败:`, error)
+          // 确保头像加载失败不影响认证状态，使用本地生成的配置
           const avatarConfig = getOrCreateUserAvatarConfig(userId)
           setUser(prevUser => {
             if (prevUser && prevUser.id === userId) {

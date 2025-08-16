@@ -60,7 +60,7 @@ export function UploadDialogs({
               accept="*"
               label={uploadType === "image"
                 ? "拖放图片到此处上传"
-                : "拖放文档到此处上传"
+                : "拖放任意文件到此处上传"
               }
               maxSize={999999} // 不限制大小
               multiple={false}

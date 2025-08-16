@@ -33,6 +33,13 @@ export function AppInitializer({ children, onShowOnboarding, showOnboarding }: A
     }
   }, [authStatus])
 
+  // 当showOnboarding变为false时，重置ref，允许下次检查
+  useEffect(() => {
+    if (!showOnboarding) {
+      hasCalledOnShowOnboardingRef.current = false
+    }
+  }, [showOnboarding])
+
   // 检查是否需要显示引导页面 - 使用新的认证状态枚举
   useEffect(() => {
     const checkOnboardingNeeded = () => {

@@ -251,8 +251,8 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                   <div className="p-3">
                     <div className="mb-4">
                       <FileUploader
-                        accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                        label="拖放文档到此处上传"
+                        accept="*"
+                        label="拖放任意文件到此处上传"
                       />
                     </div>
                     <FileGrid files={documentFiles} />

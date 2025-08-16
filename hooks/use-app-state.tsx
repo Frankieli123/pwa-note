@@ -43,10 +43,10 @@ export function useAppState() {
     sidebarOpen,
     syncPanelExpanded,
     isMobile,
-    
+
     // 状态更新函数
     setSidebarOpen,
-    
+
     // 事件处理函数
     handleOnboardingComplete,
     handleShowOnboarding,

@@ -38,55 +38,41 @@ export function AppContainer() {
   // 获取认证状态
   const { isInitializing } = useAuth()
 
-  // 初始化阶段的引导显示预判（不渲染主界面，也不显示任何加载UI）
-  useEffect(() => {
-    if (!isInitializing) return
-    if (typeof window === 'undefined') return
+  // 移除重复的引导逻辑，统一由AppInitializer处理
 
-    const hasAuthToken = localStorage.getItem('authToken')
-    const hasShownOnboarding = localStorage.getItem('hasShownOnboarding')
-
-    // 没有 token 且没看过引导，则直接打开引导覆盖层（避免主界面先渲染）
-    if (!hasAuthToken && !hasShownOnboarding && !showOnboarding) {
-      handleShowOnboarding()
-    }
-  }, [isInitializing, showOnboarding, handleShowOnboarding])
-
-  // 初始化期间不渲染主界面，但允许引导覆盖层显示
-  if (isInitializing) {
-    return (
-      <>
-        {showOnboarding && (
-          <OnboardingAnimation onComplete={handleOnboardingComplete} />
-        )}
-      </>
-    )
-  }
-
-  // 初始化完成后再渲染主应用与初始化器
+  // 统一渲染主应用和引导页面，避免重新挂载导致状态丢失
   return (
-    <AppInitializer
-      onShowOnboarding={handleShowOnboarding}
-      showOnboarding={showOnboarding}
-    >
-      <SidebarManager sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
-        <MainLayout
-          statusBar={<StatusBar onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />}
-          sidebar={<SyncPanel onExpandChange={handleSyncPanelToggle} />}
-          sidebarOpen={sidebarOpen}
-          syncPanelExpanded={syncPanelExpanded}
-        >
-          <FloatingNoteInput />
-        </MainLayout>
-      </SidebarManager>
+    <>
+      {/* 始终渲染AppInitializer，让它处理所有的引导逻辑 */}
+      <AppInitializer
+        onShowOnboarding={handleShowOnboarding}
+        showOnboarding={showOnboarding}
+      >
+        {/* 只有在非初始化状态下才渲染主界面 */}
+        {!isInitializing && (
+          <SidebarManager sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
+            <MainLayout
+              statusBar={<StatusBar onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />}
+              sidebar={<SyncPanel onExpandChange={handleSyncPanelToggle} />}
+              sidebarOpen={sidebarOpen}
+              syncPanelExpanded={syncPanelExpanded}
+            >
+              <FloatingNoteInput />
+            </MainLayout>
+          </SidebarManager>
+        )}
 
-      {/* 版本检查和缓存管理 */}
-      <VersionChecker />
+        {/* 版本检查和缓存管理 */}
+        <VersionChecker />
+      </AppInitializer>
 
-      {/* 新用户引导覆盖层 */}
+      {/* 新用户引导覆盖层 - 统一在这里渲染，避免重新挂载 */}
       {showOnboarding && (
-        <OnboardingAnimation onComplete={handleOnboardingComplete} />
+        <OnboardingAnimation
+          key="onboarding-stable"
+          onComplete={handleOnboardingComplete}
+        />
       )}
-    </AppInitializer>
+    </>
   )
 }
