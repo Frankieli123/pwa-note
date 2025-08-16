@@ -24,6 +24,33 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: getAppVersion(),
   },
+
+  // 图片配置 - 允许外部域名（支持环境变量）
+  images: {
+    remotePatterns: [
+      // MinIO 域名（从环境变量获取）
+      ...(process.env.MINIO_ENDPOINT ? [{
+        protocol: process.env.MINIO_ENDPOINT.startsWith('https') ? 'https' : 'http',
+        hostname: process.env.MINIO_ENDPOINT.replace(/^https?:\/\//, ''),
+        port: '',
+        pathname: '/**',
+      }] : []),
+      // 头像服务域名
+      {
+        protocol: 'https',
+        hostname: 'api.dicebear.com',
+        port: '',
+        pathname: '/**',
+      },
+      // 备用 MinIO 域名（硬编码作为后备）
+      {
+        protocol: 'https',
+        hostname: 'minio-pwa.vryo.de',
+        port: '',
+        pathname: '/**',
+      }
+    ],
+  },
   
   // 自定义 webpack 配置
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
