@@ -20,6 +20,7 @@ import {
   getFiles as getFilesAction,
 
   deleteFile as deleteFileAction,
+  updateFileName as updateFileNameAction,
   Note as DbNote,
   Link as DbLink,
   File as DbFile
@@ -88,6 +89,7 @@ interface SyncContextType {
   deleteLink: (id: string) => Promise<boolean>
   uploadFile: (file: globalThis.File) => Promise<{ id: string; url: string } | null>
   deleteFile: (id: string) => Promise<boolean>
+  renameFile: (id: string, newName: string) => Promise<boolean>
   isInitialized: boolean
   loadMoreNotes: () => Promise<boolean>
   loadMoreNotesCursor: () => Promise<boolean>
@@ -887,7 +889,71 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Rename a file (乐观更新 - 立即显示结果，后台同步)
+  const renameFile = async (id: string, newName: string): Promise<boolean> => {
+    if (!user) return false
 
+    // 验证文件名
+    if (!newName || newName.trim().length === 0) {
+      toast({
+        variant: "destructive",
+        title: "重命名失败",
+        description: "文件名不能为空",
+      })
+      return false
+    }
+
+    // 存储原始文件信息，以便操作失败时恢复
+    const originalFiles = [...files];
+    const trimmedName = newName.trim()
+
+    // 🚀 立即更新UI - 乐观更新，让用户感觉操作瞬时完成
+    setFiles((prev) => prev.map((f) =>
+      f.id === id ? { ...f, name: trimmedName } : f
+    ))
+
+    // 广播更新到其他标签页
+    broadcastUpdate();
+
+    // 更新内容时间戳
+    lastContentUpdateRef.current = new Date();
+
+    // 🔄 后台异步更新数据库，不阻塞UI
+    setTimeout(async () => {
+      try {
+        const numId = parseInt(id, 10)
+        if (isNaN(numId)) {
+          console.error("Invalid file ID:", id)
+          throw new Error("无效的文件ID")
+        }
+
+        // 后台同步到服务器
+        await updateFileNameAction(numId, user.id, trimmedName)
+
+        // 更新最后同步时间
+        setLastSyncTime(new Date());
+        lastSyncTimeRef.current = new Date();
+
+        console.log(`✅ 文件重命名同步成功: ${trimmedName}`)
+
+      } catch (error) {
+        console.error(`❌ 文件重命名同步失败 ${id}:`, error)
+
+        // 🔙 后台同步失败，恢复UI到原始状态
+        setFiles(originalFiles);
+
+        const errorMessage = error instanceof Error ? error.message : "网络错误"
+        toast({
+          variant: "destructive",
+          title: "重命名同步失败",
+          description: `${errorMessage}，已恢复原文件名`,
+        })
+      }
+    }, 0) // 立即执行，但不阻塞当前操作
+
+    // 立即返回成功，让前端感觉操作已完成
+    return true
+  }
 
   // Delete a file
   const deleteFile = async (id: string): Promise<boolean> => {
@@ -1027,6 +1093,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         deleteLink,
         uploadFile,
         deleteFile,
+        renameFile,
         isInitialized,
         loadMoreNotes,
         loadMoreNotesCursor,

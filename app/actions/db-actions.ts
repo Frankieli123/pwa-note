@@ -491,6 +491,57 @@ export async function createFileAction(
   }
 }
 
+export async function updateFileName(id: number, userId: string, newName: string): Promise<File> {
+  console.log("服务器操作: updateFileName", { id, userId, newName })
+
+  // 验证文件名
+  if (!newName || newName.trim().length === 0) {
+    throw new Error("文件名不能为空")
+  }
+
+  if (newName.length > 255) {
+    throw new Error("文件名过长，最多255个字符")
+  }
+
+  // 检查文件名是否包含非法字符
+  const invalidChars = /[<>:"/\\|?*]/
+  if (invalidChars.test(newName)) {
+    throw new Error("文件名包含非法字符")
+  }
+
+  try {
+    const result = await query(
+      "UPDATE files SET name = $1 WHERE id = $2 AND user_id = $3 RETURNING *",
+      [newName.trim(), id, userId]
+    )
+
+    if (result.rows.length === 0) {
+      throw new Error("文件不存在或无权限修改")
+    }
+
+    const row = result.rows[0]
+    const file: File = {
+      id: row.id,
+      user_id: row.user_id,
+      name: row.name,
+      type: row.type,
+      url: row.minio_url,
+      thumbnail: row.thumbnail_url,
+      minio_url: row.minio_url,
+      thumbnail_url: row.thumbnail_url,
+      size: row.size,
+      uploaded_at: row.uploaded_at
+    }
+
+    console.log("updateFileName 结果:", file)
+    revalidatePath("/")
+    return file
+  } catch (error) {
+    console.error("updateFileName 错误:", error)
+    throw error
+  }
+}
+
 export async function deleteFile(id: number, userId: string): Promise<void> {
   console.log("服务器操作: deleteFile", { id, userId })
   try {

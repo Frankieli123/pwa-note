@@ -16,20 +16,23 @@ import { useTime } from "@/hooks/use-time"
 import { useState } from "react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Input } from "@/components/ui/input"
 // 移除 file-download 引用，直接使用 Blob URL
 
+type FileItem = {
+  id: string
+  name: string
+  type: string
+  url: string
+  thumbnail?: string
+  uploadedAt: Date
+  size: number
+  base64_data?: string | null
+  user_id: string
+}
+
 interface FileGridProps {
-  files: Array<{
-    id: string
-    name: string
-    type: string
-    url: string
-    thumbnail?: string
-    uploadedAt: Date
-    size: number
-    base64_data?: string | null
-    user_id: string
-  }>
+  files: Array<FileItem>
   showAsThumbnails?: boolean
 }
 
@@ -115,10 +118,50 @@ function getFileTypeInfo(fileName: string, mimeType: string) {
 }
 
 export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
-  const { deleteFile, user } = useSync()
+  const { deleteFile, renameFile, user } = useSync()
   const { toast } = useToast()
   const { getRelativeTime } = useTime()
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null)
+  const [editingFile, setEditingFile] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState<string>("")
+
+  // 开始编辑文件名
+  const handleStartEdit = (file: FileItem) => {
+    setEditingFile(file.id.toString())
+    setEditingName(file.name)
+  }
+
+  // 取消编辑
+  const handleCancelEdit = () => {
+    setEditingFile(null)
+    setEditingName("")
+  }
+
+  // 保存编辑 (立即完成，后台同步)
+  const handleSaveEdit = async () => {
+    if (!editingFile || !editingName.trim()) {
+      handleCancelEdit()
+      return
+    }
+
+    const fileId = editingFile
+    const newName = editingName.trim()
+
+    // 🚀 立即退出编辑模式，让用户感觉操作瞬时完成
+    handleCancelEdit()
+
+    // 🔄 后台执行重命名，UI已经更新
+    await renameFile(fileId, newName)
+  }
+
+  // 处理键盘事件
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveEdit()
+    } else if (e.key === 'Escape') {
+      handleCancelEdit()
+    }
+  }
 
   // 直接删除文件，不显示确认弹窗
   const handleDeleteClick = (id: string) => {
@@ -250,11 +293,36 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                 </TooltipProvider>
 
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate font-apply-target text-sm">{file.name}</div>
-                  <div className="text-xs text-muted-foreground font-apply-target">
-                    {getRelativeTime(file.uploadedAt)} -
-                    {formatFileSize(file.size)}
-                  </div>
+                  {editingFile === file.id.toString() ? (
+                    <div className="space-y-1">
+                      <Input
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onBlur={handleSaveEdit}
+                        className="h-7 text-sm font-medium font-apply-target"
+                        placeholder="输入文件名..."
+                        autoFocus
+                      />
+                      <div className="text-xs text-muted-foreground font-apply-target">
+                        {getRelativeTime(file.uploadedAt)} -
+                        {formatFileSize(file.size)}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="cursor-pointer"
+                      onDoubleClick={() => handleStartEdit(file)}
+                    >
+                      <div className="font-medium truncate font-apply-target text-sm hover:text-blue-600 transition-colors">
+                        {file.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground font-apply-target">
+                        {getRelativeTime(file.uploadedAt)} -
+                        {formatFileSize(file.size)}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-1">
