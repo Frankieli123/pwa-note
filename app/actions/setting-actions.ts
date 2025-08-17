@@ -11,6 +11,7 @@ export type UserSettings = {
   sync_interval: number
   avatar_style?: string
   avatar_seed?: string
+  password_hash?: string
   updated_at: Date
 }
 
@@ -41,6 +42,17 @@ async function createUserSettingsTableIfNeeded() {
       console.log("【设置同步】头像字段添加成功或已存在")
     } catch (error) {
       console.log("【设置同步】头像字段可能已存在:", error)
+    }
+
+    // 为现有表添加密码字段（如果不存在）
+    try {
+      await query(`
+        ALTER TABLE user_settings
+        ADD COLUMN IF NOT EXISTS password_hash TEXT
+      `)
+      console.log("【设置同步】密码字段添加成功或已存在")
+    } catch (error) {
+      console.log("【设置同步】密码字段可能已存在:", error)
     }
     console.log("【设置同步】用户设置表创建成功或已存在")
     return true
@@ -80,6 +92,7 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
       sync_interval: row.sync_interval,
       avatar_style: row.avatar_style,
       avatar_seed: row.avatar_seed,
+      password_hash: row.password_hash,
       updated_at: row.updated_at
     }
     
@@ -154,6 +167,7 @@ export async function saveUserSettings(
       sync_interval: row.sync_interval,
       avatar_style: row.avatar_style,
       avatar_seed: row.avatar_seed,
+      password_hash: row.password_hash,
       updated_at: row.updated_at
     }
     
@@ -164,4 +178,145 @@ export async function saveUserSettings(
     console.error("【设置同步】保存用户设置失败:", error)
     throw new Error(`保存用户设置失败: ${error instanceof Error ? error.message : String(error)}`)
   }
-} 
+}
+
+// ==================== 密码相关函数 ====================
+
+/**
+ * 检查用户是否设置了密码
+ * @param userId 用户ID
+ * @returns 是否设置了密码
+ */
+export async function hasUserPassword(userId: string): Promise<boolean> {
+  console.log("【密码检查】检查用户是否设置密码:", userId)
+
+  try {
+    // 确保表存在
+    const tableCreated = await createUserSettingsTableIfNeeded()
+    if (!tableCreated) {
+      console.error("【密码检查】表创建失败")
+      return false
+    }
+
+    const result = await query(
+      "SELECT password_hash FROM user_settings WHERE user_id = $1",
+      [userId]
+    )
+
+    const hasPassword = result.rows.length > 0 && result.rows[0].password_hash
+    console.log("【密码检查】用户密码状态:", hasPassword ? "已设置" : "未设置")
+    return !!hasPassword
+  } catch (error) {
+    console.error("【密码检查】检查用户密码失败:", error)
+    return false
+  }
+}
+
+/**
+ * 获取用户密码哈希
+ * @param userId 用户ID
+ * @returns 密码哈希，如果不存在返回null
+ */
+export async function getUserPasswordHash(userId: string): Promise<string | null> {
+  console.log("【密码获取】获取用户密码哈希:", userId)
+
+  try {
+    // 确保表存在
+    const tableCreated = await createUserSettingsTableIfNeeded()
+    if (!tableCreated) {
+      console.error("【密码获取】表创建失败")
+      return null
+    }
+
+    const result = await query(
+      "SELECT password_hash FROM user_settings WHERE user_id = $1",
+      [userId]
+    )
+
+    if (result.rows.length === 0 || !result.rows[0].password_hash) {
+      console.log("【密码获取】用户未设置密码")
+      return null
+    }
+
+    console.log("【密码获取】成功获取用户密码哈希")
+    return result.rows[0].password_hash
+  } catch (error) {
+    console.error("【密码获取】获取用户密码哈希失败:", error)
+    return null
+  }
+}
+
+/**
+ * 设置用户密码
+ * @param userId 用户ID
+ * @param passwordHash 密码哈希
+ * @returns 是否设置成功
+ */
+export async function setUserPassword(userId: string, passwordHash: string): Promise<boolean> {
+  console.log("【密码设置】设置用户密码:", userId)
+
+  try {
+    // 确保表存在
+    const tableCreated = await createUserSettingsTableIfNeeded()
+    if (!tableCreated) {
+      console.error("【密码设置】表创建失败")
+      return false
+    }
+
+    // 检查用户设置是否已存在
+    const existingSettings = await getUserSettings(userId)
+
+    if (existingSettings) {
+      // 更新现有设置的密码
+      await query(
+        "UPDATE user_settings SET password_hash = $1, updated_at = NOW() WHERE user_id = $2",
+        [passwordHash, userId]
+      )
+      console.log("【密码设置】更新用户密码成功")
+    } else {
+      // 创建新的用户设置记录
+      await query(
+        `INSERT INTO user_settings (user_id, font_family, font_size, sync_interval, password_hash)
+         VALUES ($1, 'zcool-xiaowei', 'medium', 5, $2)`,
+        [userId, passwordHash]
+      )
+      console.log("【密码设置】创建用户设置并设置密码成功")
+    }
+
+    revalidatePath("/")
+    return true
+  } catch (error) {
+    console.error("【密码设置】设置用户密码失败:", error)
+    return false
+  }
+}
+
+/**
+ * 移除用户密码
+ * @param userId 用户ID
+ * @returns 是否移除成功
+ */
+export async function removeUserPassword(userId: string): Promise<boolean> {
+  console.log("【密码移除】移除用户密码:", userId)
+
+  try {
+    // 确保表存在
+    const tableCreated = await createUserSettingsTableIfNeeded()
+    if (!tableCreated) {
+      console.error("【密码移除】表创建失败")
+      return false
+    }
+
+    await query(
+      "UPDATE user_settings SET password_hash = NULL, updated_at = NOW() WHERE user_id = $1",
+      [userId]
+    )
+
+    console.log("【密码移除】移除用户密码成功")
+    revalidatePath("/")
+    return true
+  } catch (error) {
+    console.error("【密码移除】移除用户密码失败:", error)
+    return false
+  }
+}

@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { useSettings } from "@/hooks/use-settings"
 import { useTheme } from "next-themes"
-import { Settings, Moon, Sun, Type, Cloud, CloudOff, Loader2, Shuffle, User } from "lucide-react"
+import { Settings, Moon, Sun, Type, Cloud, CloudOff, Loader2, Shuffle, User, Lock, Unlock, Eye, EyeOff, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMobile } from "@/hooks/use-mobile"
 
@@ -28,6 +28,9 @@ import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/components/ui/use-toast"
 import { UserAvatar } from "@/components/user-avatar"
 import { getUserAvatarUrl } from "@/lib/avatar-utils"
+import { Input } from "@/components/ui/input"
+import { hasUserPassword, setUserPassword, removeUserPassword } from "@/app/actions/setting-actions"
+import { hashPassword, checkPasswordStrength, type PasswordStrengthResult } from "@/lib/password-utils"
 
 // 优化 SettingsDialog 组件，减少不必要的重渲染和DOM操作
 export function SettingsDialog() {
@@ -43,10 +46,48 @@ export function SettingsDialog() {
   const [tempAvatarConfig, setTempAvatarConfig] = useState<AvatarConfig | null>(null)
   const [avatarChanged, setAvatarChanged] = useState(false)
 
+  // 密码相关状态
+  const [hasPassword, setHasPassword] = useState(false)
+  const [showPasswordSection, setShowPasswordSection] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordStrength, setPasswordStrength] = useState<PasswordStrengthResult | null>(null)
+  const [passwordLoading, setPasswordLoading] = useState(false)
+
   // 确保组件已挂载，避免水合不匹配
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // 检查用户是否设置了密码
+  useEffect(() => {
+    const checkUserPassword = async () => {
+      if (user?.id) {
+        try {
+          const userHasPassword = await hasUserPassword(user.id)
+          setHasPassword(userHasPassword)
+        } catch (error) {
+          console.error('检查用户密码状态失败:', error)
+        }
+      }
+    }
+
+    checkUserPassword()
+  }, [user?.id])
+
+  // 监听新密码变化，实时检查强度
+  useEffect(() => {
+    if (newPassword) {
+      const strength = checkPasswordStrength(newPassword)
+      setPasswordStrength(strength)
+    } else {
+      setPasswordStrength(null)
+    }
+  }, [newPassword])
 
   // 格式化最后同步时间
   const formattedSyncTime = useCallback(() => {
@@ -188,7 +229,106 @@ export function SettingsDialog() {
     
     await syncSettings();
   }, [syncSettings, user]);
-  
+
+  // 密码相关处理函数
+  const handleSetPassword = useCallback(async () => {
+    if (!user?.id || !newPassword || !confirmPassword) {
+      toast({
+        title: "设置失败",
+        description: "请填写完整的密码信息",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "设置失败",
+        description: "两次输入的密码不一致",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!passwordStrength?.isValid) {
+      toast({
+        title: "设置失败",
+        description: "密码强度不足，请设置更强的密码",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setPasswordLoading(true)
+    try {
+      const passwordHash = await hashPassword(newPassword)
+      const success = await setUserPassword(user.id, passwordHash)
+
+      if (success) {
+        setHasPassword(true)
+        setShowPasswordSection(false)
+        setCurrentPassword("")
+        setNewPassword("")
+        setConfirmPassword("")
+        toast({
+          title: "密码设置成功",
+          description: "下次登录时需要输入密码",
+        })
+      } else {
+        throw new Error("设置密码失败")
+      }
+    } catch (error) {
+      console.error('设置密码失败:', error)
+      toast({
+        title: "设置失败",
+        description: "密码设置失败，请重试",
+        variant: "destructive",
+      })
+    } finally {
+      setPasswordLoading(false)
+    }
+  }, [user?.id, newPassword, confirmPassword, passwordStrength])
+
+  const handleRemovePassword = useCallback(async () => {
+    if (!user?.id) return
+
+    setPasswordLoading(true)
+    try {
+      const success = await removeUserPassword(user.id)
+
+      if (success) {
+        setHasPassword(false)
+        setShowPasswordSection(false)
+        setCurrentPassword("")
+        setNewPassword("")
+        setConfirmPassword("")
+        toast({
+          title: "密码已移除",
+          description: "现在可以快速登录了",
+        })
+      } else {
+        throw new Error("移除密码失败")
+      }
+    } catch (error) {
+      console.error('移除密码失败:', error)
+      toast({
+        title: "操作失败",
+        description: "移除密码失败，请重试",
+        variant: "destructive",
+      })
+    } finally {
+      setPasswordLoading(false)
+    }
+  }, [user?.id])
+
+  const resetPasswordForm = useCallback(() => {
+    setShowPasswordSection(false)
+    setCurrentPassword("")
+    setNewPassword("")
+    setConfirmPassword("")
+    setPasswordStrength(null)
+  }, [])
+
   // 处理保存设置
   const handleSaveSettings = useCallback(async () => {
     // 如果头像有变化，先更新UI，再后台处理数据库
@@ -405,6 +545,184 @@ export function SettingsDialog() {
                     </>
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* 密码设置 */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-muted-foreground" />
+                <h3 className={cn("font-apply-target", isMobile ? "text-base" : "text-sm")}>安全设置</h3>
+              </div>
+              <div className="pl-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {hasPassword ? (
+                      <Lock className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Unlock className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span className={cn("font-apply-target", isMobile ? "text-base" : "text-sm")}>
+                      登录密码
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={cn("text-xs text-muted-foreground font-apply-target")}>
+                      {hasPassword ? "已设置" : "未设置"}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowPasswordSection(!showPasswordSection)}
+                      disabled={passwordLoading}
+                    >
+                      {hasPassword ? "修改" : "设置"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 密码设置表单 */}
+                {showPasswordSection && (
+                  <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                    {hasPassword && (
+                      <div className="space-y-2">
+                        <Label htmlFor="current-password" className="text-sm font-apply-target">
+                          当前密码
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id="current-password"
+                            type={showCurrentPassword ? "text" : "password"}
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            placeholder="请输入当前密码"
+                            disabled={passwordLoading}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3"
+                            onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                          >
+                            {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password" className="text-sm font-apply-target">
+                        {hasPassword ? "新密码" : "设置密码"}
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="new-password"
+                          type={showNewPassword ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="请输入新密码"
+                          disabled={passwordLoading}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                        >
+                          {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+
+                      {/* 密码强度指示器 */}
+                      {passwordStrength && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">强度:</span>
+                            <div className={cn(
+                              "text-xs px-2 py-1 rounded",
+                              passwordStrength.strength === 'very-strong' && "bg-green-100 text-green-800",
+                              passwordStrength.strength === 'strong' && "bg-blue-100 text-blue-800",
+                              passwordStrength.strength === 'medium' && "bg-yellow-100 text-yellow-800",
+                              passwordStrength.strength === 'weak' && "bg-red-100 text-red-800"
+                            )}>
+                              {passwordStrength.strength === 'very-strong' && '很强'}
+                              {passwordStrength.strength === 'strong' && '强'}
+                              {passwordStrength.strength === 'medium' && '中等'}
+                              {passwordStrength.strength === 'weak' && '弱'}
+                            </div>
+                          </div>
+                          {passwordStrength.feedback.length > 0 && (
+                            <div className="text-xs text-muted-foreground">
+                              {passwordStrength.feedback.join('，')}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-password" className="text-sm font-apply-target">
+                        确认密码
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="confirm-password"
+                          type={showConfirmPassword ? "text" : "password"}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="请再次输入密码"
+                          disabled={passwordLoading}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        >
+                          {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        onClick={handleSetPassword}
+                        disabled={passwordLoading || !newPassword || !confirmPassword || !passwordStrength?.isValid}
+                        size="sm"
+                      >
+                        {passwordLoading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            设置中...
+                          </>
+                        ) : (
+                          hasPassword ? "修改密码" : "设置密码"
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={resetPasswordForm}
+                        disabled={passwordLoading}
+                        size="sm"
+                      >
+                        取消
+                      </Button>
+                      {hasPassword && (
+                        <Button
+                          variant="destructive"
+                          onClick={handleRemovePassword}
+                          disabled={passwordLoading}
+                          size="sm"
+                        >
+                          移除密码
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
