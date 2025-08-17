@@ -87,7 +87,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
     }))
 
   const documentFiles = uploadedFiles
-    .filter((file) => file.type.includes("pdf") || file.type.includes("doc") || file.type.includes("text"))
+    .filter((file) => !file.type.startsWith("image/"))
     .map(file => ({
       id: file.id,
       name: file.name,

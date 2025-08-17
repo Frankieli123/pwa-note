@@ -2,7 +2,11 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 
-import { Download, FileIcon, FileTextIcon, ImageIcon, Trash2, Eye } from "lucide-react"
+import {
+  Download, FileIcon, FileTextIcon, Trash2, Eye,
+  FileArchive, Monitor, Music, Video, Code, FileSpreadsheet,
+  Package, Settings, Database, FileImage
+} from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -11,6 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useTime } from "@/hooks/use-time"
 import { useState } from "react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 // 移除 file-download 引用，直接使用 Blob URL
 
 interface FileGridProps {
@@ -26,6 +31,87 @@ interface FileGridProps {
     user_id: string
   }>
   showAsThumbnails?: boolean
+}
+
+// 文件类型识别函数
+function getFileTypeInfo(fileName: string, mimeType: string) {
+  const extension = fileName.toLowerCase().split('.').pop() || ''
+  const mime = mimeType.toLowerCase()
+
+  // 应用程序
+  if (['exe', 'msi', 'app', 'deb', 'rpm', 'apk', 'dmg'].includes(extension) ||
+      mime.includes('application/x-msdownload') ||
+      mime.includes('application/x-executable')) {
+    return { icon: Monitor, color: 'text-purple-500', label: '应用程序' }
+  }
+
+  // 压缩包
+  if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'].includes(extension) ||
+      mime.includes('application/zip') ||
+      mime.includes('application/x-rar') ||
+      mime.includes('application/x-7z')) {
+    return { icon: FileArchive, color: 'text-orange-500', label: '压缩包' }
+  }
+
+  // 图片
+  if (mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(extension)) {
+    return { icon: FileImage, color: 'text-blue-500', label: '图片' }
+  }
+
+  // PDF文档
+  if (extension === 'pdf' || mime.includes('pdf')) {
+    return { icon: FileTextIcon, color: 'text-red-500', label: 'PDF文档' }
+  }
+
+  // 表格文件
+  if (['xlsx', 'xls', 'csv', 'ods'].includes(extension) ||
+      mime.includes('spreadsheet') ||
+      mime.includes('excel') ||
+      mime === 'text/csv') {
+    return { icon: FileSpreadsheet, color: 'text-green-500', label: '表格' }
+  }
+
+  // 文档
+  if (['doc', 'docx', 'txt', 'rtf', 'odt'].includes(extension) ||
+      mime.includes('document') ||
+      mime.includes('text/')) {
+    return { icon: FileTextIcon, color: 'text-blue-600', label: '文档' }
+  }
+
+  // 音频
+  if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'].includes(extension) ||
+      mime.startsWith('audio/')) {
+    return { icon: Music, color: 'text-pink-500', label: '音频' }
+  }
+
+  // 视频
+  if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].includes(extension) ||
+      mime.startsWith('video/')) {
+    return { icon: Video, color: 'text-indigo-500', label: '视频' }
+  }
+
+  // 代码文件
+  if (['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'html', 'css', 'php', 'rb', 'go', 'rs'].includes(extension)) {
+    return { icon: Code, color: 'text-emerald-500', label: '代码' }
+  }
+
+  // 数据库
+  if (['db', 'sqlite', 'sql', 'mdb'].includes(extension)) {
+    return { icon: Database, color: 'text-cyan-500', label: '数据库' }
+  }
+
+  // 配置文件
+  if (['json', 'xml', 'yaml', 'yml', 'ini', 'conf', 'config'].includes(extension)) {
+    return { icon: Settings, color: 'text-gray-600', label: '配置' }
+  }
+
+  // 安装包
+  if (['pkg', 'deb', 'rpm', 'msi', 'dmg'].includes(extension)) {
+    return { icon: Package, color: 'text-amber-500', label: '安装包' }
+  }
+
+  // 默认文件
+  return { icon: FileIcon, color: 'text-gray-500', label: '文件' }
 }
 
 export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
@@ -148,19 +234,20 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
               </div>
             ) : (
               <div className="p-3 flex items-center gap-3">
-                {file.type.includes("image") ? (
-                  <ImageIcon className="h-8 w-8 text-blue-500" />
-                ) : file.type.includes("pdf") ? (
-                  <FileTextIcon className="h-8 w-8 text-red-500" />
-                ) : file.type.includes("spreadsheet") || 
-                   file.type.includes("excel") || 
-                   file.name.endsWith(".xlsx") || 
-                   file.name.endsWith(".xls") || 
-                   file.name.endsWith(".csv") ? (
-                  <FileIcon className="h-8 w-8 text-green-500" />
-                ) : (
-                  <FileIcon className="h-8 w-8 text-gray-500" />
-                )}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {(() => {
+                        const fileInfo = getFileTypeInfo(file.name, file.type)
+                        const IconComponent = fileInfo.icon
+                        return <IconComponent className={`h-8 w-8 ${fileInfo.color}`} />
+                      })()}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{getFileTypeInfo(file.name, file.type).label}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
 
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate font-apply-target text-sm">{file.name}</div>
