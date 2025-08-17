@@ -79,14 +79,19 @@ export async function GET(request: NextRequest) {
       console.log('🧪 搜索测试结果:', searchTests)
     }
 
-    // 3. 数据库编码检查
-    const encodingInfo = await query(`
-      SELECT 
-        current_setting('server_encoding') as server_encoding,
-        current_setting('client_encoding') as client_encoding,
-        current_setting('lc_collate') as lc_collate,
-        current_setting('lc_ctype') as lc_ctype
-    `)
+    // 3. 数据库编码检查（兼容不同PostgreSQL版本）
+    let encodingInfo
+    try {
+      encodingInfo = await query(`
+        SELECT
+          current_setting('server_encoding') as server_encoding,
+          current_setting('client_encoding') as client_encoding,
+          version() as pg_version
+      `)
+    } catch (error) {
+      console.error('获取数据库编码信息失败:', error)
+      encodingInfo = { rows: [{ server_encoding: 'unknown', client_encoding: 'unknown', pg_version: 'unknown' }] }
+    }
 
     return NextResponse.json({
       success: true,
