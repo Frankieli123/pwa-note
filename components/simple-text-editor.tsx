@@ -112,11 +112,9 @@ export function SimpleTextEditor({
           // 确保在移动端正确显示
           WebkitAppearance: 'none',
           // 防止iOS Safari字体放大
+          // 防止iOS和Android字体放大
           WebkitTextSizeAdjust: '100%',
-          // 防止Android字体放大
-          textSizeAdjust: '100%',
-          // 防止iOS上的缩放
-          WebkitTextSizeAdjust: '100%'
+          textSizeAdjust: '100%'
         }}
         // 移动端属性
         autoCapitalize="sentences"
