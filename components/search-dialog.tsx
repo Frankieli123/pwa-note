@@ -4,6 +4,7 @@ import * as React from "react"
 import { useContext, useState, useMemo, useEffect, useCallback, useRef } from "react"
 import { Search, FileText, Link as LinkIcon, File, Loader2 } from "lucide-react"
 import { SyncContext } from "@/components/sync-provider"
+import { useAuth } from "@/hooks/use-auth"
 import { SearchResultNoteItem } from "@/components/search-result-note-item"
 import {
   CommandDialog,
@@ -20,6 +21,7 @@ interface SearchDialogProps {
 }
 
 export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
+  const { user, isAuthenticated } = useAuth()
   const syncContext = useContext(SyncContext)
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
@@ -61,14 +63,12 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     return null
   }, [])
 
-  // 服务端搜索函数 - 移到条件语句之前
+  // 服务端搜索函数 - 使用AuthContext获取用户信息
   const searchServer = useCallback(async (query: string) => {
-    if (!syncContext?.user || !query.trim()) {
+    if (!isAuthenticated || !user || !query.trim()) {
       setServerResults({ notes: [], files: [], links: [] })
       return
     }
-
-    const user = syncContext.user
 
     // 取消之前的请求
     if (abortControllerRef.current) {
@@ -118,11 +118,11 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
         setIsSearching(false)
       }
     }
-  }, [saveSearchToCache])
+  }, [isAuthenticated, user, saveSearchToCache])
 
   // 组件初始化时恢复搜索缓存
   useEffect(() => {
-    if (open && syncContext) {
+    if (open && isAuthenticated && user) {
       const cached = loadSearchFromCache()
       if (cached) {
         isRestoringFromCache.current = true
@@ -135,7 +135,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
         }, 500) // 给足够时间让防抖搜索跳过
       }
     }
-  }, [open, loadSearchFromCache])
+  }, [open, isAuthenticated, user, loadSearchFromCache])
 
   // 防抖搜索
   useEffect(() => {
@@ -154,8 +154,8 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
 
   // 监听便签列表变化，重新搜索以更新结果
   useEffect(() => {
-    // 如果正在从缓存恢复，跳过搜索
-    if (isRestoringFromCache.current || !syncContext) {
+    // 如果正在从缓存恢复、未认证或没有用户，跳过搜索
+    if (isRestoringFromCache.current || !isAuthenticated || !user || !syncContext) {
       return
     }
 
@@ -202,12 +202,13 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     }
   }, [searchQuery, serverResults])
 
-  // 条件检查
-  if (!syncContext) {
+  // 条件检查 - 基于认证状态
+  if (!isAuthenticated || !user) {
     return null
   }
 
-  const { notes, files, links, user, saveNote, deleteNote } = syncContext
+  // 从SyncContext获取便签操作函数（保持现有功能）
+  const { saveNote, deleteNote } = syncContext || {}
 
   // 添加调试信息
   console.log('🔍 搜索状态:', {
@@ -301,6 +302,10 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
 
                   // 包装操作函数以在操作后刷新搜索结果
                   const handleSaveNote = async (id: string, content: string) => {
+                    if (!saveNote) {
+                      console.warn('saveNote function not available')
+                      return null
+                    }
                     const result = await saveNote(id, content)
                     // 操作成功后，短延迟重新搜索以更新结果
                     if (result) {
@@ -310,6 +315,10 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
                   }
 
                   const handleDeleteNote = async (id: string) => {
+                    if (!deleteNote) {
+                      console.warn('deleteNote function not available')
+                      return false
+                    }
                     const result = await deleteNote(id)
                     // 操作成功后，短延迟重新搜索以更新结果
                     if (result) {
