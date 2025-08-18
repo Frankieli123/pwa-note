@@ -19,9 +19,26 @@ interface FileUploaderProps {
   onUploadSuccess?: (url: string) => void // 上传成功回调
 }
 
-// 文件验证函数（现在不限制类型和大小）
-const validateFile = (_file: File): { isValid: boolean; error?: string } => {
-  return { isValid: true } // 不限制文件格式和大小
+// 文件验证函数
+const validateFile = (file: File): { isValid: boolean; error?: string } => {
+  // 检查文件大小（500MB限制）
+  const maxSize = 500 * 1024 * 1024 // 500MB
+  if (file.size > maxSize) {
+    return {
+      isValid: false,
+      error: `文件 "${file.name}" 大小超过限制，最大支持 500MB`
+    }
+  }
+
+  // 检查文件名长度
+  if (file.name.length > 255) {
+    return {
+      isValid: false,
+      error: `文件名 "${file.name}" 过长，请使用更短的文件名`
+    }
+  }
+
+  return { isValid: true }
 }
 
 export function FileUploader({
@@ -37,6 +54,7 @@ export function FileUploader({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [currentFileName, setCurrentFileName] = useState<string>("")
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -74,51 +92,58 @@ export function FileUploader({
         return
       }
 
-      // 模拟进度
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 95) {
-            clearInterval(progressInterval)
-            return 95
-          }
-          return prev + 5
-        })
-      }, 100)
-
       try {
         // 上传每个验证通过的文件
-        for (const file of validFiles) {
-          const result = await uploadFile(file)
+        for (let i = 0; i < validFiles.length; i++) {
+          const file = validFiles[i]
+          const fileProgress = (i / validFiles.length) * 100
+
+          // 设置当前上传的文件名
+          setCurrentFileName(file.name)
+
+          const result = await uploadFile(file, (progress) => {
+            // 计算总体进度：当前文件在总文件中的位置 + 当前文件的进度
+            const totalProgress = fileProgress + (progress / validFiles.length)
+            setUploadProgress(Math.min(totalProgress, 100))
+          })
+
           if (result && onUploadSuccess) {
             onUploadSuccess(result.url)
           }
         }
 
-        // 完成进度
-        setUploadProgress(100)
-
         // 延迟后重置
         setTimeout(() => {
           setIsUploading(false)
           setUploadProgress(0)
-        }, 1000)
+          setCurrentFileName("")
+        }, 1500)
       } catch (error) {
         console.error("上传失败:", error)
 
         // 根据错误类型提供更具体的错误信息
         let errorMessage = "上传失败，请重试"
         if (error instanceof Error) {
-          if (error.message.includes("大小")) {
-            errorMessage = "文件大小超过限制，请选择更小的文件"
+          if (error.message.includes("大小") || error.message.includes("500MB")) {
+            errorMessage = "文件过大，最大支持 500MB"
           } else if (error.message.includes("类型")) {
-            errorMessage = "文件类型不支持，请选择支持的文件格式"
+            errorMessage = "文件类型不支持"
+          } else if (error.message.includes("网络") || error.message.includes("连接")) {
+            errorMessage = "网络连接失败，请检查网络后重试"
+          } else if (error.message.includes("MinIO")) {
+            errorMessage = "存储服务暂时不可用，请稍后重试"
+          } else if (error.message.includes("预签名") || error.message.includes("凭证")) {
+            errorMessage = "获取上传凭证失败，请重试"
+          } else if (error.message.length > 0 && error.message.length < 100) {
+            // 如果错误信息不太长且有意义，直接显示
+            errorMessage = error.message
           }
         }
 
         setError(errorMessage)
         setIsUploading(false)
-      } finally {
-        clearInterval(progressInterval)
+        setUploadProgress(0)
+        setCurrentFileName("")
       }
     },
     [uploadFile, maxSize, onClick, onUploadSuccess],
@@ -201,8 +226,31 @@ export function FileUploader({
 
         {isUploading && (
           <div className="w-full mt-2">
-            <Progress value={uploadProgress} className="h-1" />
-            <p className="text-xs text-muted-foreground mt-1 font-apply-target">上传中... {uploadProgress}%</p>
+            <Progress value={uploadProgress} className="h-2" />
+            <div className="flex justify-between items-center mt-1">
+              <p className="text-xs text-muted-foreground font-apply-target">
+                {uploadProgress < 10 ? "验证文件..." :
+                 uploadProgress < 20 ? "获取上传凭证..." :
+                 uploadProgress < 80 ? "上传中..." :
+                 uploadProgress < 90 ? "生成缩略图..." :
+                 uploadProgress < 100 ? "保存文件信息..." : "上传完成"}
+              </p>
+              <p className="text-xs text-muted-foreground font-apply-target">
+                {Math.round(uploadProgress)}%
+              </p>
+            </div>
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <div className="mt-1">
+                {currentFileName && (
+                  <p className="text-xs text-muted-foreground font-apply-target opacity-90">
+                    正在上传: {currentFileName}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground font-apply-target opacity-75">
+                  大文件上传可能需要较长时间，请耐心等待
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

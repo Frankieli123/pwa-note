@@ -808,146 +808,55 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       onProgress?.(10) // 验证完成
 
-      // 第一步：获取预签名 URL（带重试机制）
+      // 第一步：获取预签名 URL
       console.log('🔗 获取预签名 URL...')
-      const getPresignedUrl = async (retryCount = 0): Promise<any> => {
-        const maxRetries = 3
+      const presignedResponse = await fetch('/api/files/presigned-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+          userId: user.id
+        })
+      })
 
-        try {
-          const presignedResponse = await fetch('/api/files/presigned-url', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              fileName: file.name,
-              fileType: file.type,
-              fileSize: file.size,
-              userId: user.id
-            })
-          })
-
-          if (!presignedResponse.ok) {
-            const errorData = await presignedResponse.json().catch(() => ({}))
-
-            // 如果是服务器错误且还有重试次数，则重试
-            if (presignedResponse.status >= 500 && retryCount < maxRetries) {
-              console.log(`获取预签名URL失败 ${presignedResponse.status}，重试 ${retryCount + 1}/${maxRetries}`)
-              await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)))
-              return getPresignedUrl(retryCount + 1)
-            }
-
-            throw new Error(errorData.message || `获取上传凭证失败: ${presignedResponse.status}`)
-          }
-
-          const presignedData = await presignedResponse.json()
-          if (!presignedData.success) {
-            throw new Error(presignedData.message || '获取上传凭证失败')
-          }
-
-          return presignedData
-        } catch (error) {
-          if (error instanceof TypeError && retryCount < maxRetries) {
-            // 网络错误，重试
-            console.log(`网络错误，重试获取预签名URL ${retryCount + 1}/${maxRetries}`)
-            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)))
-            return getPresignedUrl(retryCount + 1)
-          }
-          throw error
-        }
+      if (!presignedResponse.ok) {
+        const errorData = await presignedResponse.json()
+        throw new Error(errorData.message || '获取上传凭证失败')
       }
 
-      const presignedData = await getPresignedUrl()
+      const presignedData = await presignedResponse.json()
+      if (!presignedData.success) {
+        throw new Error(presignedData.message || '获取上传凭证失败')
+      }
 
       onProgress?.(20) // 获取预签名URL完成
 
-      // 第二步：使用XMLHttpRequest直接上传到MinIO（支持真实进度监控和重试）
+      // 第二步：直接上传到 MinIO
       console.log('📤 直接上传到 MinIO...')
-      const uploadWithRetry = async (retryCount = 0): Promise<void> => {
-        const maxRetries = 3
+      const uploadResponse = await fetch(presignedData.data.uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type
+        },
+        body: file
+      })
 
-        return new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest()
-
-          // 监听上传进度
-          xhr.upload.addEventListener('progress', (event) => {
-            if (event.lengthComputable) {
-              // 计算上传进度：20% (预签名) + 60% (上传) = 80%
-              const uploadProgress = (event.loaded / event.total) * 60
-              const totalProgress = 20 + uploadProgress
-              onProgress?.(totalProgress)
-            }
-          })
-
-          // 监听普通进度事件（备用）
-          xhr.addEventListener('progress', (event) => {
-            if (event.lengthComputable) {
-              const uploadProgress = (event.loaded / event.total) * 60
-              const totalProgress = 20 + uploadProgress
-              console.log(`📊 下载进度: ${event.loaded}/${event.total} bytes (${totalProgress.toFixed(1)}%)`)
-            }
-          })
-
-          // 监听状态变化
-          xhr.addEventListener('readystatechange', () => {
-            console.log(`📊 状态变化: readyState=${xhr.readyState}, status=${xhr.status}`)
-          })
-
-          xhr.addEventListener('load', () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve()
-            } else if (xhr.status >= 500 && retryCount < maxRetries) {
-              // 服务器错误，尝试重试
-              console.log(`MinIO 服务器错误 ${xhr.status}，重试 ${retryCount + 1}/${maxRetries}`)
-              setTimeout(() => {
-                uploadWithRetry(retryCount + 1).then(resolve).catch(reject)
-              }, 1000 * (retryCount + 1)) // 递增延迟
-            } else {
-              reject(new Error(`MinIO 上传失败: ${xhr.status} ${xhr.statusText}`))
-            }
-          })
-
-          xhr.addEventListener('error', () => {
-            if (retryCount < maxRetries) {
-              console.log(`网络错误，重试 ${retryCount + 1}/${maxRetries}`)
-              setTimeout(() => {
-                uploadWithRetry(retryCount + 1).then(resolve).catch(reject)
-              }, 1000 * (retryCount + 1))
-            } else {
-              reject(new Error('网络连接失败，请检查网络后重试'))
-            }
-          })
-
-          xhr.addEventListener('timeout', () => {
-            if (retryCount < maxRetries) {
-              console.log(`上传超时，重试 ${retryCount + 1}/${maxRetries}`)
-              setTimeout(() => {
-                uploadWithRetry(retryCount + 1).then(resolve).catch(reject)
-              }, 1000 * (retryCount + 1))
-            } else {
-              reject(new Error('上传超时，文件可能过大'))
-            }
-          })
-
-          // 配置请求
-          xhr.open('PUT', presignedData.data.uploadUrl)
-          xhr.setRequestHeader('Content-Type', file.type)
-          xhr.timeout = 300000 // 5分钟超时
-
-          // 开始上传
-          xhr.send(file)
-        })
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text()
+        throw new Error(`MinIO 上传失败: ${uploadResponse.status} ${uploadResponse.statusText} - ${errorText}`)
       }
-
-      await uploadWithRetry()
 
       onProgress?.(80) // 上传到MinIO完成
 
-      // 第三步：处理缩略图（如果是图片）
+      // 第三步：生成缩略图（如果是图片）
       let thumbnailUrl: string | null = null
       if (file.type.startsWith('image/')) {
         try {
-          console.log('📸 生成缩略图...')
+          console.log('🖼️ 生成缩略图...')
           const tempUrl = URL.createObjectURL(file)
           const canvas = document.createElement('canvas')
           const ctx = canvas.getContext('2d')
@@ -972,16 +881,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             canvas.toBlob(resolve, 'image/jpeg', 0.8)
           })
 
+          // 清理临时URL
+          URL.revokeObjectURL(tempUrl)
+
+          // 如果生成了缩略图，也上传到MinIO
           if (thumbnailBlob) {
-            // 上传缩略图到MinIO
-            const thumbnailFileName = `thumbnail_${file.name}`
+            // 获取缩略图的预签名URL
             const thumbnailPresignedResponse = await fetch('/api/files/presigned-url', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                fileName: thumbnailFileName,
+                fileName: `${file.name}_thumbnail.jpg`,
                 fileType: 'image/jpeg',
                 fileSize: thumbnailBlob.size,
                 userId: user.id
@@ -991,20 +903,21 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             if (thumbnailPresignedResponse.ok) {
               const thumbnailPresignedData = await thumbnailPresignedResponse.json()
               if (thumbnailPresignedData.success) {
-                await fetch(thumbnailPresignedData.data.uploadUrl, {
+                const thumbnailUploadResponse = await fetch(thumbnailPresignedData.data.uploadUrl, {
                   method: 'PUT',
                   headers: {
                     'Content-Type': 'image/jpeg'
                   },
                   body: thumbnailBlob
                 })
-                thumbnailUrl = thumbnailPresignedData.data.fileUrl
+
+                if (thumbnailUploadResponse.ok) {
+                  thumbnailUrl = thumbnailPresignedData.data.fileUrl
+                  console.log('✅ 缩略图上传成功')
+                }
               }
             }
           }
-
-          // 清理临时URL
-          URL.revokeObjectURL(tempUrl)
         } catch (error) {
           console.warn('缩略图生成失败:', error)
         }
@@ -1012,59 +925,33 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       onProgress?.(90) // 缩略图处理完成
 
-      // 第四步：通知后端保存元数据（带重试机制）
+      // 第四步：通知后端保存元数据
       console.log('💾 保存文件元数据...')
-      const saveMetadata = async (retryCount = 0): Promise<any> => {
-        const maxRetries = 3
+      const completeResponse = await fetch('/api/files/upload-complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          objectKey: presignedData.data.objectKey,
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+          userId: user.id,
+          fileUrl: presignedData.data.fileUrl,
+          thumbnailUrl
+        })
+      })
 
-        try {
-          const completeResponse = await fetch('/api/files/upload-complete', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              objectKey: presignedData.data.objectKey,
-              fileName: file.name,
-              fileType: file.type,
-              fileSize: file.size,
-              userId: user.id,
-              fileUrl: presignedData.data.fileUrl,
-              thumbnailUrl
-            })
-          })
-
-          if (!completeResponse.ok) {
-            const errorData = await completeResponse.json().catch(() => ({}))
-
-            // 如果是服务器错误且还有重试次数，则重试
-            if (completeResponse.status >= 500 && retryCount < maxRetries) {
-              console.log(`保存元数据失败 ${completeResponse.status}，重试 ${retryCount + 1}/${maxRetries}`)
-              await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)))
-              return saveMetadata(retryCount + 1)
-            }
-
-            throw new Error(errorData.message || `保存文件信息失败: ${completeResponse.status}`)
-          }
-
-          const completeResult = await completeResponse.json()
-          if (!completeResult.success) {
-            throw new Error(completeResult.message || '保存文件信息失败')
-          }
-
-          return completeResult
-        } catch (error) {
-          if (error instanceof TypeError && retryCount < maxRetries) {
-            // 网络错误，重试
-            console.log(`网络错误，重试保存元数据 ${retryCount + 1}/${maxRetries}`)
-            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)))
-            return saveMetadata(retryCount + 1)
-          }
-          throw error
-        }
+      if (!completeResponse.ok) {
+        const errorData = await completeResponse.json()
+        throw new Error(errorData.message || '保存文件信息失败')
       }
 
-      const completeResult = await saveMetadata()
+      const completeResult = await completeResponse.json()
+      if (!completeResult.success) {
+        throw new Error(completeResult.message || '保存文件信息失败')
+      }
 
       onProgress?.(100) // 完成
 

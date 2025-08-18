@@ -54,6 +54,11 @@ export function getAllSupportedTypes(): string[] {
 }
 
 /**
+ * 文件大小限制配置（500MB）
+ */
+const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
+
+/**
  * 验证文件类型是否支持（现在支持所有类型）
  */
 export function isFileTypeSupported(mimeType: string): boolean {
@@ -61,10 +66,29 @@ export function isFileTypeSupported(mimeType: string): boolean {
 }
 
 /**
- * 验证文件大小是否符合要求（现在不限制大小）
+ * 验证文件大小是否符合要求
  */
 export function validateFileSize(file: File): { valid: boolean; error?: string } {
-  return { valid: true } // 不限制文件大小
+  if (file.size > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `文件大小超过限制，最大支持 ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`
+    }
+  }
+  return { valid: true }
+}
+
+/**
+ * 验证文件大小是否符合要求（接受数字参数）
+ */
+export function validateFileSizeByNumber(fileSize: number): { valid: boolean; error?: string } {
+  if (fileSize > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `文件大小超过限制，最大支持 ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`
+    }
+  }
+  return { valid: true }
 }
 
 /**
