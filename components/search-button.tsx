@@ -33,7 +33,7 @@ export function SearchButton({ className }: SearchButtonProps) {
         variant="ghost"
         size="icon"
         onClick={() => setOpen(true)}
-        className={cn("h-8 w-8", className)}
+        className={cn("h-8 w-8 rounded-sm", className)}
         aria-label="搜索 (Ctrl+K)"
         title="搜索 (Ctrl+K)"
       >

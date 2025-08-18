@@ -300,7 +300,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                         onChange={(e) => setEditingName(e.target.value)}
                         onKeyDown={handleKeyDown}
                         onBlur={handleSaveEdit}
-                        className="h-7 text-sm font-medium font-apply-target"
+                        className="h-7 text-sm font-medium font-apply-target rounded-sm"
                         placeholder="输入文件名..."
                         autoFocus
                       />

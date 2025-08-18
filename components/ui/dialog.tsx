@@ -43,7 +43,7 @@ const DialogContent = React.forwardRef<
         "max-h-[90vh] sm:max-h-[85vh]",
         "overflow-y-auto",
         "mx-4 sm:mx-auto max-w-[calc(100%-2rem)] sm:max-w-lg",
-        "sm:rounded-lg",
+        "rounded-lg",
         className
       )}
       {...props}

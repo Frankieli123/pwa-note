@@ -2,6 +2,7 @@
 
 import { query } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import bcrypt from "bcryptjs"
 
 export type UserSettings = {
   id: number
@@ -317,6 +318,33 @@ export async function removeUserPassword(userId: string): Promise<boolean> {
     return true
   } catch (error) {
     console.error("【密码移除】移除用户密码失败:", error)
+    return false
+  }
+}
+
+/**
+ * 验证用户密码
+ * @param userId 用户ID
+ * @param password 用户输入的密码
+ * @returns 是否验证成功
+ */
+export async function verifyUserPassword(userId: string, password: string): Promise<boolean> {
+  console.log("【密码验证】验证用户密码:", userId)
+
+  try {
+    // 获取用户密码哈希
+    const passwordHash = await getUserPasswordHash(userId)
+    if (!passwordHash) {
+      console.log("【密码验证】用户未设置密码")
+      return false
+    }
+
+    // 验证密码
+    const isValid = await bcrypt.compare(password, passwordHash)
+    console.log("【密码验证】密码验证结果:", isValid ? "成功" : "失败")
+    return isValid
+  } catch (error) {
+    console.error("【密码验证】验证用户密码失败:", error)
     return false
   }
 }

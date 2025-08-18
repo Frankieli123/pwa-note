@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { useSettings } from "@/hooks/use-settings"
 import { useTheme } from "next-themes"
-import { Settings, Moon, Sun, Type, Cloud, CloudOff, Loader2, Shuffle, User, Lock, Unlock, Eye, EyeOff, Shield } from "lucide-react"
+import { Settings, Moon, Sun, Type, Cloud, CloudOff, Loader2, Shuffle, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMobile } from "@/hooks/use-mobile"
 
@@ -30,7 +30,7 @@ import { UserAvatar } from "@/components/user-avatar"
 import { getUserAvatarUrl } from "@/lib/avatar-utils"
 import { Input } from "@/components/ui/input"
 import { hasUserPassword, setUserPassword, removeUserPassword } from "@/app/actions/setting-actions"
-import { hashPassword, checkPasswordStrength, type PasswordStrengthResult } from "@/lib/password-utils"
+import bcrypt from "bcryptjs"
 
 // 优化 SettingsDialog 组件，减少不必要的重渲染和DOM操作
 export function SettingsDialog() {
@@ -52,10 +52,6 @@ export function SettingsDialog() {
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [passwordStrength, setPasswordStrength] = useState<PasswordStrengthResult | null>(null)
   const [passwordLoading, setPasswordLoading] = useState(false)
 
   // 确保组件已挂载，避免水合不匹配
@@ -78,16 +74,6 @@ export function SettingsDialog() {
 
     checkUserPassword()
   }, [user?.id])
-
-  // 监听新密码变化，实时检查强度
-  useEffect(() => {
-    if (newPassword) {
-      const strength = checkPasswordStrength(newPassword)
-      setPasswordStrength(strength)
-    } else {
-      setPasswordStrength(null)
-    }
-  }, [newPassword])
 
   // 格式化最后同步时间
   const formattedSyncTime = useCallback(() => {
@@ -229,106 +215,7 @@ export function SettingsDialog() {
     
     await syncSettings();
   }, [syncSettings, user]);
-
-  // 密码相关处理函数
-  const handleSetPassword = useCallback(async () => {
-    if (!user?.id || !newPassword || !confirmPassword) {
-      toast({
-        title: "设置失败",
-        description: "请填写完整的密码信息",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: "设置失败",
-        description: "两次输入的密码不一致",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!passwordStrength?.isValid) {
-      toast({
-        title: "设置失败",
-        description: "密码强度不足，请设置更强的密码",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setPasswordLoading(true)
-    try {
-      const passwordHash = await hashPassword(newPassword)
-      const success = await setUserPassword(user.id, passwordHash)
-
-      if (success) {
-        setHasPassword(true)
-        setShowPasswordSection(false)
-        setCurrentPassword("")
-        setNewPassword("")
-        setConfirmPassword("")
-        toast({
-          title: "密码设置成功",
-          description: "下次登录时需要输入密码",
-        })
-      } else {
-        throw new Error("设置密码失败")
-      }
-    } catch (error) {
-      console.error('设置密码失败:', error)
-      toast({
-        title: "设置失败",
-        description: "密码设置失败，请重试",
-        variant: "destructive",
-      })
-    } finally {
-      setPasswordLoading(false)
-    }
-  }, [user?.id, newPassword, confirmPassword, passwordStrength])
-
-  const handleRemovePassword = useCallback(async () => {
-    if (!user?.id) return
-
-    setPasswordLoading(true)
-    try {
-      const success = await removeUserPassword(user.id)
-
-      if (success) {
-        setHasPassword(false)
-        setShowPasswordSection(false)
-        setCurrentPassword("")
-        setNewPassword("")
-        setConfirmPassword("")
-        toast({
-          title: "密码已移除",
-          description: "现在可以快速登录了",
-        })
-      } else {
-        throw new Error("移除密码失败")
-      }
-    } catch (error) {
-      console.error('移除密码失败:', error)
-      toast({
-        title: "操作失败",
-        description: "移除密码失败，请重试",
-        variant: "destructive",
-      })
-    } finally {
-      setPasswordLoading(false)
-    }
-  }, [user?.id])
-
-  const resetPasswordForm = useCallback(() => {
-    setShowPasswordSection(false)
-    setCurrentPassword("")
-    setNewPassword("")
-    setConfirmPassword("")
-    setPasswordStrength(null)
-  }, [])
-
+  
   // 处理保存设置
   const handleSaveSettings = useCallback(async () => {
     // 如果头像有变化，先更新UI，再后台处理数据库
@@ -452,6 +339,95 @@ export function SettingsDialog() {
     }
   }, [user, toast])
 
+  // 密码相关处理函数
+  const handleSetPassword = useCallback(async () => {
+    if (!user?.id || !newPassword || !confirmPassword) {
+      toast({
+        title: "设置失败",
+        description: "请填写完整的密码信息",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "设置失败",
+        description: "两次输入的密码不一致",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setPasswordLoading(true)
+    try {
+      const passwordHash = await bcrypt.hash(newPassword, 10)
+      const success = await setUserPassword(user.id, passwordHash)
+
+      if (success) {
+        setHasPassword(true)
+        setShowPasswordSection(false)
+        setCurrentPassword("")
+        setNewPassword("")
+        setConfirmPassword("")
+        toast({
+          title: "密码设置成功",
+          description: "下次登录时需要输入密码",
+        })
+      } else {
+        throw new Error("设置密码失败")
+      }
+    } catch (error) {
+      console.error('设置密码失败:', error)
+      toast({
+        title: "设置失败",
+        description: "密码设置失败，请重试",
+        variant: "destructive",
+      })
+    } finally {
+      setPasswordLoading(false)
+    }
+  }, [user?.id, newPassword, confirmPassword, toast])
+
+  const handleRemovePassword = useCallback(async () => {
+    if (!user?.id) return
+
+    setPasswordLoading(true)
+    try {
+      const success = await removeUserPassword(user.id)
+
+      if (success) {
+        setHasPassword(false)
+        setShowPasswordSection(false)
+        setCurrentPassword("")
+        setNewPassword("")
+        setConfirmPassword("")
+        toast({
+          title: "密码已移除",
+          description: "现在可以快速登录了",
+        })
+      } else {
+        throw new Error("移除密码失败")
+      }
+    } catch (error) {
+      console.error('移除密码失败:', error)
+      toast({
+        title: "操作失败",
+        description: "移除密码失败，请重试",
+        variant: "destructive",
+      })
+    } finally {
+      setPasswordLoading(false)
+    }
+  }, [user?.id, toast])
+
+  const resetPasswordForm = useCallback(() => {
+    setShowPasswordSection(false)
+    setCurrentPassword("")
+    setNewPassword("")
+    setConfirmPassword("")
+  }, [])
+
   if (!mounted) {
     return null
   }
@@ -545,182 +521,146 @@ export function SettingsDialog() {
                     </>
                   )}
                 </div>
-              </div>
-            </div>
 
-            {/* 密码设置 */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-muted-foreground" />
-                <h3 className={cn("font-apply-target", isMobile ? "text-base" : "text-sm")}>安全设置</h3>
-              </div>
-              <div className="pl-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {hasPassword ? (
-                      <Lock className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <Unlock className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <span className={cn("font-apply-target", isMobile ? "text-base" : "text-sm")}>
-                      登录密码
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={cn("text-xs text-muted-foreground font-apply-target")}>
-                      {hasPassword ? "已设置" : "未设置"}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowPasswordSection(!showPasswordSection)}
-                      disabled={passwordLoading}
-                    >
-                      {hasPassword ? "修改" : "设置"}
-                    </Button>
-                  </div>
+                {/* 密码管理 */}
+                <div className={cn("grid items-center gap-3", isMobile ? "grid-cols-[auto_1fr]" : "grid-cols-4")}>
+                  {isMobile ? (
+                    <>
+                      <Label className={cn("font-apply-target", isMobile ? "text-base" : "text-sm")}>密码</Label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">
+                          {hasPassword ? "已设置" : "未设置"}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowPasswordSection(!showPasswordSection)}
+                          className="h-8 px-3 text-sm font-apply-target rounded-sm"
+                        >
+                          {hasPassword ? "修改密码" : "设置密码"}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Label className="text-right">密码</Label>
+                      <div className="col-span-3 flex items-center gap-3">
+                        <span className="text-sm text-muted-foreground">
+                          {hasPassword ? "已设置密码" : "未设置密码"}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowPasswordSection(!showPasswordSection)}
+                        >
+                          {hasPassword ? "修改密码" : "设置密码"}
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* 密码设置表单 */}
                 {showPasswordSection && (
-                  <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
-                    {hasPassword && (
-                      <div className="space-y-2">
-                        <Label htmlFor="current-password" className="text-sm font-apply-target">
-                          当前密码
-                        </Label>
-                        <div className="relative">
+                  <div className="pl-4 space-y-3 border-l-2 border-muted">
+                    {!hasPassword ? (
+                      // 设置新密码
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="new-password" className="text-sm">新密码</Label>
                           <Input
-                            id="current-password"
-                            type={showCurrentPassword ? "text" : "password"}
-                            value={currentPassword}
-                            onChange={(e) => setCurrentPassword(e.target.value)}
-                            placeholder="请输入当前密码"
-                            disabled={passwordLoading}
+                            id="new-password"
+                            type="password"
+                            placeholder="请输入新密码"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="h-8 rounded-sm"
                           />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="confirm-password" className="text-sm">确认密码</Label>
+                          <Input
+                            id="confirm-password"
+                            type="password"
+                            placeholder="请再次输入密码"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="h-8 rounded-sm"
+                          />
+                        </div>
+                        <div className="flex gap-2">
                           <Button
-                            type="button"
-                            variant="ghost"
                             size="sm"
-                            className="absolute right-0 top-0 h-full px-3"
-                            onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                            onClick={handleSetPassword}
+                            disabled={passwordLoading || !newPassword || !confirmPassword}
+                            className="h-8"
                           >
-                            {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            {passwordLoading ? "设置中..." : "设置密码"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={resetPasswordForm}
+                            className="h-8 rounded-sm"
+                          >
+                            取消
                           </Button>
                         </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <Label htmlFor="new-password" className="text-sm font-apply-target">
-                        {hasPassword ? "新密码" : "设置密码"}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="new-password"
-                          type={showNewPassword ? "text" : "password"}
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="请输入新密码"
-                          disabled={passwordLoading}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-0 top-0 h-full px-3"
-                          onClick={() => setShowNewPassword(!showNewPassword)}
-                        >
-                          {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      </div>
-
-                      {/* 密码强度指示器 */}
-                      {passwordStrength && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">强度:</span>
-                            <div className={cn(
-                              "text-xs px-2 py-1 rounded",
-                              passwordStrength.strength === 'very-strong' && "bg-green-100 text-green-800",
-                              passwordStrength.strength === 'strong' && "bg-blue-100 text-blue-800",
-                              passwordStrength.strength === 'medium' && "bg-yellow-100 text-yellow-800",
-                              passwordStrength.strength === 'weak' && "bg-red-100 text-red-800"
-                            )}>
-                              {passwordStrength.strength === 'very-strong' && '很强'}
-                              {passwordStrength.strength === 'strong' && '强'}
-                              {passwordStrength.strength === 'medium' && '中等'}
-                              {passwordStrength.strength === 'weak' && '弱'}
-                            </div>
-                          </div>
-                          {passwordStrength.feedback.length > 0 && (
-                            <div className="text-xs text-muted-foreground">
-                              {passwordStrength.feedback.join('，')}
-                            </div>
-                          )}
+                      </>
+                    ) : (
+                      // 修改或移除密码
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="new-password-change" className="text-sm">新密码</Label>
+                          <Input
+                            id="new-password-change"
+                            type="password"
+                            placeholder="请输入新密码"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="h-8 rounded-sm"
+                          />
                         </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-password" className="text-sm font-apply-target">
-                        确认密码
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="confirm-password"
-                          type={showConfirmPassword ? "text" : "password"}
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="请再次输入密码"
-                          disabled={passwordLoading}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-0 top-0 h-full px-3"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        >
-                          {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 pt-2">
-                      <Button
-                        onClick={handleSetPassword}
-                        disabled={passwordLoading || !newPassword || !confirmPassword || !passwordStrength?.isValid}
-                        size="sm"
-                      >
-                        {passwordLoading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            设置中...
-                          </>
-                        ) : (
-                          hasPassword ? "修改密码" : "设置密码"
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={resetPasswordForm}
-                        disabled={passwordLoading}
-                        size="sm"
-                      >
-                        取消
-                      </Button>
-                      {hasPassword && (
-                        <Button
-                          variant="destructive"
-                          onClick={handleRemovePassword}
-                          disabled={passwordLoading}
-                          size="sm"
-                        >
-                          移除密码
-                        </Button>
-                      )}
-                    </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="confirm-password-change" className="text-sm">确认新密码</Label>
+                          <Input
+                            id="confirm-password-change"
+                            type="password"
+                            placeholder="请再次输入新密码"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="h-8 rounded-sm"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={handleSetPassword}
+                            disabled={passwordLoading || !newPassword || !confirmPassword}
+                            className="h-8 rounded-sm"
+                          >
+                            {passwordLoading ? "修改中..." : "修改密码"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRemovePassword}
+                            disabled={passwordLoading}
+                            className="h-8 rounded-sm"
+                          >
+                            {passwordLoading ? "移除中..." : "移除密码"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={resetPasswordForm}
+                            className="h-8 rounded-sm"
+                          >
+                            取消
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -756,6 +696,12 @@ export function SettingsDialog() {
                             <span>暗色</span>
                           </div>
                         </SelectItem>
+                        <SelectItem value="neutral">
+                          <div className="flex items-center gap-2">
+                            <div className="h-4 w-4 rounded-full bg-gradient-to-r from-black to-white border border-border" />
+                            <span>黑白</span>
+                          </div>
+                        </SelectItem>
                         <SelectItem value="system">系统</SelectItem>
                       </SelectContent>
                     </Select>
@@ -780,6 +726,12 @@ export function SettingsDialog() {
                           <div className="flex items-center gap-2">
                             <Moon className="h-4 w-4" />
                             <span>暗色模式</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="neutral">
+                          <div className="flex items-center gap-2">
+                            <div className="h-4 w-4 rounded-full bg-gradient-to-r from-black to-white border border-border" />
+                            <span>黑白模式</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="system">系统默认</SelectItem>

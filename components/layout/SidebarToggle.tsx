@@ -24,7 +24,7 @@ export function SidebarToggle({ sidebarOpen, onToggle, className }: SidebarToggl
       variant="ghost"
       size="icon"
       onClick={onToggle}
-      className={cn("h-8 w-8", className)}
+      className={cn("h-8 w-8 rounded-sm", className)}
       aria-label={sidebarOpen ? "关闭侧边栏" : "打开侧边栏"}
       aria-expanded={sidebarOpen}
     >

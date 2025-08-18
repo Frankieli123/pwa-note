@@ -34,7 +34,7 @@ export function LinksList({ onAddClick }: LinksListProps) {
       ) : (
         <div className="grid gap-4">
           {links.map((link) => (
-            <Card key={link.id} className="overflow-hidden rounded-xl">
+            <Card key={link.id} className="overflow-hidden">
               <CardContent className="p-3">
                 <div className="flex justify-between items-start gap-2">
                   <div className="flex-1 min-w-0">

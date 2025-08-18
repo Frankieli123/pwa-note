@@ -95,6 +95,9 @@ export function SimpleTextEditor({
           
           // 移动端优化
           "touch-manipulation",
+
+          // 防止移动端字体放大
+          "text-size-adjust-none",
           
           // 禁用拼写检查和自动完成（可选）
           "spellcheck-false"
@@ -108,6 +111,10 @@ export function SimpleTextEditor({
           resize: 'none',
           // 确保在移动端正确显示
           WebkitAppearance: 'none',
+          // 防止iOS Safari字体放大
+          WebkitTextSizeAdjust: '100%',
+          // 防止Android字体放大
+          textSizeAdjust: '100%',
           // 防止iOS上的缩放
           WebkitTextSizeAdjust: '100%'
         }}

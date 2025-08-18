@@ -106,7 +106,7 @@ export function NoteEditorToolbar({
           <span className="font-apply-target text-base">上传文件</span>
         </Button>
         <Button
-          variant="ghost"
+          variant="default"
           size="sm"
           onClick={onSave}
           disabled={isSaving}

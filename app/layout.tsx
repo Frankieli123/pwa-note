@@ -1,6 +1,7 @@
 import type React from "react"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { ThemeHandler } from "@/components/theme-handler"
 import { AuthProvider } from "@/components/auth-provider"
 import { SyncProvider } from "@/components/sync-provider"
 import { SettingsProvider } from "@/components/settings-provider"
@@ -175,10 +176,17 @@ export default function RootLayout({
 
       </head>
       <body>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+          themes={['light', 'dark', 'neutral', 'system']}
+        >
           <AuthProvider>
             <SettingsProvider>
               <SyncProvider>
+                <ThemeHandler />
                 <SilentDbInitializer />
                 {children}
                 <Toaster />

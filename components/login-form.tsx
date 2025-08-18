@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { User, AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react"
+import { User, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export function LoginForm() {
@@ -24,81 +24,49 @@ export function LoginForm() {
   const [password, setPassword] = useState("")
   const [isOpen, setIsOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showPassword, setShowPassword] = useState(false)
-  const [passwordRequired, setPasswordRequired] = useState(false)
-  const [checkingPassword, setCheckingPassword] = useState(false)
-  const { login, loginWithPassword, checkPasswordRequired, isLoading } = useAuth()
-
-  // 检查用户名变化时是否需要密码
-  useEffect(() => {
-    const checkPassword = async () => {
-      if (username.trim().length > 0) {
-        setCheckingPassword(true)
-        setError(null)
-        try {
-          const required = await checkPasswordRequired(username.trim())
-          setPasswordRequired(required)
-          if (required) {
-            setPassword("") // 清空密码输入
-          }
-        } catch (error) {
-          console.error('检查密码需求失败:', error)
-          setPasswordRequired(false)
-        } finally {
-          setCheckingPassword(false)
-        }
-      } else {
-        setPasswordRequired(false)
-        setPassword("")
-      }
-    }
-
-    // 防抖处理，避免频繁检查
-    const timeoutId = setTimeout(checkPassword, 500)
-    return () => clearTimeout(timeoutId)
-  }, [username, checkPasswordRequired])
+  const { login, loginWithPassword, checkUserHasPassword, isLoading } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    if (!username.trim()) {
+    if (!username) {
       setError("请输入用户名")
       return
     }
 
-    if (passwordRequired && !password.trim()) {
-      setError("请输入密码")
-      return
-    }
-
     try {
-      if (passwordRequired) {
-        await loginWithPassword(username.trim(), password)
+      if (password) {
+        // 如果输入了密码，尝试密码登录
+        await loginWithPassword(username, password)
       } else {
-        await login(username.trim())
+        // 如果没有输入密码，尝试快速登录
+        await login(username)
       }
-
-      // 登录成功，关闭对话框并重置表单
-      setIsOpen(false)
-      setUsername("")
-      setPassword("")
-      setPasswordRequired(false)
+      handleLoginSuccess()
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "登录失败，请重试"
-      setError(errorMessage)
+      if (password) {
+        setError("用户名或密码错误，请重试")
+      } else {
+        setError("登录失败，请重试")
+      }
     }
   }
 
-  // 重置表单状态
+  const handleLoginSuccess = () => {
+    setIsOpen(false)
+    setUsername("")
+    setPassword("")
+    setError(null)
+  }
+
   const handleDialogOpenChange = (open: boolean) => {
     setIsOpen(open)
     if (!open) {
+      // 对话框关闭时重置所有状态
       setUsername("")
       setPassword("")
-      setPasswordRequired(false)
       setError(null)
-      setCheckingPassword(false)
     }
   }
 
@@ -114,92 +82,54 @@ export function LoginForm() {
         <DialogHeader>
           <DialogTitle>登录快速笔记</DialogTitle>
           <DialogDescription>
-            {passwordRequired
-              ? "该用户已设置密码，请输入密码登录。"
-              : "输入用户名即可快速登录使用。"}
+            输入用户名登录，密码可选（如果设置了密码则必须输入）。
           </DialogDescription>
         </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              <div className="grid gap-2">
-                <Label htmlFor="username">用户名</Label>
-                <div className="relative">
-                  <Input
-                    id="username"
-                    placeholder="请输入用户名"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                  {checkingPassword && (
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-                </div>
-              </div>
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-4 py-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-              {/* 密码输入框 - 条件显示 */}
-              {passwordRequired && (
-                <div className="grid gap-2">
-                  <Label htmlFor="password">密码</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="请输入密码"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      disabled={isLoading}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowPassword(!showPassword)}
-                      disabled={isLoading}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
+            <div className="grid gap-2">
+              <Label htmlFor="username">用户名</Label>
+              <Input
+                id="username"
+                placeholder="请输入用户名"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoFocus
+
+              />
             </div>
-            <DialogFooter>
-              <Button
-                type="submit"
-                disabled={isLoading || checkingPassword || (passwordRequired && !password.trim())}
-                className="w-full"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    登录中...
-                  </>
-                ) : checkingPassword ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    检查中...
-                  </>
-                ) : (
-                  passwordRequired ? "密码登录" : "快速登录"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
+
+            <div className="grid gap-2">
+              <Label htmlFor="password">密码（可选）</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="如果设置了密码请输入"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="submit"
+              disabled={isLoading}
+
+            >
+              {isLoading ? "登录中..." : "登录"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

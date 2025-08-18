@@ -313,7 +313,7 @@ export function SearchResultNoteItem({
             value={editingContent}
             onChange={(e) => setEditingContent(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="min-h-[100px] resize-none text-sm border-0 bg-background/50 focus-visible:ring-1"
+            className="min-h-[100px] resize-none editor-fixed-font border-0 bg-background/50 focus-visible:ring-1"
             placeholder="编辑便签内容..."
             disabled={isSaving}
           />
@@ -326,7 +326,7 @@ export function SearchResultNoteItem({
                 size="sm"
                 onClick={handleSaveEdit}
                 disabled={isSaving}
-                className="h-8 px-3 text-xs"
+                className="h-8 px-3 text-xs rounded-sm"
               >
                 {isSaving ? (
                   <>
@@ -345,7 +345,7 @@ export function SearchResultNoteItem({
                 variant="outline"
                 onClick={handleCancelEdit}
                 disabled={isSaving}
-                className="h-8 px-3 text-xs"
+                className="h-8 px-3 text-xs rounded-sm"
               >
                 <X className="h-3 w-3 mr-1" />
                 取消

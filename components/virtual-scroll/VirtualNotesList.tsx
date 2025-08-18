@@ -199,7 +199,7 @@ export function VirtualNotesList({
     const isEditing = editingNoteId === note.id
 
     return (
-      <Card className="mb-3 overflow-hidden rounded-xl">
+      <Card className="mb-3 overflow-hidden rounded-lg">
         <CardContent className="p-3 flex flex-col">
           <div className="flex justify-between items-start gap-2">
             <div className="flex-1 min-w-0 font-apply-target">
@@ -211,15 +211,15 @@ export function VirtualNotesList({
                     value={editingContent}
                     onChange={(e) => setEditingContent(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    className="min-h-[100px] resize-none text-base"
+                    className="min-h-[100px] resize-none editor-fixed-font"
                     placeholder="编辑便签内容..."
                   />
                   <div className="flex items-center gap-2">
-                    <Button size="sm" onClick={handleSaveEdit} className="h-7 px-2 text-xs">
+                    <Button size="sm" onClick={handleSaveEdit} className="h-7 px-2 text-xs rounded-sm">
                       <Save className="h-3 w-3 mr-1" />
                       保存
                     </Button>
-                    <Button size="sm" variant="outline" onClick={handleCancelEdit} className="h-7 px-2 text-xs">
+                    <Button size="sm" variant="outline" onClick={handleCancelEdit} className="h-7 px-2 text-xs rounded-sm">
                       <X className="h-3 w-3 mr-1" />
                       取消
                     </Button>
