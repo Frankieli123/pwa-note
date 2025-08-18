@@ -47,4 +47,7 @@ node_modules/
 .DS_Store
 # Task files
 tasks.json
-tasks/ 
+tasks/
+
+# Build generated files
+public/version.json
