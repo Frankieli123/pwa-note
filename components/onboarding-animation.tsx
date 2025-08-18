@@ -166,7 +166,7 @@ export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={isLoading || (password && password !== confirmPassword)}
+                  disabled={isLoading || (password.length > 0 && password !== confirmPassword)}
                 >
                   {isLoading ? "登录中..." : "开始使用"}
                 </Button>
