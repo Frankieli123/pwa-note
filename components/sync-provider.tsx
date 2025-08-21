@@ -87,7 +87,7 @@ interface SyncContextType {
   deleteNote: (id: string) => Promise<boolean>
   saveLink: (url: string, title?: string) => Promise<Link | null>
   deleteLink: (id: string) => Promise<boolean>
-  uploadFile: (file: globalThis.File) => Promise<{ id: string; url: string } | null>
+  uploadFile: (file: globalThis.File, onProgress?: (progress: number) => void) => Promise<{ id: string; url: string } | null>
   deleteFile: (id: string) => Promise<boolean>
   renameFile: (id: string, newName: string) => Promise<boolean>
   isInitialized: boolean
