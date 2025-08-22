@@ -174,10 +174,10 @@ export default function TestUploadProgressPage() {
               </div>
               <Progress value={progress} className="h-3" />
               <div className="text-xs text-gray-500">
-                {progress < 20 ? '获取上传凭证...' :
-                 progress < 80 ? '上传文件到存储服务...' :
-                 progress < 90 ? '生成缩略图...' :
-                 progress < 100 ? '保存文件信息...' : '完成'}
+                {progress < 20 ? '准备上传...' :
+                 progress < 90 ? '上传中...' :
+                 progress < 95 ? '处理中...' :
+                 progress < 100 ? '完成中...' : '完成'}
               </div>
             </div>
           )}

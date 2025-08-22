@@ -864,12 +864,15 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       // 第二步：分片上传到MinIO（实现真实进度监控）
       console.log('📤 开始分片上传到 MinIO...')
       
-      // 分片大小：1MB - 5MB 根据文件大小动态调整
+      // 基于网络速度优化的分片策略
       const getChunkSize = (fileSize: number) => {
-        if (fileSize < 5 * 1024 * 1024) return fileSize // 小于5MB不分片
-        if (fileSize < 20 * 1024 * 1024) return 1 * 1024 * 1024 // 5-20MB: 1MB chunks
-        if (fileSize < 100 * 1024 * 1024) return 2 * 1024 * 1024 // 20-100MB: 2MB chunks
-        return 5 * 1024 * 1024 // 大于100MB: 5MB chunks
+        // 小文件直接上传，避免分片开销
+        if (fileSize < 10 * 1024 * 1024) return fileSize // 小于10MB不分片
+        
+        // 中大文件根据大小分片，平衡进度显示和性能
+        if (fileSize < 50 * 1024 * 1024) return 5 * 1024 * 1024   // 10-50MB: 5MB chunks
+        if (fileSize < 200 * 1024 * 1024) return 10 * 1024 * 1024  // 50-200MB: 10MB chunks
+        return 20 * 1024 * 1024 // 大于200MB: 20MB chunks
       }
 
       const chunkSize = getChunkSize(file.size)
@@ -888,22 +891,24 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             const uploadStartTime = Date.now()
             let progressTimer: NodeJS.Timeout | null = null
             
-            // 使用基于时间和文件大小的进度估算
+            // 基于网络速度的智能进度估算
             const startProgress = () => {
-              const estimatedUploadTime = Math.max(3000, file.size / 50000) // 估算上传时间（至少3秒）
-              const progressStep = 60 / (estimatedUploadTime / 100) // 每100ms的进度增量
+              // 根据文件大小估算上传时间（假设网络速度1-10MB/s）
+              const estimatedSpeed = 2 * 1024 * 1024 // 2MB/s 保守估计
+              const estimatedUploadTime = Math.max(1000, (file.size / estimatedSpeed) * 1000)
+              const progressStep = 70 / (estimatedUploadTime / 50) // 每50ms更新
               let currentProgress = 20
               
               progressTimer = setInterval(() => {
-                if (currentProgress < 75) {
+                if (currentProgress < 90) {
                   currentProgress += progressStep
-                  // 添加随机波动使进度更真实
-                  const variation = (Math.random() - 0.5) * 2
-                  const displayProgress = Math.min(75, currentProgress + variation)
+                  // 小幅波动让进度更自然
+                  const variation = (Math.random() - 0.5) * 1
+                  const displayProgress = Math.min(90, currentProgress + variation)
                   console.log(`📊 上传进度: ${displayProgress.toFixed(1)}%`)
                   onProgress?.(displayProgress)
                 }
-              }, 100)
+              }, 50) // 更频繁更新
             }
             
             xhr.addEventListener('loadstart', () => {
@@ -919,7 +924,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
               }
               if (xhr.status >= 200 && xhr.status < 300) {
                 console.log('✅ 文件上传成功')
-                onProgress?.(78)
+                onProgress?.(90)
                 resolve()
               } else if (xhr.status >= 500 && retryCount < maxRetries) {
                 console.log(`服务器错误 ${xhr.status}，重试 ${retryCount + 1}/${maxRetries}`)
@@ -975,7 +980,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             // 基于分片数量的进度更新
             const updateChunkProgress = () => {
               const baseProgress = 20
-              const uploadRange = 55 // 20% - 75%
+              const uploadRange = 70 // 20% - 90%
               const chunkProgress = (currentChunk / totalChunks) * uploadRange
               const totalProgress = baseProgress + chunkProgress
               console.log(`📦 上传分片 ${currentChunk + 1}/${totalChunks} (${totalProgress.toFixed(1)}%)`)
@@ -987,8 +992,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
               console.log(`🚀 开始分片上传: ${totalChunks} 个分片`)
               onProgress?.(20)
               
-              // 根据文件大小估算每个分片的上传时间
-              const estimatedTimePerChunk = Math.max(500, (file.size / totalChunks) / 50000)
+              // 根据分片大小估算上传时间
+              const estimatedSpeed = 2 * 1024 * 1024 // 2MB/s 保守估计
+              const estimatedTimePerChunk = Math.max(200, (chunkSize / estimatedSpeed) * 1000)
               progressTimer = setInterval(() => {
                 if (currentChunk < totalChunks) {
                   updateChunkProgress()
@@ -1006,7 +1012,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
               }
               if (xhr.status >= 200 && xhr.status < 300) {
                 console.log('✅ 所有分片上传成功')
-                onProgress?.(78)
+                onProgress?.(90)
                 resolve()
               } else if (xhr.status >= 500 && retryCount < maxRetries) {
                 console.log(`服务器错误 ${xhr.status}，重试 ${retryCount + 1}/${maxRetries}`)
@@ -1045,7 +1051,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       await uploadWithRetry()
 
-      onProgress?.(80) // 上传到MinIO完成
+      onProgress?.(90) // 上传到MinIO完成
 
       // 第三步：处理缩略图（如果是图片）
       let thumbnailUrl: string | null = null
@@ -1114,7 +1120,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      onProgress?.(90) // 缩略图处理完成
+      onProgress?.(95) // 缩略图处理完成
 
       // 第四步：通知后端保存元数据（带重试机制）
       console.log('💾 保存文件元数据...')
