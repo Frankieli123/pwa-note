@@ -246,9 +246,6 @@ export function FileUploader({
                     正在上传: {currentFileName}
                   </p>
                 )}
-                <p className="text-xs text-muted-foreground font-apply-target opacity-75">
-                  大文件上传可能需要较长时间，请耐心等待
-                </p>
               </div>
             )}
           </div>

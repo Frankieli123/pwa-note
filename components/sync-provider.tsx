@@ -891,24 +891,72 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             const uploadStartTime = Date.now()
             let progressTimer: NodeJS.Timeout | null = null
             
-            // 基于网络速度的智能进度估算
+            // 智能进度模拟 - 基于文件大小和网络条件
             const startProgress = () => {
-              // 根据文件大小估算上传时间（假设网络速度1-10MB/s）
-              const estimatedSpeed = 2 * 1024 * 1024 // 2MB/s 保守估计
-              const estimatedUploadTime = Math.max(1000, (file.size / estimatedSpeed) * 1000)
-              const progressStep = 70 / (estimatedUploadTime / 50) // 每50ms更新
-              let currentProgress = 20
+              // 根据文件大小动态调整上传时间估算
+              const fileSizeMB = file.size / (1024 * 1024)
+              let estimatedSpeed: number
+              let baseTime: number
+              
+              // 根据文件大小调整估算策略 (基于4-6MB/s实际网速)
+              if (fileSizeMB < 10) {
+                estimatedSpeed = 6 * 1024 * 1024 // 小文件：6MB/s
+                baseTime = 1000 // 最少1秒
+              } else if (fileSizeMB < 50) {
+                estimatedSpeed = 5 * 1024 * 1024 // 中等文件：5MB/s
+                baseTime = 2000 // 最少2秒
+              } else {
+                estimatedSpeed = 4 * 1024 * 1024 // 大文件(>50MB)：4MB/s
+                baseTime = 3000 // 最少3秒
+              }
+              
+              const estimatedUploadTime = Math.max(baseTime, (file.size / estimatedSpeed) * 1000)
+              console.log(`📊 文件大小: ${fileSizeMB.toFixed(2)}MB, 估算上传时间: ${(estimatedUploadTime/1000).toFixed(1)}秒`)
+              
+              let currentProgress = 25 // 从25%开始
+              const totalProgressRange = 65 // 25% - 90%
+              const updateInterval = 100 // 100ms更新一次
+              const totalUpdates = estimatedUploadTime / updateInterval
+              const baseProgressStep = totalProgressRange / totalUpdates
+              
+              let accelerationPhase = true
+              let updateCount = 0
               
               progressTimer = setInterval(() => {
-                if (currentProgress < 90) {
-                  currentProgress += progressStep
-                  // 小幅波动让进度更自然
-                  const variation = (Math.random() - 0.5) * 1
-                  const displayProgress = Math.min(90, currentProgress + variation)
-                  console.log(`📊 上传进度: ${displayProgress.toFixed(1)}%`)
-                  onProgress?.(displayProgress)
+                if (currentProgress >= 90) {
+                  if (progressTimer) {
+                    clearInterval(progressTimer)
+                    progressTimer = null
+                  }
+                  return
                 }
-              }, 50) // 更频繁更新
+                
+                updateCount++
+                const progressRatio = updateCount / totalUpdates
+                
+                // 三阶段进度模拟：快速启动 -> 稳定上传 -> 缓慢收尾
+                let progressStep = baseProgressStep
+                
+                if (progressRatio < 0.2) {
+                  // 前20%时间：快速增长（模拟连接建立后的快速开始）
+                  progressStep *= 1.8
+                } else if (progressRatio < 0.8) {
+                  // 中间60%时间：稳定增长
+                  progressStep *= 1.0
+                } else {
+                  // 最后20%时间：缓慢增长（模拟网络波动）
+                  progressStep *= 0.6
+                }
+                
+                // 添加随机波动，模拟真实网络条件
+                const variation = (Math.random() - 0.5) * 0.8
+                const actualStep = progressStep + variation
+                
+                currentProgress = Math.min(90, currentProgress + actualStep)
+                
+                console.log(`📊 上传进度: ${currentProgress.toFixed(1)}% (阶段: ${progressRatio < 0.2 ? '启动' : progressRatio < 0.8 ? '稳定' : '收尾'})`)
+                onProgress?.(currentProgress)
+              }, updateInterval)
             }
             
             xhr.addEventListener('loadstart', () => {
@@ -977,32 +1025,75 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             let currentChunk = 0
             let progressTimer: NodeJS.Timeout | null = null
             
-            // 基于分片数量的进度更新
-            const updateChunkProgress = () => {
-              const baseProgress = 20
-              const uploadRange = 70 // 20% - 90%
-              const chunkProgress = (currentChunk / totalChunks) * uploadRange
-              const totalProgress = baseProgress + chunkProgress
-              console.log(`📦 上传分片 ${currentChunk + 1}/${totalChunks} (${totalProgress.toFixed(1)}%)`)
-              onProgress?.(totalProgress)
-              currentChunk++
+            // 智能分片进度模拟
+            const startChunkProgress = () => {
+              const fileSizeMB = file.size / (1024 * 1024)
+              
+              // 根据文件大小和分片数量调整上传策略 (基于4-6MB/s实际网速)
+              let baseSpeed: number
+              if (fileSizeMB < 10) {
+                baseSpeed = 6 * 1024 * 1024 // 小于10MB: 6MB/s
+              } else if (fileSizeMB < 50) {
+                baseSpeed = 5 * 1024 * 1024 // 10-50MB: 5MB/s
+              } else {
+                baseSpeed = 4 * 1024 * 1024 // 大于50MB: 4MB/s
+              }
+              
+              const totalUploadTime = Math.max(3000, (file.size / baseSpeed) * 1000)
+              const updateInterval = Math.min(200, totalUploadTime / (totalChunks * 3)) // 每个分片至少3次更新
+              
+              console.log(`📦 分片上传策略: ${totalChunks}个分片, 估算${(totalUploadTime/1000).toFixed(1)}秒, 更新间隔${updateInterval}ms`)
+              
+              let currentProgress = 25 // 从25%开始
+              let currentChunkFloat = 0 // 使用浮点数表示当前分片进度
+              const progressPerUpdate = (totalChunks / (totalUploadTime / updateInterval))
+              
+              progressTimer = setInterval(() => {
+                if (currentProgress >= 90 || currentChunkFloat >= totalChunks) {
+                  if (progressTimer) {
+                    clearInterval(progressTimer)
+                    progressTimer = null
+                  }
+                  return
+                }
+                
+                // 模拟不同分片的上传速度变化
+                const chunkProgressRatio = (currentChunkFloat % 1)
+                let speedMultiplier = 1.0
+                
+                if (chunkProgressRatio < 0.1) {
+                  // 分片开始：稍慢（建立连接）
+                  speedMultiplier = 0.7
+                } else if (chunkProgressRatio < 0.8) {
+                  // 分片中间：正常速度
+                  speedMultiplier = 1.0 + (Math.random() - 0.5) * 0.3 // ±15%波动
+                } else {
+                  // 分片结尾：稍快（缓冲区清空）
+                  speedMultiplier = 1.2
+                }
+                
+                // 添加网络波动模拟
+                const networkVariation = 0.8 + Math.random() * 0.4 // 0.8-1.2倍速度
+                const actualProgressStep = progressPerUpdate * speedMultiplier * networkVariation
+                
+                currentChunkFloat = Math.min(totalChunks, currentChunkFloat + actualProgressStep)
+                
+                // 计算总进度 (25% - 90%)
+                const uploadProgress = (currentChunkFloat / totalChunks) * 65
+                currentProgress = Math.min(90, 25 + uploadProgress)
+                
+                const currentChunkInt = Math.floor(currentChunkFloat)
+                const chunkPercent = ((currentChunkFloat % 1) * 100).toFixed(0)
+                
+                console.log(`📦 分片进度: ${currentChunkInt + 1}/${totalChunks} (${chunkPercent}%) - 总进度: ${currentProgress.toFixed(1)}%`)
+                onProgress?.(currentProgress)
+              }, updateInterval)
             }
             
             xhr.addEventListener('loadstart', () => {
               console.log(`🚀 开始分片上传: ${totalChunks} 个分片`)
-              onProgress?.(20)
-              
-              // 根据分片大小估算上传时间
-              const estimatedSpeed = 2 * 1024 * 1024 // 2MB/s 保守估计
-              const estimatedTimePerChunk = Math.max(200, (chunkSize / estimatedSpeed) * 1000)
-              progressTimer = setInterval(() => {
-                if (currentChunk < totalChunks) {
-                  updateChunkProgress()
-                } else if (progressTimer) {
-                  clearInterval(progressTimer)
-                  progressTimer = null
-                }
-              }, estimatedTimePerChunk)
+              onProgress?.(25)
+              startChunkProgress()
             })
             
             xhr.addEventListener('load', () => {
