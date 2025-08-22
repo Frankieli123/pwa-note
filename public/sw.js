@@ -1,6 +1,6 @@
 // Service Worker for PWA
 // 版本号将在构建时被替换
-const APP_VERSION = '94d452ec';
+const APP_VERSION = 'sw-fix-' + Date.now();
 const CACHE_NAME = `quick-notes-${APP_VERSION}`;
 const urlsToCache = [
   '/',
@@ -23,6 +23,21 @@ self.addEventListener('install', (event) => {
 
 // Fetch event
 self.addEventListener('fetch', (event) => {
+  // 跳过对外部API的拦截（MinIO、头像API等）
+  const url = new URL(event.request.url);
+  const isExternalAPI = 
+    url.hostname.includes('minio') ||
+    url.hostname.includes('dicebear.com') ||
+    url.hostname !== self.location.hostname;
+  
+  // 跳过非GET请求的拦截（POST、PUT、DELETE等）
+  const isNonGetRequest = event.request.method !== 'GET';
+  
+  if (isExternalAPI || isNonGetRequest) {
+    // 直接发送请求，不经过缓存
+    return;
+  }
+  
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
