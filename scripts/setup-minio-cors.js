@@ -90,6 +90,9 @@ async function setupCorsConfiguration() {
     <ExposeHeader>Content-Length</ExposeHeader>
     <ExposeHeader>Content-Range</ExposeHeader>
     <ExposeHeader>Accept-Ranges</ExposeHeader>
+    <ExposeHeader>Access-Control-Allow-Origin</ExposeHeader>
+    <ExposeHeader>Access-Control-Allow-Methods</ExposeHeader>
+    <ExposeHeader>Access-Control-Allow-Headers</ExposeHeader>
     <MaxAgeSeconds>3600</MaxAgeSeconds>
   </CORSRule>
 </CORSConfiguration>`

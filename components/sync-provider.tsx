@@ -884,85 +884,75 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       const uploadWithRetry = async (retryCount = 0): Promise<void> => {
         const maxRetries = 3
         
-        // 如果文件较小或只有一个分片，直接上传整个文件
-        if (totalChunks === 1) {
-          return new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest()
-            const uploadStartTime = Date.now()
-            let progressTimer: NodeJS.Timeout | null = null
-            
-            // 智能进度模拟 - 基于文件大小和网络条件
-            const startProgress = () => {
-              // 根据文件大小动态调整上传时间估算
-              const fileSizeMB = file.size / (1024 * 1024)
-              let estimatedSpeed: number
-              let baseTime: number
-              
-              // 根据文件大小调整估算策略 (基于4-6MB/s实际网速)
-              if (fileSizeMB < 10) {
-                estimatedSpeed = 6 * 1024 * 1024 // 小文件：6MB/s
-                baseTime = 1000 // 最少1秒
-              } else if (fileSizeMB < 50) {
-                estimatedSpeed = 5 * 1024 * 1024 // 中等文件：5MB/s
-                baseTime = 2000 // 最少2秒
-              } else {
-                estimatedSpeed = 4 * 1024 * 1024 // 大文件(>50MB)：4MB/s
-                baseTime = 3000 // 最少3秒
+        // 直接上传文件（尝试真实进度监控）
+        return new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+          let hasRealProgress = false
+          let simulatedProgress = 25
+          let progressTimer: NodeJS.Timeout | null = null
+          
+          // 尝试真实进度监控
+          xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+              hasRealProgress = true
+              if (progressTimer) {
+                clearInterval(progressTimer)
+                progressTimer = null
               }
               
-              const estimatedUploadTime = Math.max(baseTime, (file.size / estimatedSpeed) * 1000)
-              console.log(`📊 文件大小: ${fileSizeMB.toFixed(2)}MB, 估算上传时间: ${(estimatedUploadTime/1000).toFixed(1)}秒`)
-              
-              let currentProgress = 25 // 从25%开始
-              const totalProgressRange = 65 // 25% - 90%
-              const updateInterval = 100 // 100ms更新一次
-              const totalUpdates = estimatedUploadTime / updateInterval
-              const baseProgressStep = totalProgressRange / totalUpdates
-              
-              let accelerationPhase = true
-              let updateCount = 0
-              
-              progressTimer = setInterval(() => {
-                if (currentProgress >= 90) {
-                  if (progressTimer) {
-                    clearInterval(progressTimer)
-                    progressTimer = null
-                  }
-                  return
-                }
-                
-                updateCount++
-                const progressRatio = updateCount / totalUpdates
-                
-                // 三阶段进度模拟：快速启动 -> 稳定上传 -> 缓慢收尾
-                let progressStep = baseProgressStep
-                
-                if (progressRatio < 0.2) {
-                  // 前20%时间：快速增长（模拟连接建立后的快速开始）
-                  progressStep *= 1.8
-                } else if (progressRatio < 0.8) {
-                  // 中间60%时间：稳定增长
-                  progressStep *= 1.0
-                } else {
-                  // 最后20%时间：缓慢增长（模拟网络波动）
-                  progressStep *= 0.6
-                }
-                
-                // 添加随机波动，模拟真实网络条件
-                const variation = (Math.random() - 0.5) * 0.8
-                const actualStep = progressStep + variation
-                
-                currentProgress = Math.min(90, currentProgress + actualStep)
-                
-                console.log(`📊 上传进度: ${currentProgress.toFixed(1)}% (阶段: ${progressRatio < 0.2 ? '启动' : progressRatio < 0.8 ? '稳定' : '收尾'})`)
-                onProgress?.(currentProgress)
-              }, updateInterval)
+              const uploadPercent = (event.loaded / event.total) * 100
+              const totalProgress = 25 + (uploadPercent * 0.65) // 25%-90%
+              console.log(`🎯 真实上传进度: ${uploadPercent.toFixed(1)}% (总进度: ${totalProgress.toFixed(1)}%)`)
+              onProgress?.(Math.min(totalProgress, 90))
             }
+          })
+          
+          // 备用：智能进度模拟（当真实进度不可用时）
+          const startSimulatedProgress = () => {
+            const fileSizeMB = file.size / (1024 * 1024)
+            let estimatedSpeed: number
+            
+            if (fileSizeMB < 10) {
+              estimatedSpeed = 6 * 1024 * 1024 // 小文件：6MB/s
+            } else if (fileSizeMB < 50) {
+              estimatedSpeed = 5 * 1024 * 1024 // 中等文件：5MB/s
+            } else {
+              estimatedSpeed = 4 * 1024 * 1024 // 大文件(>50MB)：4MB/s
+            }
+            
+            const estimatedUploadTime = Math.max(2000, (file.size / estimatedSpeed) * 1000)
+            console.log(`📊 模拟进度: 文件${fileSizeMB.toFixed(2)}MB, 估算${(estimatedUploadTime/1000).toFixed(1)}秒`)
+            
+            const updateInterval = 150
+            const totalUpdates = estimatedUploadTime / updateInterval
+            const progressStep = 65 / totalUpdates // 25%-90%
+            
+            progressTimer = setInterval(() => {
+              if (hasRealProgress || simulatedProgress >= 90) {
+                if (progressTimer) {
+                  clearInterval(progressTimer)
+                  progressTimer = null
+                }
+                return
+              }
+              
+              // 添加网络波动
+              const variation = (Math.random() - 0.5) * 1.2
+              simulatedProgress = Math.min(90, simulatedProgress + progressStep + variation)
+              
+              console.log(`📊 模拟进度: ${simulatedProgress.toFixed(1)}%`)
+              onProgress?.(simulatedProgress)
+            }, updateInterval)
+          }
             
             xhr.addEventListener('loadstart', () => {
               console.log('🚀 开始上传文件')
               onProgress?.(20)
-              startProgress()
+              setTimeout(() => {
+                if (!hasRealProgress) {
+                  startSimulatedProgress()
+                }
+              }, 200)
             })
             
             xhr.addEventListener('load', () => {
@@ -1002,143 +992,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             xhr.open('PUT', presignedData.data.uploadUrl)
             xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
             xhr.timeout = 300000
-            xhr.send(file)
+          xhr.send(file)
           })
         }
-        
-        // 分片上传逻辑
-        return new Promise<void>(async (resolve, reject) => {
-          try {
-            // 创建临时数组存储分片
-            const chunks: Blob[] = []
-            for (let i = 0; i < totalChunks; i++) {
-              const start = i * chunkSize
-              const end = Math.min(start + chunkSize, file.size)
-              chunks.push(file.slice(start, end))
-            }
-            
-            // 使用 Blob 合并所有分片（实际上传还是完整文件，但我们可以模拟分片进度）
-            const uploadBlob = new Blob(chunks, { type: file.type })
-            
-            // 模拟分片上传进度
-            const xhr = new XMLHttpRequest()
-            let currentChunk = 0
-            let progressTimer: NodeJS.Timeout | null = null
-            
-            // 智能分片进度模拟
-            const startChunkProgress = () => {
-              const fileSizeMB = file.size / (1024 * 1024)
-              
-              // 根据文件大小和分片数量调整上传策略 (基于4-6MB/s实际网速)
-              let baseSpeed: number
-              if (fileSizeMB < 10) {
-                baseSpeed = 6 * 1024 * 1024 // 小于10MB: 6MB/s
-              } else if (fileSizeMB < 50) {
-                baseSpeed = 5 * 1024 * 1024 // 10-50MB: 5MB/s
-              } else {
-                baseSpeed = 4 * 1024 * 1024 // 大于50MB: 4MB/s
-              }
-              
-              const totalUploadTime = Math.max(3000, (file.size / baseSpeed) * 1000)
-              const updateInterval = Math.min(200, totalUploadTime / (totalChunks * 3)) // 每个分片至少3次更新
-              
-              console.log(`📦 分片上传策略: ${totalChunks}个分片, 估算${(totalUploadTime/1000).toFixed(1)}秒, 更新间隔${updateInterval}ms`)
-              
-              let currentProgress = 25 // 从25%开始
-              let currentChunkFloat = 0 // 使用浮点数表示当前分片进度
-              const progressPerUpdate = (totalChunks / (totalUploadTime / updateInterval))
-              
-              progressTimer = setInterval(() => {
-                if (currentProgress >= 90 || currentChunkFloat >= totalChunks) {
-                  if (progressTimer) {
-                    clearInterval(progressTimer)
-                    progressTimer = null
-                  }
-                  return
-                }
-                
-                // 模拟不同分片的上传速度变化
-                const chunkProgressRatio = (currentChunkFloat % 1)
-                let speedMultiplier = 1.0
-                
-                if (chunkProgressRatio < 0.1) {
-                  // 分片开始：稍慢（建立连接）
-                  speedMultiplier = 0.7
-                } else if (chunkProgressRatio < 0.8) {
-                  // 分片中间：正常速度
-                  speedMultiplier = 1.0 + (Math.random() - 0.5) * 0.3 // ±15%波动
-                } else {
-                  // 分片结尾：稍快（缓冲区清空）
-                  speedMultiplier = 1.2
-                }
-                
-                // 添加网络波动模拟
-                const networkVariation = 0.8 + Math.random() * 0.4 // 0.8-1.2倍速度
-                const actualProgressStep = progressPerUpdate * speedMultiplier * networkVariation
-                
-                currentChunkFloat = Math.min(totalChunks, currentChunkFloat + actualProgressStep)
-                
-                // 计算总进度 (25% - 90%)
-                const uploadProgress = (currentChunkFloat / totalChunks) * 65
-                currentProgress = Math.min(90, 25 + uploadProgress)
-                
-                const currentChunkInt = Math.floor(currentChunkFloat)
-                const chunkPercent = ((currentChunkFloat % 1) * 100).toFixed(0)
-                
-                console.log(`📦 分片进度: ${currentChunkInt + 1}/${totalChunks} (${chunkPercent}%) - 总进度: ${currentProgress.toFixed(1)}%`)
-                onProgress?.(currentProgress)
-              }, updateInterval)
-            }
-            
-            xhr.addEventListener('loadstart', () => {
-              console.log(`🚀 开始分片上传: ${totalChunks} 个分片`)
-              onProgress?.(25)
-              startChunkProgress()
-            })
-            
-            xhr.addEventListener('load', () => {
-              if (progressTimer) {
-                clearInterval(progressTimer)
-                progressTimer = null
-              }
-              if (xhr.status >= 200 && xhr.status < 300) {
-                console.log('✅ 所有分片上传成功')
-                onProgress?.(90)
-                resolve()
-              } else if (xhr.status >= 500 && retryCount < maxRetries) {
-                console.log(`服务器错误 ${xhr.status}，重试 ${retryCount + 1}/${maxRetries}`)
-                setTimeout(() => {
-                  uploadWithRetry(retryCount + 1).then(resolve).catch(reject)
-                }, 1000 * (retryCount + 1))
-              } else {
-                reject(new Error(`上传失败: ${xhr.status}`))
-              }
-            })
-            
-            xhr.addEventListener('error', () => {
-              if (progressTimer) {
-                clearInterval(progressTimer)
-                progressTimer = null
-              }
-              if (retryCount < maxRetries) {
-                console.log(`网络错误，重试 ${retryCount + 1}/${maxRetries}`)
-                setTimeout(() => {
-                  uploadWithRetry(retryCount + 1).then(resolve).catch(reject)
-                }, 1000 * (retryCount + 1))
-              } else {
-                reject(new Error('网络连接失败'))
-              }
-            })
-            
-            xhr.open('PUT', presignedData.data.uploadUrl)
-            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
-            xhr.timeout = 300000
-            xhr.send(uploadBlob)
-          } catch (error) {
-            reject(error)
-          }
-        })
-      }
 
       await uploadWithRetry()
 
