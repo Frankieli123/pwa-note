@@ -307,7 +307,7 @@ export function SettingsDialog() {
         }
       }, 100)
     }
-  }, [applyFontSettings, toast, avatarChanged, tempAvatarConfig, user, settings, syncSettings])
+  }, [applyFontSettings, avatarChanged, tempAvatarConfig, user, settings, syncSettings])
 
   // 处理头像更换（仅预览，不立即保存）
   const handleChangeAvatar = useCallback(() => {
@@ -337,7 +337,7 @@ export function SettingsDialog() {
         variant: "destructive",
       })
     }
-  }, [user, toast])
+  }, [user])
 
   // 密码相关处理函数
   const handleSetPassword = useCallback(async () => {
@@ -387,7 +387,7 @@ export function SettingsDialog() {
     } finally {
       setPasswordLoading(false)
     }
-  }, [user?.id, newPassword, confirmPassword, toast])
+  }, [user?.id, newPassword, confirmPassword])
 
   const handleRemovePassword = useCallback(async () => {
     if (!user?.id) return
@@ -419,7 +419,7 @@ export function SettingsDialog() {
     } finally {
       setPasswordLoading(false)
     }
-  }, [user?.id, toast])
+  }, [user?.id])
 
   const resetPasswordForm = useCallback(() => {
     setShowPasswordSection(false)

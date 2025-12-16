@@ -8,6 +8,15 @@ interface NoteRow {
   id: number
   user_id: string
   content: string
+  group_id: number | null
+  created_at: string
+  updated_at: string
+}
+
+interface GroupRow {
+  id: number
+  user_id: string
+  name: string
   created_at: string
   updated_at: string
 }
@@ -45,6 +54,15 @@ export type Note = {
   id: number
   user_id: string
   content: string
+  group_id: number | null
+  created_at: Date
+  updated_at: Date
+}
+
+export type Group = {
+  id: number
+  user_id: string
+  name: string
   created_at: Date
   updated_at: Date
 }
@@ -80,28 +98,42 @@ export type UserSettings = {
 }
 
 // Notes actions (高性能版本 - 支持游标分页和传统分页)
-export async function getNotes(userId: string, limit?: number, offset: number = 0): Promise<Note[]> {
+export async function getNotes(
+  userId: string,
+  limit?: number,
+  offset: number = 0,
+  groupId: string = "all",
+): Promise<Note[]> {
   // 如果没有传递limit参数或limit为-1，则加载所有数据
   const isLoadAll = limit === undefined || limit === -1
-  console.log("⚡ 加载便签:", { userId, limit: isLoadAll ? '全部' : limit, offset })
+  console.log("⚡ 加载便签:", { userId, limit: isLoadAll ? '全部' : limit, offset, groupId })
 
   try {
-    let queryText: string
-    let queryParams: (string | number)[]
+    const queryParams: (string | number)[] = [userId]
+    let whereClause = "WHERE user_id = $1"
+
+    if (groupId === "ungrouped") {
+      whereClause += " AND group_id IS NULL"
+    } else if (groupId !== "all") {
+      const parsedGroupId = parseInt(groupId, 10)
+      if (Number.isNaN(parsedGroupId)) {
+        throw new Error("无效的分组ID")
+      }
+      queryParams.push(parsedGroupId)
+      whereClause += ` AND group_id = $${queryParams.length}`
+    }
+
+    let queryText = `SELECT id, user_id, content, group_id, created_at, updated_at FROM notes ${whereClause} ORDER BY created_at DESC`
 
     if (isLoadAll) {
-      // 加载所有便签（如果有offset则跳过前offset条）
       if (offset > 0) {
-        queryText = "SELECT id, user_id, content, created_at, updated_at FROM notes WHERE user_id = $1 ORDER BY created_at DESC OFFSET $2"
-        queryParams = [userId, offset]
-      } else {
-        queryText = "SELECT id, user_id, content, created_at, updated_at FROM notes WHERE user_id = $1 ORDER BY created_at DESC"
-        queryParams = [userId]
+        queryParams.push(offset)
+        queryText += ` OFFSET $${queryParams.length}`
       }
     } else {
-      // 分页加载指定数量
-      queryText = "SELECT id, user_id, content, created_at, updated_at FROM notes WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
-      queryParams = [userId, limit, offset]
+      queryParams.push(limit as number)
+      queryParams.push(offset)
+      queryText += ` LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`
     }
 
     const result = await query(queryText, queryParams)
@@ -111,6 +143,7 @@ export async function getNotes(userId: string, limit?: number, offset: number = 
       id: row.id,
       user_id: row.user_id,
       content: row.content,
+      group_id: row.group_id,
       created_at: row.created_at,
       updated_at: row.updated_at
     })) as Note[]
@@ -124,35 +157,43 @@ export async function getNotes(userId: string, limit?: number, offset: number = 
 export async function getNotesCursor(
   userId: string,
   limit: number = 20,
-  cursor?: string
+  cursor?: string,
+  groupId: string = "all",
 ): Promise<{ notes: Note[], nextCursor?: string, hasMore: boolean }> {
-  console.log("🚀 游标分页加载便签:", { userId, limit, cursor })
+  console.log("🚀 游标分页加载便签:", { userId, limit, cursor, groupId })
 
   try {
     let queryText: string
     let queryParams: (string | number)[]
 
-    if (cursor) {
-      // 使用游标分页（基于created_at时间戳）
-      queryText = `
-        SELECT id, user_id, content, created_at, updated_at
-        FROM notes
-        WHERE user_id = $1 AND created_at < $2
-        ORDER BY created_at DESC
-        LIMIT $3
-      `
-      queryParams = [userId, cursor, limit + 1] // 多查询1条用于判断是否还有更多
-    } else {
-      // 首次查询
-      queryText = `
-        SELECT id, user_id, content, created_at, updated_at
-        FROM notes
-        WHERE user_id = $1
-        ORDER BY created_at DESC
-        LIMIT $2
-      `
-      queryParams = [userId, limit + 1]
+    const whereParts: string[] = ["user_id = $1"]
+    const baseParams: (string | number)[] = [userId]
+
+    if (groupId === "ungrouped") {
+      whereParts.push("group_id IS NULL")
+    } else if (groupId !== "all") {
+      const parsedGroupId = parseInt(groupId, 10)
+      if (Number.isNaN(parsedGroupId)) {
+        throw new Error("无效的分组ID")
+      }
+      baseParams.push(parsedGroupId)
+      whereParts.push(`group_id = $${baseParams.length}`)
     }
+
+    if (cursor) {
+      baseParams.push(cursor)
+      whereParts.push(`created_at < $${baseParams.length}`)
+    }
+
+    baseParams.push(limit + 1)
+    queryText = `
+      SELECT id, user_id, content, group_id, created_at, updated_at
+      FROM notes
+      WHERE ${whereParts.join(" AND ")}
+      ORDER BY created_at DESC
+      LIMIT $${baseParams.length}
+    `
+    queryParams = baseParams
 
     const result = await query(queryText, queryParams)
     const rows = result.rows as NoteRow[]
@@ -173,6 +214,7 @@ export async function getNotesCursor(
         id: row.id,
         user_id: row.user_id,
         content: row.content,
+        group_id: row.group_id,
         created_at: new Date(row.created_at),
         updated_at: new Date(row.updated_at)
       })) as Note[],
@@ -185,8 +227,13 @@ export async function getNotesCursor(
   }
 }
 
-export async function createNote(userId: string, content: string, clientTime?: string): Promise<Note> {
-  console.log("服务器操作: createNote", { userId, contentLength: content.length, clientTime })
+export async function createNote(
+  userId: string,
+  content: string,
+  clientTime?: string,
+  groupId: number | null = null,
+): Promise<Note> {
+  console.log("服务器操作: createNote", { userId, contentLength: content.length, clientTime, groupId })
 
   try {
     let result;
@@ -194,12 +241,12 @@ export async function createNote(userId: string, content: string, clientTime?: s
     // 如果提供了客户端时间，使用它作为创建时间和更新时间
     if (clientTime) {
       result = await query(
-        "INSERT INTO notes (user_id, content, created_at, updated_at) VALUES ($1, $2, $3, $3) RETURNING *",
-        [userId, content, new Date(clientTime)]
+        "INSERT INTO notes (user_id, content, group_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $4) RETURNING *",
+        [userId, content, groupId, new Date(clientTime)]
       );
     } else {
       // 没有提供客户端时间时使用默认的NOW()
-      result = await query("INSERT INTO notes (user_id, content) VALUES ($1, $2) RETURNING *", [userId, content]);
+      result = await query("INSERT INTO notes (user_id, content, group_id) VALUES ($1, $2, $3) RETURNING *", [userId, content, groupId]);
     }
 
     const row = result.rows[0];
@@ -207,6 +254,7 @@ export async function createNote(userId: string, content: string, clientTime?: s
       id: row.id,
       user_id: row.user_id,
       content: row.content,
+      group_id: row.group_id,
       created_at: row.created_at,
       updated_at: row.updated_at
     };
@@ -246,6 +294,7 @@ export async function updateNote(id: number, userId: string, content: string, cl
       id: row.id,
       user_id: row.user_id,
       content: row.content,
+      group_id: row.group_id,
       created_at: row.created_at,
       updated_at: row.updated_at
     };
@@ -267,6 +316,114 @@ export async function deleteNote(id: number, userId: string): Promise<void> {
     revalidatePath("/")
   } catch (error) {
     console.error("deleteNote 错误:", error)
+    throw error
+  }
+}
+
+export async function getGroups(userId: string): Promise<Group[]> {
+  console.log("服务器操作: getGroups", { userId })
+  try {
+    const result = await query(
+      "SELECT id, user_id, name, created_at, updated_at FROM groups WHERE user_id = $1 ORDER BY id ASC",
+      [userId]
+    )
+
+    return result.rows.map((row: GroupRow) => ({
+      id: row.id,
+      user_id: row.user_id,
+      name: row.name,
+      created_at: new Date(row.created_at),
+      updated_at: new Date(row.updated_at)
+    })) as Group[]
+  } catch (error) {
+    console.error("getGroups 错误:", error)
+    throw error
+  }
+}
+
+export async function createGroup(userId: string, name: string): Promise<Group> {
+  console.log("服务器操作: createGroup", { userId, name })
+  try {
+    const result = await query(
+      "INSERT INTO groups (user_id, name) VALUES ($1, $2) RETURNING *",
+      [userId, name]
+    )
+
+    const row = result.rows[0] as GroupRow
+    const group: Group = {
+      id: row.id,
+      user_id: row.user_id,
+      name: row.name,
+      created_at: new Date(row.created_at),
+      updated_at: new Date(row.updated_at)
+    }
+
+    revalidatePath("/")
+    return group
+  } catch (error) {
+    console.error("createGroup 错误:", error)
+    throw error
+  }
+}
+
+export async function renameGroup(id: number, userId: string, name: string): Promise<Group> {
+  console.log("服务器操作: renameGroup", { id, userId, name })
+  try {
+    const result = await query(
+      "UPDATE groups SET name = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *",
+      [name, id, userId]
+    )
+
+    const row = result.rows[0] as GroupRow
+    const group: Group = {
+      id: row.id,
+      user_id: row.user_id,
+      name: row.name,
+      created_at: new Date(row.created_at),
+      updated_at: new Date(row.updated_at)
+    }
+
+    revalidatePath("/")
+    return group
+  } catch (error) {
+    console.error("renameGroup 错误:", error)
+    throw error
+  }
+}
+
+export async function deleteGroup(id: number, userId: string): Promise<void> {
+  console.log("服务器操作: deleteGroup", { id, userId })
+  try {
+    await query("DELETE FROM groups WHERE id = $1 AND user_id = $2", [id, userId])
+    revalidatePath("/")
+  } catch (error) {
+    console.error("deleteGroup 错误:", error)
+    throw error
+  }
+}
+
+export async function moveNoteToGroup(noteId: number, userId: string, groupId: number | null): Promise<Note> {
+  console.log("服务器操作: moveNoteToGroup", { noteId, userId, groupId })
+  try {
+    const result = await query(
+      "UPDATE notes SET group_id = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *",
+      [groupId, noteId, userId]
+    )
+
+    const row = result.rows[0] as NoteRow
+    const note: Note = {
+      id: row.id,
+      user_id: row.user_id,
+      content: row.content,
+      group_id: row.group_id,
+      created_at: new Date(row.created_at),
+      updated_at: new Date(row.updated_at)
+    }
+
+    revalidatePath("/")
+    return note
+  } catch (error) {
+    console.error("moveNoteToGroup 错误:", error)
     throw error
   }
 }

@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       console.log('🔍 检查更新，用户:', userId, '上次更新:', lastUpdateDate);
 
       // 优化查询：使用EXISTS替代COUNT，并行执行
-      const [notesResult, linksResult, filesResult] = await Promise.all([
+      const [notesResult, linksResult, filesResult, groupsResult] = await Promise.all([
         // 检查笔记是否有更新 - 使用EXISTS优化
         query(`
           SELECT EXISTS(
@@ -58,16 +58,26 @@ export async function POST(request: Request) {
             LIMIT 1
           ) as has_updates
         `, [userId, lastUpdateDate])
+        ,
+
+        query(`
+          SELECT EXISTS(
+            SELECT 1 FROM groups
+            WHERE user_id = $1 AND (created_at > $2 OR updated_at > $2)
+            LIMIT 1
+          ) as has_updates
+        `, [userId, lastUpdateDate]).catch(() => ({ rows: [{ has_updates: false }] }))
       ]);
 
       const hasNoteUpdates = notesResult.rows[0].has_updates;
       const hasLinkUpdates = linksResult.rows[0].has_updates;
       const hasFileUpdates = filesResult.rows[0].has_updates;
+      const hasGroupUpdates = groupsResult.rows[0].has_updates;
 
       // 如果有任何类型的更新，返回hasUpdates为true
-      const hasUpdates = hasNoteUpdates || hasLinkUpdates || hasFileUpdates;
+      const hasUpdates = hasNoteUpdates || hasLinkUpdates || hasFileUpdates || hasGroupUpdates;
 
-      console.log('📊 更新检查结果:', { hasNoteUpdates, hasLinkUpdates, hasFileUpdates, hasUpdates });
+      console.log('📊 更新检查结果:', { hasNoteUpdates, hasLinkUpdates, hasFileUpdates, hasGroupUpdates, hasUpdates });
       
       return NextResponse.json({ hasUpdates, checkTime: new Date().toISOString() });
     } catch (dbError) {

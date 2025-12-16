@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState, useEffect } from "react"
 import { getUserAvatarUrl, getUserAvatarUrlWithCache } from "@/lib/avatar-utils"
 import { cn } from "@/lib/utils"
@@ -82,22 +83,23 @@ export function UserAvatar({
       )}
       
       {/* 头像图片 */}
-      <img
+      <Image
         src={avatarUrl}
         alt={`${displayName}的头像`}
+        width={size}
+        height={size}
         className={cn(
           "rounded-full object-cover transition-opacity duration-200",
           "image-rendering-crisp-edges", // 改善图片渲染质量
           imageLoaded ? "opacity-100" : "opacity-0"
         )}
         style={{
-          width: size,
-          height: size,
           imageRendering: 'crisp-edges', // 确保清晰渲染
           backfaceVisibility: 'hidden', // 优化渲染性能
           transform: 'translateZ(0)' // 启用硬件加速
         }}
-        loading={loading}
+        loading={loading === "lazy" ? "lazy" : undefined}
+        priority={loading === "eager"}
         onLoad={() => setImageLoaded(true)}
         onError={() => {
           console.warn(`头像加载失败: ${avatarUrl}`)
@@ -114,7 +116,7 @@ export function preloadAvatar(user: any, size: number = 128) {
   const avatarUrl = getUserAvatarUrl(user, size)
   
   if (avatarUrl && avatarUrl !== '/placeholder-avatar.svg') {
-    const img = new Image()
+    const img = new globalThis.Image()
     img.src = avatarUrl
   }
 }

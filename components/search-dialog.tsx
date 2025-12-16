@@ -155,11 +155,11 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   // 监听便签列表变化，重新搜索以更新结果
   useEffect(() => {
     // 如果正在从缓存恢复、未认证或没有用户，跳过搜索
-    if (isRestoringFromCache.current || !isAuthenticated || !user || !syncContext) {
+    const notes = syncContext?.notes
+
+    if (isRestoringFromCache.current || !isAuthenticated || !user || !notes) {
       return
     }
-
-    const notes = syncContext.notes
     if (searchQuery.trim() && notes.length > 0) {
       // 当便签列表发生变化且有搜索查询时，重新搜索
       const timer = setTimeout(() => {
@@ -168,7 +168,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
 
       return () => clearTimeout(timer)
     }
-  }, [syncContext?.notes, searchQuery, searchServer])
+  }, [syncContext?.notes, searchQuery, searchServer, isAuthenticated, user])
 
   // 组件卸载时清理
   useEffect(() => {

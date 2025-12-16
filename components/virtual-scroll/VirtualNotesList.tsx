@@ -1,14 +1,15 @@
 "use client"
 
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Copy, Check, Trash2, Edit3, Save, X } from 'lucide-react'
+import { Copy, Check, Trash2, Edit3, Save, X, Folder } from 'lucide-react'
 import { useTime } from '@/hooks/use-time'
 import { useToast } from '@/hooks/use-toast'
 import { htmlToText } from '@/components/note-editor/NoteEditorState'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 interface Note {
   id: string
@@ -19,6 +20,11 @@ interface Note {
   updated_at: Date
 }
 
+interface Group {
+  id: string
+  name: string
+}
+
 interface VirtualNotesListProps {
   notes: Note[]
   onLoadMore?: () => Promise<boolean>
@@ -26,6 +32,8 @@ interface VirtualNotesListProps {
   isLoading?: boolean
   onDeleteNote?: (id: string) => Promise<boolean>
   onSaveNote?: (id: string, content: string) => Promise<Note | null>
+  groups?: Group[]
+  onMoveNoteToGroup?: (noteId: string, groupId: string) => Promise<boolean>
   className?: string
   containerHeight?: number
 }
@@ -45,7 +53,9 @@ export function VirtualNotesList({
   hasMore = false,
   isLoading = false,
   onDeleteNote,
-  onSaveNote
+  onSaveNote,
+  groups,
+  onMoveNoteToGroup
 }: VirtualNotesListProps) {
   const { getRelativeTime } = useTime()
   const { toast } = useToast()
@@ -271,6 +281,39 @@ export function VirtualNotesList({
 
             {!isEditing && (
               <div className="flex items-center gap-1">
+                {onMoveNoteToGroup && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                      >
+                        <Folder className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          onMoveNoteToGroup(note.id, 'ungrouped')
+                        }}
+                      >
+                        移到未分组
+                      </DropdownMenuItem>
+                      {groups && groups.length > 0 && <DropdownMenuSeparator />}
+                      {groups?.map((g) => (
+                        <DropdownMenuItem
+                          key={g.id}
+                          onClick={() => {
+                            onMoveNoteToGroup(note.id, g.id)
+                          }}
+                        >
+                          {g.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -326,6 +369,9 @@ export function VirtualNotesList({
     handleKeyDown,
     handleCopyClick,
     handleDeleteClick
+    ,
+    groups,
+    onMoveNoteToGroup
   ])
 
   if (notes.length === 0) {

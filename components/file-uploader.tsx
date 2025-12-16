@@ -45,7 +45,7 @@ export function FileUploader({
   accept = "*",
   label = "拖放文档到此处上传",
   className,
-  maxSize = 20, // 默认20MB
+  maxSize: _maxSize = 20, // 默认20MB
   multiple = true,
   onClick,
   onUploadSuccess,
@@ -146,7 +146,7 @@ export function FileUploader({
         setCurrentFileName("")
       }
     },
-    [uploadFile, maxSize, onClick, onUploadSuccess],
+    [uploadFile, onClick, onUploadSuccess],
   )
 
   // 正确处理 MIME 类型配置

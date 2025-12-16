@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/hooks/use-auth"
@@ -30,11 +30,17 @@ export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
     return 0
   })
 
+  const stepRef = useRef(step)
+
+  useEffect(() => {
+    stepRef.current = step
+  }, [step])
+
   // 添加组件挂载和step变化的调试日志
   useEffect(() => {
     console.log('[OnboardingAnimation] 组件挂载，从sessionStorage恢复step:', step)
     return () => {
-      console.log('[OnboardingAnimation] 组件卸载，最终step:', step)
+      console.log('[OnboardingAnimation] 组件卸载，最终step:', stepRef.current)
     }
   }, [])
 

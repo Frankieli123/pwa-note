@@ -14,6 +14,10 @@ import {
   createNote as createNoteAction,
   updateNote as updateNoteAction,
   deleteNote as deleteNoteAction,
+  getGroups as getGroupsAction,
+  createGroup as createGroupAction,
+  deleteGroup as deleteGroupAction,
+  moveNoteToGroup as moveNoteToGroupAction,
   getLinks as getLinksAction,
   createLink as createLinkAction,
   deleteLink as deleteLinkAction,
@@ -22,6 +26,7 @@ import {
   deleteFile as deleteFileAction,
   updateFileName as updateFileNameAction,
   Note as DbNote,
+  Group as DbGroup,
   Link as DbLink,
   File as DbFile
 } from "@/app/actions/db-actions"
@@ -32,6 +37,15 @@ type Note = {
   content: string
   title?: string
   user_id: string
+  group_id: number | null
+  created_at: Date
+  updated_at: Date
+}
+
+type Group = {
+  id: string
+  user_id: string
+  name: string
   created_at: Date
   updated_at: Date
 }
@@ -62,6 +76,11 @@ const mapDbNoteToNote = (dbNote: DbNote): Note => ({
   id: String(dbNote.id)
 })
 
+const mapDbGroupToGroup = (dbGroup: DbGroup): Group => ({
+  ...dbGroup,
+  id: String(dbGroup.id)
+})
+
 const mapDbLinkToLink = (dbLink: DbLink): Link => ({
   ...dbLink,
   id: String(dbLink.id)
@@ -79,6 +98,12 @@ interface SyncContextType {
   status: SyncStatus
   lastSync: Date | null
   notes: Note[]
+  groups: Group[]
+  selectedGroupId: string
+  setSelectedGroupId: (groupId: string) => void
+  createGroup: (name: string) => Promise<Group | null>
+  deleteGroup: (id: string) => Promise<boolean>
+  moveNoteToGroup: (noteId: string, groupId: string) => Promise<boolean>
   links: Link[]
   files: File[]
   user: { id: string; username: string; avatar?: string; avatarConfig?: any; dbAvatarConfig?: any; deviceInfo?: any } | null
@@ -112,6 +137,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [notes, setNotes] = useState<Note[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("all")
   const [links, setLinks] = useState<Link[]>([])
 
   // 安全的设置便签函数，确保没有重复ID
@@ -123,9 +150,91 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (uniqueNotes.length !== newNotes.length) {
       console.warn('⚠️ 检测到重复便签ID，已自动去重:', newNotes.length - uniqueNotes.length, '条')
     }
-
     setNotes(uniqueNotes)
   }, [])
+
+  const createGroup = async (name: string): Promise<Group | null> => {
+    if (!user) return null
+    const trimmed = name.trim()
+    if (!trimmed) return null
+
+    try {
+      const created = await createGroupAction(user.id, trimmed)
+      const clientGroup = mapDbGroupToGroup(created)
+      setGroups((prev) => [...prev, clientGroup])
+      broadcastUpdate()
+      return clientGroup
+    } catch (error) {
+      console.error("❌ 创建分组失败", error)
+      return null
+    }
+  }
+
+  const deleteGroup = async (id: string): Promise<boolean> => {
+    if (!user) return false
+
+    const numId = parseInt(id, 10)
+    if (Number.isNaN(numId)) return false
+
+    try {
+      await deleteGroupAction(numId, user.id)
+      setGroups((prev) => prev.filter((g) => g.id !== id))
+
+      if (selectedGroupId === id) {
+        setSelectedGroupId("all")
+      }
+
+      broadcastUpdate()
+      return true
+    } catch (error) {
+      console.error("❌ 删除分组失败", error)
+      return false
+    }
+  }
+
+  const moveNoteToGroup = async (noteId: string, groupId: string): Promise<boolean> => {
+    if (!user) return false
+
+    const noteNumId = parseInt(noteId, 10)
+    if (Number.isNaN(noteNumId)) return false
+
+    const targetGroupId = groupId === "ungrouped" ? null : parseInt(groupId, 10)
+    if (groupId !== "ungrouped" && Number.isNaN(targetGroupId as number)) return false
+
+    const originalNotes = [...notes]
+
+    setNotes((prev) => {
+      const next = prev.map((n) => (
+        n.id === noteId
+          ? { ...n, group_id: targetGroupId }
+          : n
+      ))
+
+      if (selectedGroupId === "all") return next
+
+      const shouldKeep = selectedGroupId === "ungrouped"
+        ? targetGroupId === null
+        : targetGroupId !== null && String(targetGroupId) === selectedGroupId
+
+      if (shouldKeep) return next
+      return next.filter((n) => n.id !== noteId)
+    })
+
+    broadcastUpdate()
+
+    try {
+      await moveNoteToGroupAction(noteNumId, user.id, targetGroupId)
+      const clientNow = new Date()
+      setLastSyncTime(clientNow)
+      lastSyncTimeRef.current = clientNow
+      lastContentUpdateRef.current = clientNow
+      return true
+    } catch (error) {
+      console.error("❌ 移动便签分组失败", error)
+      setNotes(originalNotes)
+      return false
+    }
+  }
 
   // 游标分页相关状态
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
@@ -139,6 +248,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const syncChannel = useRef<BroadcastChannel | null>(null)
   const lastBroadcastRef = useRef<number | null>(null)
   const lastContentUpdateRef = useRef<Date | null>(null)
+  const syncOptimizedRef = useRef<(silent?: boolean) => Promise<void>>(async () => {})
+  const syncRef = useRef<(silent?: boolean) => Promise<void>>(async () => {})
+  const checkForUpdatesRef = useRef<() => Promise<void>>(async () => {})
+  const userId = user?.id
 
   // 初始化 - 设置客户端时间
   useEffect(() => {
@@ -152,8 +265,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   
   // Load data when user ID changes (优化版本 - 避免头像更新触发重复加载)
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setNotesWithDeduplication([])
+      setGroups([])
+      setSelectedGroupId("all")
       setLinks([])
       setFiles([])
       setIsInitialized(false)
@@ -173,9 +288,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         lastSyncTimeRef.current = clientNow;
         lastContentUpdateRef.current = clientNow;
 
-        console.log("🔄 用户ID变化，开始加载数据:", user.id)
+        console.log("🔄 用户ID变化，开始加载数据:", userId)
         // 快速同步 - 只加载最近的数据
-        await syncOptimized(false)
+        await syncOptimizedRef.current(false)
         setIsInitialized(true)
       } catch (error) {
         console.error("Failed to load initial data", error)
@@ -184,11 +299,38 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
 
     loadInitialData()
-  }, [user?.id]) // 只依赖用户ID，避免头像配置更新触发重复加载
+  }, [userId, setNotesWithDeduplication]) // 只依赖用户ID，避免头像配置更新触发重复加载
+
+  useEffect(() => {
+    if (!userId) return
+
+    setHasMoreNotes(true)
+    setNextCursor(undefined)
+    setIsLoadingMore(false)
+
+    const reload = async () => {
+      try {
+        const [notesData, groupsData] = await Promise.all([
+          getNotesAction(userId, 50, 0, selectedGroupId),
+          getGroupsAction(userId),
+        ])
+
+        setNotesWithDeduplication(notesData ? notesData.map(mapDbNoteToNote) : [])
+        setGroups(groupsData ? groupsData.map(mapDbGroupToGroup) : [])
+
+        const hasMore = notesData && notesData.length === 50
+        setHasMoreNotes(hasMore)
+      } catch (error) {
+        console.error("❌ 分组切换加载失败", error)
+      }
+    }
+
+    reload()
+  }, [selectedGroupId, userId, setNotesWithDeduplication])
 
   // Set up sync timer and update checker
   useEffect(() => {
-    if (!user || !autoSync) {
+    if (!userId || !autoSync) {
       if (syncTimerRef.current) {
         clearInterval(syncTimerRef.current)
         syncTimerRef.current = null
@@ -206,13 +348,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       
       // Listen for messages from other tabs
       syncChannel.current.onmessage = (event) => {
-        const { type, timestamp, userId } = event.data;
+        const { type, timestamp, userId: messageUserId } = event.data;
         
         // Only process updates from the same user
-        if (type === 'content_updated' && userId === user?.id && timestamp !== lastBroadcastRef.current) {
+        if (type === 'content_updated' && messageUserId === userId && timestamp !== lastBroadcastRef.current) {
           console.log('Received sync broadcast, performing silent sync...');
           // Trigger silent sync
-          sync(true);
+          syncRef.current(true);
         }
       };
     }
@@ -220,14 +362,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     // 每5分钟执行一次完整同步（备份方案）
     const interval = setInterval(() => {
       if (navigator.onLine) {
-        sync(true)
+        syncRef.current(true)
       }
     }, syncInterval || 5 * 60 * 1000)
 
     // 每2分钟检查一次更新（优化频率，减少数据库压力）
     const checkInterval = setInterval(() => {
       if (navigator.onLine) {
-        checkForUpdates()
+        checkForUpdatesRef.current()
       }
     }, 2 * 60 * 1000) // 2分钟检查一次
 
@@ -241,7 +383,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         syncChannel.current.close();
       }
     }
-  }, [user, autoSync, syncInterval])
+  }, [userId, autoSync, syncInterval])
 
   // 检查服务器上是否有更新的函数
   const checkForUpdates = async () => {
@@ -305,6 +447,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  checkForUpdatesRef.current = checkForUpdates
+
   // 广播更新通知到所有打开的标签页
   const broadcastUpdate = useCallback((updateType: string = 'content_updated') => {
     if (!user?.id || !syncChannel.current) return;
@@ -336,11 +480,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       // 第一步：优先加载便签数据（最近50条）
       console.log('🚀 开始优先加载便签...')
-      const notesData = await getNotesAction(user.id, 50, 0)
+      const [notesData, groupsData] = await Promise.all([
+        getNotesAction(user.id, 50, 0, selectedGroupId),
+        getGroupsAction(user.id),
+      ])
 
       // 立即显示便签
       setNotesWithDeduplication(notesData ? notesData.map(mapDbNoteToNote) : [])
       console.log('⚡ 便签优先加载完成，共', notesData?.length || 0, '条')
+
+      setGroups(groupsData ? groupsData.map(mapDbGroupToGroup) : [])
 
       // 设置是否还有更多数据（如果返回的数据少于50条，说明没有更多了）
       const hasMore = notesData && notesData.length === 50
@@ -393,6 +542,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  syncOptimizedRef.current = syncOptimized
+
   // 完整同步函数 - 边加载边显示所有数据
   const sync = async (silent = false) => {
     if (!user) return
@@ -407,11 +558,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       // 第一步：优先加载便签数据（最近50条，支持无限滚动）
       console.log('🚀 开始优先加载便签...')
-      const notesData = await getNotesAction(user.id, 50, 0)
+      const [notesData, groupsData] = await Promise.all([
+        getNotesAction(user.id, 50, 0, selectedGroupId),
+        getGroupsAction(user.id),
+      ])
 
       // 立即显示便签
       setNotesWithDeduplication(notesData ? notesData.map(mapDbNoteToNote) : [])
       console.log('⚡ 便签优先加载完成，共', notesData?.length || 0, '条')
+
+      setGroups(groupsData ? groupsData.map(mapDbGroupToGroup) : [])
 
       // 设置是否还有更多数据
       const hasMore = notesData && notesData.length === 50
@@ -464,6 +620,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  syncRef.current = sync
+
   // 不再支持离线重试机制
   const handlePendingOperations = async () => {
     // 离线重试机制已移除
@@ -493,11 +651,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const now = new Date();
     
     // 创建临时笔记对象用于UI显示
+    const targetGroupId = selectedGroupId === "all" || selectedGroupId === "ungrouped"
+      ? null
+      : parseInt(selectedGroupId, 10)
+
     const tempNote: Note = {
       id: tempId,
       content,
       title,
       user_id: user.id,
+      group_id: Number.isNaN(targetGroupId as number) ? null : targetGroupId,
       created_at: now,
       updated_at: now
     };
@@ -538,7 +701,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       // 后台处理服务器保存操作
       if (isNewNote) {
         // 创建时传递客户端时间
-        result = await createNoteAction(user.id, content, clientTimeISO);
+        result = await createNoteAction(user.id, content, clientTimeISO, tempNote.group_id);
       } else {
         // 确保ID是有效的数字
         const numId = parseInt(id, 10);
@@ -1272,7 +1435,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('📖 手动加载更多便签...')
       const currentCount = notes.length
-      const moreNotesData = await getNotesAction(user.id, 50, currentCount)
+      const moreNotesData = await getNotesAction(user.id, 50, currentCount, selectedGroupId)
 
       if (moreNotesData && moreNotesData.length > 0) {
         const moreNotes = moreNotesData.map(mapDbNoteToNote)
@@ -1304,7 +1467,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🚀 游标分页加载更多便签...', { nextCursor })
 
-      const response = await fetch(`/api/notes/cursor?userId=${user.id}&limit=50${nextCursor ? `&cursor=${nextCursor}` : ''}`)
+      const response = await fetch(`/api/notes/cursor?userId=${user.id}&limit=50${nextCursor ? `&cursor=${nextCursor}` : ''}&groupId=${encodeURIComponent(selectedGroupId)}`)
       const result = await response.json()
 
       if (result.success && result.data.length > 0) {
@@ -1344,6 +1507,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         status: syncStatus,
         lastSync: lastSyncTime,
         notes,
+        groups,
+        selectedGroupId,
+        setSelectedGroupId,
+        createGroup,
+        deleteGroup,
+        moveNoteToGroup,
         links,
         files,
         user,

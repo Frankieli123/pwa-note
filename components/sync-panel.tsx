@@ -1,24 +1,23 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import { useSync } from "@/hooks/use-sync"
 import { FileUploader } from "@/components/file-uploader"
 import { FileGrid } from "@/components/file-grid"
 import { SyncStatus } from "@/components/sync-status"
 import { useMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { FileText, Image, Link2, StickyNote, Trash2, Copy, Check, Cloud, Save, X, Edit3 } from "lucide-react"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { FileText, Image as ImageIcon, Link2, StickyNote, Cloud, MoreVertical, Plus } from "lucide-react"
 import { LinksList } from "@/components/links-list"
 import { LinkForm } from "@/components/link-form"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { useTime } from "@/hooks/use-time"
 import { useToast } from "@/hooks/use-toast"
-import { htmlToText } from "@/components/note-editor/NoteEditorState"
 import { VirtualNotesList } from "@/components/virtual-scroll/VirtualNotesList"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 
 // 添加onExpandChange回调属性
 interface SyncPanelProps {
@@ -32,6 +31,12 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
     status,
     sync,
     notes,
+    groups,
+    selectedGroupId,
+    setSelectedGroupId,
+    createGroup,
+    deleteGroup,
+    moveNoteToGroup,
     deleteNote,
     saveNote,
     loadMoreNotesCursor,
@@ -43,9 +48,10 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
   const isMobile = useMobile()
   const { toast } = useToast()
   const [isCollapsed, setIsCollapsed] = useState(isMobile ? true : false)
-  const { getRelativeTime } = useTime();
   const uploadedFiles = files || []; // Provide a default empty array if files is undefined
   const isSyncEnabled = true; // Default to true since it's not provided by context
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false)
+  const [newGroupName, setNewGroupName] = useState("")
 
   // 当展开状态变化时通知父组件
   useEffect(() => {
@@ -121,15 +127,95 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
   // 使用虚拟滚动渲染便签列表（支持9999条便签）
   const renderNotes = () => {
     return (
-      <VirtualNotesList
-        notes={notes}
-        onLoadMore={loadMoreNotesCursor}
-        hasMore={hasMoreNotes}
-        isLoading={isLoadingMore}
-        onDeleteNote={deleteNote}
-        onSaveNote={saveNote}
-        containerHeight={0} // 设为0，让组件自动计算高度
-      />
+      <div className="h-full flex flex-col">
+        <div className="flex items-center gap-2 pb-2">
+          <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部便签</SelectItem>
+              <SelectItem value="ungrouped">未分组</SelectItem>
+              {groups.map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault()
+                  setIsCreateGroupOpen(true)
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                新建分组
+              </DropdownMenuItem>
+
+              {selectedGroupId !== "all" && selectedGroupId !== "ungrouped" && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    deleteGroup(selectedGroupId)
+                  }}
+                >
+                  删除当前分组
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Dialog open={isCreateGroupOpen} onOpenChange={setIsCreateGroupOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>新建分组</DialogTitle>
+              </DialogHeader>
+              <Input
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="分组名称"
+              />
+              <DialogFooter>
+                <Button
+                  onClick={async () => {
+                    const created = await createGroup(newGroupName)
+                    if (created) {
+                      setSelectedGroupId(created.id)
+                    }
+                    setNewGroupName("")
+                    setIsCreateGroupOpen(false)
+                  }}
+                >
+                  创建
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <div className="flex-1 min-h-0">
+          <VirtualNotesList
+            notes={notes}
+            onLoadMore={loadMoreNotesCursor}
+            hasMore={hasMoreNotes}
+            isLoading={isLoadingMore}
+            onDeleteNote={deleteNote}
+            onSaveNote={saveNote}
+            groups={groups}
+            onMoveNoteToGroup={moveNoteToGroup}
+            containerHeight={0} // 设为0，让组件自动计算高度
+          />
+        </div>
+      </div>
     )
   }
 
@@ -215,7 +301,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                   "text-base sm:text-sm lg:text-base",
                   isMobile ? "px-2 py-1" : "px-1 sm:px-2 lg:px-4"
                 )}>
-                  <Image className="h-4 w-4 mr-1" />
+                  <ImageIcon className="h-4 w-4 mr-1" />
                   <span className="font-apply-target">图片</span>
                 </TabsTrigger>
                 <TabsTrigger value="links" className={cn(

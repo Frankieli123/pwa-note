@@ -6,17 +6,46 @@ export async function initializeDatabase() {
   console.log("初始化数据库...")
 
   try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS groups (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        name TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `
+    console.log("groups 表已创建或已存在")
+
     // 创建 notes 表
     await sql`
       CREATE TABLE IF NOT EXISTS notes (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
         content TEXT NOT NULL,
+        group_id INTEGER,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `
     console.log("notes 表已创建或已存在")
+
+    await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS group_id INTEGER`
+
+    await sql`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'notes_group_id_fkey'
+        ) THEN
+          ALTER TABLE notes
+            ADD CONSTRAINT notes_group_id_fkey
+            FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `
 
     // 创建 links 表
     await sql`

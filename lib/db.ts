@@ -4,11 +4,53 @@ import { Pool } from 'pg'
 const CONNECTION_STRING = process.env.DATABASE_URL || ""
 console.log("数据库连接字符串:", CONNECTION_STRING ? "PostgreSQL" : "未配置")
 
-// 创建连接池
-const pool = new Pool({
-  connectionString: CONNECTION_STRING,
-  ssl: false // 禁用 SSL，因为自托管 PostgreSQL 通常不需要 SSL
-})
+type GlobalWithPgPool = typeof globalThis & { __pgPool?: Pool }
+
+function getSslOption() {
+  if (!CONNECTION_STRING) return false
+
+  const lower = CONNECTION_STRING.toLowerCase()
+  const sslmode = lower.match(/[?&]sslmode=([^&]+)/)?.[1]
+  if (sslmode) {
+    if (sslmode === 'disable') return false
+    if (sslmode === 'require' || sslmode === 'verify-ca' || sslmode === 'verify-full') {
+      return { rejectUnauthorized: false }
+    }
+  }
+
+  const ssl = lower.match(/[?&]ssl=([^&]+)/)?.[1]
+  if (ssl) {
+    if (ssl === 'true' || ssl === '1') return { rejectUnauthorized: false }
+    if (ssl === 'false' || ssl === '0') return false
+  }
+
+  if (process.env.PG_SSL === 'true' || process.env.PGSSLMODE === 'require') {
+    return { rejectUnauthorized: false }
+  }
+
+  return false
+}
+
+function createPool() {
+  return new Pool({
+    connectionString: CONNECTION_STRING,
+    ssl: getSslOption(),
+    max: Number(
+      process.env.PG_POOL_MAX ?? (process.env.NODE_ENV !== 'production' ? 5 : 10),
+    ),
+    idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS ?? 10_000),
+    connectionTimeoutMillis: Number(
+      process.env.PG_CONNECTION_TIMEOUT_MS ?? (process.env.NODE_ENV !== 'production' ? 5_000 : 0),
+    ),
+  })
+}
+
+const globalForPg = globalThis as GlobalWithPgPool
+const pool = globalForPg.__pgPool ?? createPool()
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPg.__pgPool = pool
+}
 
 // 创建 SQL 查询执行器（兼容 neon 的模板字符串语法）
 export const sql = async (strings: TemplateStringsArray, ...values: any[]) => {
@@ -65,17 +107,27 @@ export async function query(text: string, params: any[] = [], maxRetries: number
 
       // 添加查询超时控制（根据查询大小动态调整）
       const timeoutMs = querySize > 100000 ? 30000 : 10000 // 大查询30秒，小查询10秒
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Query timeout')), timeoutMs)
-      })
-
       const client = await pool.connect()
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
+      let timedOut = false
       try {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            timedOut = true
+            reject(new Error('Query timeout'))
+          }, timeoutMs)
+        })
+
         const queryPromise = client.query(text, params)
+        queryPromise.catch(() => undefined)
         const result = await Promise.race([queryPromise, timeoutPromise]) as any
         return { rows: result.rows }
       } finally {
-        client.release()
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+        }
+
+        client.release(timedOut ? new Error('Query timeout') : undefined)
       }
 
       // 这部分代码已经在上面的 try 块中处理了
@@ -90,7 +142,8 @@ export async function query(text: string, params: any[] = [], maxRetries: number
       // 检查是否是网络连接错误
       const isNetworkError = error.message?.includes('fetch failed') ||
                             error.message?.includes('ECONNRESET') ||
-                            error.message?.includes('timeout')
+                            error.message?.includes('timeout') ||
+                            error.message?.includes('Connection terminated unexpectedly')
 
       if (isNetworkError && attempt < maxRetries) {
         console.warn(`🔄 数据库连接失败，重试 ${attempt}/${maxRetries}...`)
@@ -105,9 +158,7 @@ export async function query(text: string, params: any[] = [], maxRetries: number
         error: error.message || error
       })
 
-      if (attempt === maxRetries) {
-        throw error
-      }
+      throw error
     }
   }
 

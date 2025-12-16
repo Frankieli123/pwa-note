@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId')
     const limit = parseInt(searchParams.get('limit') || '20', 10)
     const cursor = searchParams.get('cursor') || undefined
+    const groupId = searchParams.get('groupId') || 'all'
 
     // 验证参数
     if (!userId) {
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
     console.log('🚀 游标分页API调用:', { userId, limit, cursor })
 
     // 执行游标分页查询
-    const result = await getNotesCursor(userId, limit, cursor)
+    const result = await getNotesCursor(userId, limit, cursor, groupId)
 
     console.log('✅ 游标分页API完成:', {
       count: result.notes.length,
