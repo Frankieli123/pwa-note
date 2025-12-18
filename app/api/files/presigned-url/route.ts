@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * MinIO 预签名 URL 生成 API
  * 为前端直接上传到 MinIO 提供临时凭证和预签名 URL
- * 
+ *
  * 请求格式：POST /api/files/presigned-url
  * Body: {
  *   fileName: string,
@@ -168,12 +169,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { fileName, fileType, fileSize, userId } = body
 
+    // 认证验证
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
+    }
+
     // 验证必需参数
-    if (!fileName || !fileType || !fileSize || !userId) {
+    if (!fileName || !fileType || !fileSize) {
       return NextResponse.json(
         {
           error: 'Missing parameters',
-          message: '缺少必需参数：fileName, fileType, fileSize, userId'
+          message: '缺少必需参数：fileName, fileType, fileSize'
         },
         { status: 400 }
       )

@@ -98,6 +98,7 @@ export function FloatingNoteInput() {
           <SimpleTextEditor
             value={content}
             onChange={setContent}
+            onSave={handleSaveNote}
             placeholder="点击此处开始输入"
           />
         }

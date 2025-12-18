@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getNotes } from '@/app/actions/db-actions'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * 优先便签API - 超快速加载便签
@@ -11,15 +12,10 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId')
     const limit = parseInt(searchParams.get('limit') || '20', 10)
 
-    // 验证参数
-    if (!userId) {
-      return NextResponse.json(
-        { 
-          error: 'Missing parameters',
-          message: '缺少必需的参数：userId'
-        },
-        { status: 400 }
-      )
+    // 认证验证
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
     }
 
     console.log('🚀 优先便签API调用:', { userId, limit })

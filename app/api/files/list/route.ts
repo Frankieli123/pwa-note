@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getFiles } from '@/app/actions/db-actions'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * 文件列表检索 API
  * 获取用户的所有文件列表，支持过滤和分页
- * 
+ *
  * 查询参数：
  * - userId: 用户ID (必需)
  * - type: 文件类型过滤 (image|document|all) 默认: all
@@ -23,15 +24,10 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100)
     const sort = searchParams.get('sort') || 'date_desc'
 
-    // 验证必需参数
-    if (!userId) {
-      return NextResponse.json(
-        { 
-          error: 'Missing parameters',
-          message: '缺少必需的参数：userId'
-        },
-        { status: 400 }
-      )
+    // 认证验证
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
     }
 
     // 验证参数

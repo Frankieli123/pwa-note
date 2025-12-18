@@ -254,12 +254,28 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     return preview
   }
 
-  // 高亮文件名
-  const highlightText = (text: string, highlight?: string) => {
+  // 高亮文本 - 返回 JSX 元素
+  const renderHighlightedText = (text: string, highlight?: string) => {
     if (!highlight || !highlight.trim()) return text
 
-    const regex = new RegExp(`(${highlight.trim()})`, 'gi')
-    return text.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800">$1</mark>')
+    const escapedHighlight = highlight.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`(${escapedHighlight})`, 'gi')
+    const parts = text.split(regex)
+
+    return (
+      <>
+        {parts.map((part, index) => {
+          const isMatch = part.toLowerCase() === highlight.trim().toLowerCase()
+          return isMatch ? (
+            <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+              {part}
+            </mark>
+          ) : (
+            <span key={index}>{part}</span>
+          )
+        })}
+      </>
+    )
   }
 
   // 格式化文件大小
@@ -360,7 +376,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
                     <File className="mr-2 h-4 w-4 text-green-500" />
                     <div className="flex-1">
                       <div className="font-medium">
-                        {file.name}
+                        {renderHighlightedText(file.name, searchQuery)}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {formatFileSize(file.size)} • {file.type}
@@ -383,10 +399,10 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
                     <LinkIcon className="mr-2 h-4 w-4 text-purple-500" />
                     <div className="flex-1">
                       <div className="font-medium">
-                        {link.title}
+                        {renderHighlightedText(link.title, searchQuery)}
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {link.url}
+                      <div className="text-sm text-muted-foreground truncate">
+                        {renderHighlightedText(link.url, searchQuery)}
                       </div>
                     </div>
                   </CommandItem>

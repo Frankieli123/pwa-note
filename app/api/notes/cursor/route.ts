@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getNotesCursor } from '@/app/actions/db-actions'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * 游标分页便签API - 高性能大数据量查询
@@ -13,15 +14,10 @@ export async function GET(request: NextRequest) {
     const cursor = searchParams.get('cursor') || undefined
     const groupId = searchParams.get('groupId') || 'all'
 
-    // 验证参数
-    if (!userId) {
-      return NextResponse.json(
-        { 
-          error: 'Missing parameters',
-          message: '缺少必需的参数：userId'
-        },
-        { status: 400 }
-      )
+    // 认证验证
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
     }
 
     // 验证limit范围

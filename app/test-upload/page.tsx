@@ -5,7 +5,9 @@ import { FileUploader } from "@/components/file-uploader"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, XCircle, Clock, Upload } from "lucide-react"
+import { CheckCircle, XCircle, Clock, Upload, AlertTriangle } from "lucide-react"
+
+const isDevelopment = process.env.NODE_ENV === 'development'
 
 interface TestResult {
   id: string
@@ -18,6 +20,20 @@ interface TestResult {
 }
 
 export default function TestUploadPage() {
+  if (!isDevelopment) {
+    return (
+      <div className="container mx-auto p-6 max-w-4xl">
+        <Card className="border-destructive">
+          <CardContent className="pt-6 flex flex-col items-center gap-4">
+            <AlertTriangle className="h-12 w-12 text-destructive" />
+            <p className="text-center text-muted-foreground">
+              此页面仅在开发环境中可用
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
   const [testResults, setTestResults] = useState<TestResult[]>([])
   const [isRunningTests, setIsRunningTests] = useState(false)
 

@@ -22,7 +22,7 @@ export function AppHeader({ className }: AppHeaderProps) {
   return (
     <div className={cn("flex items-center gap-1 sm:gap-2 px-3", className)}>
       <Image
-        src="/1.png"
+        src="/logo-header.png"
         alt="应用图标"
         width={isMobile ? 20 : 24}
         height={isMobile ? 20 : 24}

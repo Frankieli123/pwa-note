@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * 全局搜索API - 支持搜索便签、文件、链接
@@ -12,15 +13,10 @@ export async function GET(request: NextRequest) {
     const searchQuery = searchParams.get('q')
     const limit = parseInt(searchParams.get('limit') || '20', 10)
 
-    // 验证参数
-    if (!userId) {
-      return NextResponse.json(
-        { 
-          error: 'Missing parameters',
-          message: '缺少必需的参数：userId'
-        },
-        { status: 400 }
-      )
+    // 认证验证
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
     }
 
     if (!searchQuery || !searchQuery.trim()) {

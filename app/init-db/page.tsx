@@ -3,10 +3,28 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { AlertTriangle } from 'lucide-react'
+
+const isDevelopment = process.env.NODE_ENV === 'development'
 
 export default function InitDbPage() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
+
+  if (!isDevelopment) {
+    return (
+      <div className="container mx-auto p-6 max-w-2xl">
+        <Card className="border-destructive">
+          <CardContent className="pt-6 flex flex-col items-center gap-4">
+            <AlertTriangle className="h-12 w-12 text-destructive" />
+            <p className="text-center text-muted-foreground">
+              此页面仅在开发环境中可用
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const handleInit = async (action: string) => {
     setLoading(true)

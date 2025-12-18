@@ -16,12 +16,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { User, AlertCircle } from "lucide-react"
+import { User, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export function LoginForm() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { login, loginWithPassword, checkUserHasPassword, isLoading } = useAuth()
@@ -109,14 +110,33 @@ export function LoginForm() {
 
             <div className="grid gap-2">
               <Label htmlFor="password">密码（可选）</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="如果设置了密码请输入"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="如果设置了密码请输入"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="sr-only">
+                    {showPassword ? "隐藏密码" : "显示密码"}
+                  </span>
+                </Button>
+              </div>
             </div>
           </div>
 

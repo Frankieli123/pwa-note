@@ -6,7 +6,9 @@ import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useSync } from "@/hooks/use-sync"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Upload, FileIcon, CheckCircle2, XCircle } from "lucide-react"
+import { Upload, FileIcon, CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
+
+const isDevelopment = process.env.NODE_ENV === 'development'
 
 interface UploadLog {
   time: string
@@ -15,6 +17,20 @@ interface UploadLog {
 }
 
 export default function TestUploadProgressPage() {
+  if (!isDevelopment) {
+    return (
+      <div className="container mx-auto py-8 max-w-4xl">
+        <Card className="border-destructive">
+          <CardContent className="pt-6 flex flex-col items-center gap-4">
+            <AlertTriangle className="h-12 w-12 text-destructive" />
+            <p className="text-center text-muted-foreground">
+              此页面仅在开发环境中可用
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
   const { uploadFile } = useSync()
   const [isUploading, setIsUploading] = useState(false)
   const [progress, setProgress] = useState(0)

@@ -4,7 +4,7 @@ const APP_VERSION = 'sw-fix-' + Date.now();
 const CACHE_NAME = `quick-notes-${APP_VERSION}`;
 const urlsToCache = [
   '/',
-  '/2.png',
+  '/favicon.png',
   '/icons/icon-144x144.png',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -47,7 +47,7 @@ interface VirtualNotesListProps {
  * - 自动处理HTML内容转换
  * - 支持无限滚动加载更多
  */
-export function VirtualNotesList({
+export const VirtualNotesList = memo(function VirtualNotesList({
   notes,
   onLoadMore,
   hasMore = false,
@@ -415,4 +415,4 @@ export function VirtualNotesList({
       </div>
     </div>
   )
-}
+})

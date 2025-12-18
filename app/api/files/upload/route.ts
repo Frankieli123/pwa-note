@@ -6,11 +6,12 @@ import {
   uploadThumbnailToMinio
 } from '@/lib/minio-utils'
 import { sql } from '@/lib/db'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * MinIO 文件上传 API
  * 处理文件上传到 MinIO 对象存储并在数据库中保存元数据
- * 
+ *
  * 请求格式：multipart/form-data
  * - file: 要上传的文件
  * - userId: 用户ID
@@ -19,29 +20,25 @@ import { sql } from '@/lib/db'
 export async function POST(request: NextRequest) {
   try {
     console.log('🚀 开始 MinIO 文件上传...')
-    
+
     // 解析 FormData
     const formData = await request.formData()
     const file = formData.get('file') as File
     const userId = formData.get('userId') as string
     const thumbnail = formData.get('thumbnail') as File | null
-    
+
+    // 认证验证
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
+    }
+
     // 验证必需参数
     if (!file) {
       return NextResponse.json(
-        { 
+        {
           error: 'Missing file',
           message: '缺少文件参数'
-        },
-        { status: 400 }
-      )
-    }
-    
-    if (!userId) {
-      return NextResponse.json(
-        { 
-          error: 'Missing userId',
-          message: '缺少用户ID参数'
         },
         { status: 400 }
       )

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 interface SimpleTextEditorProps {
   value: string
   onChange: (value: string) => void
+  onSave?: () => void
   placeholder?: string
   className?: string
 }
@@ -22,19 +23,20 @@ interface SimpleTextEditorProps {
 export function SimpleTextEditor({
   value,
   onChange,
+  onSave,
   placeholder = "点击此处开始输入",
   className
 }: SimpleTextEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // 自动调整高度
+  // 自动调整高度 - textarea自适应内容，由父容器处理滚动
   const adjustHeight = useCallback(() => {
     const textarea = textareaRef.current
     if (textarea) {
       // 重置高度以获取正确的scrollHeight
       textarea.style.height = 'auto'
-      // 设置新高度，最小高度为200px，最大高度为80vh
-      const newHeight = Math.max(200, Math.min(textarea.scrollHeight, window.innerHeight * 0.8))
+      // 设置新高度，最小高度为200px，不限制最大高度（由父容器滚动）
+      const newHeight = Math.max(200, textarea.scrollHeight)
       textarea.style.height = `${newHeight}px`
     }
   }, [])
@@ -64,7 +66,8 @@ export function SimpleTextEditor({
     // Ctrl+S 或 Cmd+S 保存（由父组件处理）
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault()
-      // 触发保存事件（可以通过props传入保存函数）
+      // 触发保存事件
+      onSave?.()
     }
   }
 
@@ -84,8 +87,8 @@ export function SimpleTextEditor({
           // 字体设置应用
           "font-apply-target",
           
-          // 滚动和溢出处理
-          "overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent",
+          // 禁用textarea自身滚动，由父容器统一处理
+          "overflow-hidden",
           
           // 占位符样式
           "placeholder:text-muted-foreground placeholder:font-apply-target",

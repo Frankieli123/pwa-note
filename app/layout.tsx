@@ -14,6 +14,7 @@ import {
 } from "next/font/google"
 import type { Metadata, Viewport } from "next"
 import { Toaster } from "@/components/ui/toaster"
+import { ErrorBoundary } from "@/components/error-boundary"
 
 // 优化字体加载，只保留必要的字体
 const notoSans = Noto_Sans_SC({
@@ -56,7 +57,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: [
-      { url: "/2.png", sizes: "any" },
+      { url: "/favicon.png", sizes: "any" },
       { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
       { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
     ],
@@ -64,7 +65,7 @@ export const metadata: Metadata = {
       { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
     shortcut: [
-      { url: "/2.png" },
+      { url: "/favicon.png" },
     ],
   },
   appleWebApp: {
@@ -138,9 +139,9 @@ export default function RootLayout({
         />
 
         {/* 图标链接 */}
-        <link rel="icon" href="/2.png" />
+        <link rel="icon" href="/favicon.png" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="shortcut icon" href="/2.png" />
+        <link rel="shortcut icon" href="/favicon.png" />
 
         {/* 字体初始化脚本 - 在页面渲染前设置字体 */}
         <script
@@ -176,24 +177,26 @@ export default function RootLayout({
 
       </head>
       <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-          themes={['light', 'dark', 'neutral', 'system']}
-        >
-          <AuthProvider>
-            <SettingsProvider>
-              <SyncProvider>
-                <ThemeHandler />
-                <SilentDbInitializer />
-                {children}
-                <Toaster />
-              </SyncProvider>
-            </SettingsProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <ErrorBoundary>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+            themes={['light', 'dark', 'neutral', 'system']}
+          >
+            <AuthProvider>
+              <SettingsProvider>
+                <SyncProvider>
+                  <ThemeHandler />
+                  <SilentDbInitializer />
+                  {children}
+                  <Toaster />
+                </SyncProvider>
+              </SettingsProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )

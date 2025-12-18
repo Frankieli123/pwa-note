@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getFileWithMinio, deleteFile } from '@/app/actions/db-actions'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * 获取单个文件详情（包含Blob URL）
@@ -15,15 +16,10 @@ export async function GET(
     const { id } = await params
     const fileId = parseInt(id)
 
-    // 验证参数
-    if (!userId) {
-      return NextResponse.json(
-        { 
-          error: 'Missing parameters',
-          message: '缺少必需的参数：userId'
-        },
-        { status: 400 }
-      )
+    // 认证验证
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
     }
 
     if (isNaN(fileId)) {
@@ -93,15 +89,10 @@ export async function DELETE(
     const { id } = await params
     const fileId = parseInt(id)
 
-    // 验证参数
-    if (!userId) {
-      return NextResponse.json(
-        { 
-          error: 'Missing parameters',
-          message: '缺少必需的参数：userId'
-        },
-        { status: 400 }
-      )
+    // 认证验证
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
     }
 
     if (isNaN(fileId)) {

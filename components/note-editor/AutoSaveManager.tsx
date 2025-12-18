@@ -78,23 +78,11 @@ export function AutoSaveManager({
         // 增加自动保存状态提示
         setIsSaving(true)
         
-        try {
-          console.log("自动保存执行: 保存到数据库")
-          // 实际保存到数据库，使用"new"作为ID以创建新的笔记，使用trimmedContent确保不保存空白字符
-          const result = await saveNote("new", trimmedContent)
-          console.log("自动保存结果:", result)
-          
-          if (result) {
-            console.log("自动保存成功")
-            // 移除自动保存的 toast 提示
-          } else {
-            console.error("自动保存失败")
-          }
-        } catch (error) {
-          console.error("自动保存错误:", error)
-        } finally {
+        // 仅保存到本地草稿，不自动提交到数据库
+        // 只有用户点击保存按钮时才提交到数据库
+        setTimeout(() => {
           setIsSaving(false)
-        }
+        }, 500)
       } else {
         console.log("内容为空、未变化或用户未登录，跳过自动保存")
       }
