@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { initializeDatabase, fixMissingFields } from '@/app/actions/init-db'
 import { seedDatabase } from '@/app/actions/seed-db'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * 手动数据库初始化API
@@ -10,6 +11,12 @@ import { seedDatabase } from '@/app/actions/seed-db'
 export async function POST(request: Request) {
   try {
     const { action, userId } = await request.json()
+
+    // 认证验证 - 管理操作需要登录
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
+    }
 
     switch (action) {
       case 'init':

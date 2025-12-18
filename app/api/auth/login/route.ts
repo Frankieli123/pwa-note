@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyUserPassword } from '@/app/actions/setting-actions'
+import { verifyUserPassword, hasUserPassword } from '@/app/actions/setting-actions'
 import { signToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
 
@@ -21,24 +21,36 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { username, password } = body
 
-    if (!username || !password) {
+    if (!username) {
       return NextResponse.json(
-        { error: 'Missing credentials', message: '请输入用户名和密码' },
+        { error: 'Missing username', message: '请输入用户名' },
         { status: 400 }
       )
     }
 
     const userId = generateUserId(username)
 
-    // 验证密码
-    const isValid = await verifyUserPassword(userId, password)
-    
-    if (!isValid) {
-      return NextResponse.json(
-        { error: 'Invalid credentials', message: '用户名或密码错误' },
-        { status: 401 }
-      )
+    // 检查用户是否设置了密码
+    const userHasPassword = await hasUserPassword(userId)
+
+    if (userHasPassword) {
+      // 用户设置了密码，必须验证
+      if (!password) {
+        return NextResponse.json(
+          { error: 'Password required', message: '此用户需要密码登录' },
+          { status: 401 }
+        )
+      }
+
+      const isValid = await verifyUserPassword(userId, password)
+      if (!isValid) {
+        return NextResponse.json(
+          { error: 'Invalid credentials', message: '密码错误' },
+          { status: 401 }
+        )
+      }
     }
+    // 如果用户未设置密码，允许无密码登录
 
     // 生成 JWT
     const token = await signToken({

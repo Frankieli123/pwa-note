@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(collaborating-with-codex)",
+      "Skill(collaborating-with-gemini)",
+      "Bash(gemini -p:*)",
+      "Bash(setx:*)",
+      "Bash($env:GOOGLE_GEMINI_BASE_URL=\"https://cli.vryo.de\")",
+      "Bash($env:GEMINI_API_KEY=\"asd3865373\")",
+      "Bash($env:GEMINI_MODEL=\"gemini-3-pro-preview\")",
+      "Bash(GOOGLE_GEMINI_BASE_URL=\"https://cli.vryo.de\" GEMINI_API_KEY=\"asd3865373\" GEMINI_MODEL=\"gemini-3-pro-preview\" gemini -p \"Reply: Gemini OK\")",
+      "Bash(codex:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(dir \"%USERPROFILE%\\.relace\")",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(python:*)",
+      "mcp__Relace__relace_search",
+      "Bash(mcp__Relace__relace_search \"What is serena? Where is serena defined or used in the codebase?\")"
+    ]
+  }
+}

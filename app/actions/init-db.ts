@@ -79,9 +79,18 @@ export async function initializeDatabase() {
     console.log("🔍 检查并添加缺失的字段...")
     await ensureTableFields()
 
+    // 创建索引以提升查询性能
+    console.log("📊 创建数据库索引...")
+    await sql`CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at DESC)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_files_user_id ON files(user_id)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_links_user_id ON links(user_id)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_groups_user_id ON groups(user_id)`
+    console.log("✅ 数据库索引创建完成")
+
     return {
       success: true,
-      message: "数据库表已成功初始化（包含自动字段检测）",
+      message: "数据库表已成功初始化（包含自动字段检测和索引）",
     }
   } catch (error) {
     console.error("初始化数据库失败:", error)

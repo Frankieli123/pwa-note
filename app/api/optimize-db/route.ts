@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { optimizeDatabase, checkIndexes, analyzeQueryPerformance } from '@/lib/optimize-db'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * 数据库优化API
@@ -10,6 +11,12 @@ import { optimizeDatabase, checkIndexes, analyzeQueryPerformance } from '@/lib/o
 export async function POST(request: Request) {
   try {
     const { action, userId } = await request.json()
+
+    // 认证验证 - 管理操作需要登录
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
+    }
 
     switch (action) {
       case 'optimize':

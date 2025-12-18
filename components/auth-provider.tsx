@@ -239,11 +239,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthStatus(AuthStatus.CHECKING)
 
     try {
-      // 模拟登录 - 在真实应用中，您会调用API
-      const mockToken = "mock-jwt-token-" + Math.random().toString(36).substring(2)
-      const mockRefreshToken = "mock-refresh-token-" + Math.random().toString(36).substring(2)
+      // 调用后端登录 API（无密码快速登录）
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password: '' }),
+        credentials: 'include'
+      })
 
-      const userId = generateUserId(username)
+      const result = await response.json()
+
+      // 如果后端要求密码，抛出错误让用户输入密码
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('此用户需要密码登录')
+        }
+        throw new Error(result.message || '登录失败')
+      }
+
+      const userId = result.user?.id || generateUserId(username)
+      const mockToken = "jwt-token-" + Math.random().toString(36).substring(2)
+      const mockRefreshToken = "refresh-token-" + Math.random().toString(36).substring(2)
       const deviceType = getDeviceType();
 
       // 先创建基础用户对象，不设置头像配置
@@ -369,17 +385,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthStatus(AuthStatus.CHECKING)
 
     try {
-      const userId = generateUserId(username)
+      // 调用后端登录 API，设置 HttpOnly Cookie
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+        credentials: 'include'
+      })
 
-      // 验证密码
-      const isPasswordValid = await verifyUserPassword(userId, password)
-      if (!isPasswordValid) {
-        throw new Error('密码错误')
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || '登录失败')
       }
 
-      // 密码验证成功，执行登录逻辑（与原login函数相同）
-      const mockToken = "mock-jwt-token-" + Math.random().toString(36).substring(2)
-      const mockRefreshToken = "mock-refresh-token-" + Math.random().toString(36).substring(2)
+      const userId = result.user.id
+
+      // 使用后端返回的 token 或生成本地 token 用于前端状态
+      const mockToken = "jwt-token-" + Math.random().toString(36).substring(2)
+      const mockRefreshToken = "refresh-token-" + Math.random().toString(36).substring(2)
 
       const deviceType = getDeviceType();
 

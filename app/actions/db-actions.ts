@@ -705,36 +705,34 @@ export async function deleteFile(id: number, userId: string): Promise<void> {
     // 获取文件信息以便删除 MinIO 存储的文件
     const fileResult = await query("SELECT minio_url, thumbnail_url FROM files WHERE id = $1 AND user_id = $2", [id, userId])
 
-    if (fileResult.rows.length > 0) {
-      const file = fileResult.rows[0]
+    if (fileResult.rows.length === 0) {
+      console.log("文件不存在或无权限")
+      return
+    }
 
-      // 删除 MinIO 存储的主文件
-      if (file.minio_url) {
-        try {
-          const { deleteFileFromMinio } = await import('@/lib/minio-utils')
-          await deleteFileFromMinio(file.minio_url)
-          console.log("MinIO 文件删除成功")
-        } catch (error) {
-          console.warn("删除 MinIO 文件失败:", error)
-          // 继续删除数据库记录，即使 MinIO 删除失败
-        }
-      }
+    const file = fileResult.rows[0]
+    const { deleteFileFromMinio } = await import('@/lib/minio-utils')
 
-      // 删除 MinIO 存储的缩略图
-      if (file.thumbnail_url) {
-        try {
-          const { deleteFileFromMinio } = await import('@/lib/minio-utils')
-          await deleteFileFromMinio(file.thumbnail_url)
-          console.log("MinIO 缩略图删除成功")
-        } catch (error) {
-          console.warn("删除 MinIO 缩略图失败:", error)
-        }
+    // 先删除 MinIO 存储的主文件（必须成功才继续）
+    if (file.minio_url) {
+      await deleteFileFromMinio(file.minio_url)
+      console.log("MinIO 文件删除成功")
+    }
+
+    // 删除数据库记录（主文件删除成功后才执行）
+    await query("DELETE FROM files WHERE id = $1 AND user_id = $2", [id, userId])
+    console.log("数据库记录删除成功")
+
+    // 最后删除缩略图（非关键，失败不影响）
+    if (file.thumbnail_url) {
+      try {
+        await deleteFileFromMinio(file.thumbnail_url)
+        console.log("MinIO 缩略图删除成功")
+      } catch (error) {
+        console.warn("删除 MinIO 缩略图失败（非关键）:", error)
       }
     }
 
-    // 删除数据库记录
-    await query("DELETE FROM files WHERE id = $1 AND user_id = $2", [id, userId])
-    console.log("deleteFile 成功")
     revalidatePath("/")
   } catch (error) {
     console.error("deleteFile 错误:", error)

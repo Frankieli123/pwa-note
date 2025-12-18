@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    const body = await request.json().catch(() => ({}))
+    const { userId } = body
+
+    // 认证验证 - 管理操作需要登录
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
+    }
+
     console.log('开始数据库迁移...')
     
     // 删除冗余字段
