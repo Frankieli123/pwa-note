@@ -20,10 +20,13 @@ export async function GET(request: NextRequest) {
       return createAuthErrorResponse(authResult)
     }
 
+    // userId已通过认证验证，此处安全使用
+    const validUserId = userId as string
+
     // 验证limit范围
     if (limit < 1 || limit > 100) {
       return NextResponse.json(
-        { 
+        {
           error: 'Invalid limit',
           message: 'limit必须在1-100之间'
         },
@@ -31,10 +34,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    console.log('🚀 游标分页API调用:', { userId, limit, cursor })
+    console.log('🚀 游标分页API调用:', { userId: validUserId, limit, cursor })
 
     // 执行游标分页查询
-    const result = await getNotesCursor(userId, limit, cursor, groupId)
+    const result = await getNotesCursor(validUserId, limit, cursor, groupId)
 
     console.log('✅ 游标分页API完成:', {
       count: result.notes.length,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * MinIO 上传完成通知 API
@@ -69,6 +70,20 @@ export async function POST(request: NextRequest) {
           error: 'Missing parameters',
           message: '缺少必需参数：objectKey, fileName, fileType, fileSize, userId, fileUrl'
         },
+        { status: 400 }
+      )
+    }
+
+    // 认证验证
+    const authResult = await verifyApiAuth(typeof userId === 'string' ? userId : null)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
+    }
+
+    // objectKey前缀校验：确保用户只能操作自己的文件
+    if (typeof objectKey === 'string' && !objectKey.startsWith(`${userId}/`)) {
+      return NextResponse.json(
+        { error: 'Invalid objectKey', message: 'objectKey 与用户不匹配' },
         { status: 400 }
       )
     }

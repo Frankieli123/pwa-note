@@ -16,6 +16,8 @@ import type { Metadata, Viewport } from "next"
 import { Toaster } from "@/components/ui/toaster"
 import { ErrorBoundary } from "@/components/error-boundary"
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
+
 // 优化字体加载，只保留必要的字体
 const notoSans = Noto_Sans_SC({
   subsets: ["latin"],
@@ -111,7 +113,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="快速笔记" />
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href={`${basePath}/manifest.json`} />
 
         {/* Service Worker注册 */}
         <script
@@ -120,7 +122,7 @@ export default function RootLayout({
               // Service Worker 注册
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js')
+                  navigator.serviceWorker.register('${basePath}/sw.js')
                     .then(function(registration) {
                       console.log('SW registered: ', registration);
 
@@ -139,9 +141,9 @@ export default function RootLayout({
         />
 
         {/* 图标链接 */}
-        <link rel="icon" href="/favicon.png" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="shortcut icon" href="/favicon.png" />
+        <link rel="icon" href={`${basePath}/favicon.png`} />
+        <link rel="apple-touch-icon" href={`${basePath}/apple-touch-icon.png`} />
+        <link rel="shortcut icon" href={`${basePath}/favicon.png`} />
 
         {/* 字体初始化脚本 - 在页面渲染前设置字体 */}
         <script

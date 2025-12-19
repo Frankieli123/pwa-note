@@ -11,21 +11,27 @@ function getSslOption() {
 
   const lower = CONNECTION_STRING.toLowerCase()
   const sslmode = lower.match(/[?&]sslmode=([^&]+)/)?.[1]
+
+  // In production, prefer certificate validation unless explicitly disabled
+  const isProduction = process.env.NODE_ENV === 'production'
+  const skipCertVerify = process.env.PG_SSL_REJECT_UNAUTHORIZED === 'false'
+  const rejectUnauthorized = isProduction && !skipCertVerify
+
   if (sslmode) {
     if (sslmode === 'disable') return false
     if (sslmode === 'require' || sslmode === 'verify-ca' || sslmode === 'verify-full') {
-      return { rejectUnauthorized: false }
+      return { rejectUnauthorized }
     }
   }
 
   const ssl = lower.match(/[?&]ssl=([^&]+)/)?.[1]
   if (ssl) {
-    if (ssl === 'true' || ssl === '1') return { rejectUnauthorized: false }
+    if (ssl === 'true' || ssl === '1') return { rejectUnauthorized }
     if (ssl === 'false' || ssl === '0') return false
   }
 
   if (process.env.PG_SSL === 'true' || process.env.PGSSLMODE === 'require') {
-    return { rejectUnauthorized: false }
+    return { rejectUnauthorized }
   }
 
   return false
@@ -60,7 +66,11 @@ export const sql = async (strings: TemplateStringsArray, ...values: any[]) => {
 
   const client = await pool.connect()
   try {
-    const result = await client.query(query, values)
+    const result = await client.query({
+      text: query,
+      values,
+      query_timeout: 10000, // 默认 10 秒超时
+    } as any)
     return result.rows
   } finally {
     client.release()
@@ -108,26 +118,15 @@ export async function query(text: string, params: any[] = [], maxRetries: number
       // 添加查询超时控制（根据查询大小动态调整）
       const timeoutMs = querySize > 100000 ? 30000 : 10000 // 大查询30秒，小查询10秒
       const client = await pool.connect()
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
-      let timedOut = false
       try {
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          timeoutId = setTimeout(() => {
-            timedOut = true
-            reject(new Error('Query timeout'))
-          }, timeoutMs)
-        })
-
-        const queryPromise = client.query(text, params)
-        queryPromise.catch(() => undefined)
-        const result = await Promise.race([queryPromise, timeoutPromise]) as any
+        const result = await client.query({
+          text,
+          values: params,
+          query_timeout: timeoutMs,
+        } as any)
         return { rows: result.rows }
       } finally {
-        if (timeoutId) {
-          clearTimeout(timeoutId)
-        }
-
-        client.release(timedOut ? new Error('Query timeout') : undefined)
+        client.release()
       }
 
       // 这部分代码已经在上面的 try 块中处理了
@@ -139,11 +138,15 @@ export async function query(text: string, params: any[] = [], maxRetries: number
         throw error
       }
 
-      // 检查是否是网络连接错误
-      const isNetworkError = error.message?.includes('fetch failed') ||
+      // 查询超时（Query read timeout）是性能问题，不应重试
+      const isQueryTimeout = error.message?.includes('Query read timeout') ||
+                            error.message?.includes('query_timeout')
+
+      // 检查是否是网络连接错误（排除查询超时）
+      const isNetworkError = !isQueryTimeout && (
+                            error.message?.includes('fetch failed') ||
                             error.message?.includes('ECONNRESET') ||
-                            error.message?.includes('timeout') ||
-                            error.message?.includes('Connection terminated unexpectedly')
+                            error.message?.includes('Connection terminated unexpectedly'))
 
       if (isNetworkError && attempt < maxRetries) {
         console.warn(`🔄 数据库连接失败，重试 ${attempt}/${maxRetries}...`)

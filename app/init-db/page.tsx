@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle } from 'lucide-react'
+import { apiUrl } from '@/lib/api-utils'
 
 const isDevelopment = process.env.NODE_ENV === 'development'
 
@@ -31,7 +32,7 @@ export default function InitDbPage() {
     setResult(null)
 
     try {
-      const response = await fetch('/api/init-db', {
+      const response = await fetch(apiUrl('/api/init-db'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

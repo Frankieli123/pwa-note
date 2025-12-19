@@ -59,10 +59,35 @@ export function getAllSupportedTypes(): string[] {
 const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
 
 /**
- * 验证文件类型是否支持（现在支持所有类型）
+ * 支持的文件类型白名单
+ */
+const ALLOWED_MIME_TYPES = new Set([
+  // Images (SVG removed - XSS vector)
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp',
+  // Documents
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  // Text
+  'text/plain', 'text/csv', 'text/markdown',
+  // Archives
+  'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed',
+  // Audio
+  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4',
+  // Video
+  'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime',
+])
+
+/**
+ * 验证文件类型是否在白名单中
  */
 export function isFileTypeSupported(mimeType: string): boolean {
-  return true // 不限制文件格式
+  if (!mimeType) return false
+  return ALLOWED_MIME_TYPES.has(mimeType.toLowerCase())
 }
 
 /**

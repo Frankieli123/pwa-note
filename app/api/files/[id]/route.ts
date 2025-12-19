@@ -22,9 +22,12 @@ export async function GET(
       return createAuthErrorResponse(authResult)
     }
 
+    // userId已通过认证验证，此处安全使用
+    const validUserId = userId as string
+
     if (isNaN(fileId)) {
       return NextResponse.json(
-        { 
+        {
           error: 'Invalid file ID',
           message: '无效的文件ID'
         },
@@ -35,7 +38,7 @@ export async function GET(
     console.log(`📥 API请求获取文件: ${fileId}`)
 
     // 获取文件详情
-    const file = await getFileWithMinio(fileId, userId)
+    const file = await getFileWithMinio(fileId, validUserId)
 
     if (!file) {
       return NextResponse.json(
@@ -95,9 +98,12 @@ export async function DELETE(
       return createAuthErrorResponse(authResult)
     }
 
+    // userId已通过认证验证，此处安全使用
+    const validUserId = userId as string
+
     if (isNaN(fileId)) {
       return NextResponse.json(
-        { 
+        {
           error: 'Invalid file ID',
           message: '无效的文件ID'
         },
@@ -106,7 +112,7 @@ export async function DELETE(
     }
 
     // 删除文件
-    await deleteFile(fileId, userId)
+    await deleteFile(fileId, validUserId)
 
     return NextResponse.json({
       success: true,

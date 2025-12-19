@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input"
 import { useAuth } from "@/hooks/use-auth"
 import { cn } from "@/lib/utils"
 import { ArrowRight, Cloud, Edit3, Sparkles } from "lucide-react"
-import { setUserPassword } from "@/app/actions/setting-actions"
-import bcrypt from "bcryptjs"
 
 interface OnboardingAnimationProps {
   onComplete: () => void
@@ -18,7 +16,6 @@ interface OnboardingAnimationProps {
 export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
   const { login, loginWithPassword, isLoading } = useAuth()
 
   // 使用sessionStorage持久化step状态
@@ -66,38 +63,16 @@ export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
     if (!username) return
 
     try {
-      if (password && confirmPassword) {
-        // 新用户设置密码
-        if (password !== confirmPassword) {
-          console.error("两次输入的密码不一致")
-          return
-        }
-
-        // 先进行快速登录创建用户
-        await login(username)
-
-        // 然后设置密码
-        const userId = `user_${Math.abs(username.split('').reduce((hash, char) => {
-          hash = (hash << 5) - hash + char.charCodeAt(0)
-          return hash & hash
-        }, 0)).toString(16)}`
-
-        const passwordHash = await bcrypt.hash(password, 10)
-        await setUserPassword(userId, passwordHash)
-
-        handleComplete()
-      } else if (password) {
-        // 现有用户密码登录
+      if (password) {
+        // 使用密码登录
         await loginWithPassword(username, password)
-        handleComplete()
       } else {
         // 快速登录（无密码）
         await login(username)
-        handleComplete()
       }
+      handleComplete()
     } catch (error) {
       console.error("登录失败:", error)
-      // 登录失败时保持在引导页面，用户可以重试
     }
   }
 
@@ -154,25 +129,16 @@ export function OnboardingAnimation({ onComplete }: OnboardingAnimationProps) {
 
               <Input
                 type="password"
-                placeholder="设置密码（可选）"
+                placeholder="密码（可选）"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-
-              {password && (
-                <Input
-                  type="password"
-                  placeholder="确认密码"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
-              )}
 
               <div className="space-y-2">
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={isLoading || (password.length > 0 && password !== confirmPassword)}
+                  disabled={isLoading}
                 >
                   {isLoading ? "登录中..." : "开始使用"}
                 </Button>

@@ -30,11 +30,14 @@ export async function GET(request: NextRequest) {
       return createAuthErrorResponse(authResult)
     }
 
+    // userId已通过认证验证，此处安全使用
+    const validUserId = userId as string
+
     // 验证参数
     const validTypes = ['image', 'document', 'all']
     if (!validTypes.includes(type)) {
       return NextResponse.json(
-        { 
+        {
           error: 'Invalid type',
           message: `无效的类型参数，支持：${validTypes.join(', ')}`
         },
@@ -45,7 +48,7 @@ export async function GET(request: NextRequest) {
     const validSorts = ['date_desc', 'date_asc', 'name_asc', 'name_desc', 'size_desc', 'size_asc']
     if (!validSorts.includes(sort)) {
       return NextResponse.json(
-        { 
+        {
           error: 'Invalid sort',
           message: `无效的排序参数，支持：${validSorts.join(', ')}`
         },
@@ -55,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     if (page < 1 || limit < 1) {
       return NextResponse.json(
-        { 
+        {
           error: 'Invalid pagination',
           message: '页码和每页数量必须大于0'
         },
@@ -64,7 +67,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取所有文件（只支持 Blob 存储，不再支持 Base64）
-    const allFiles = await getFiles(userId)
+    const allFiles = await getFiles(validUserId)
 
     // 按类型过滤
     let filteredFiles = allFiles

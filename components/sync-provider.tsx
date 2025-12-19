@@ -3,6 +3,7 @@
 import type React from "react"
 import { createContext, useEffect, useState, useRef, useCallback, useContext } from "react"
 import { useToast } from "@/hooks/use-toast"
+import { apiUrl } from "@/lib/api-utils"
 
 import { AuthContext } from "./auth-provider"
 import { useRouter } from 'next/navigation'
@@ -405,7 +406,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       while (retryCount <= maxRetries) {
         try {
-          const response = await fetch('/api/check-updates', {
+          const response = await fetch(apiUrl('/api/check-updates'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -977,7 +978,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         const maxRetries = 3
 
         try {
-          const presignedResponse = await fetch('/api/files/presigned-url', {
+          const presignedResponse = await fetch(apiUrl('/api/files/presigned-url'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -1195,7 +1196,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           if (thumbnailBlob) {
             // 上传缩略图到MinIO
             const thumbnailFileName = `thumbnail_${file.name}`
-            const thumbnailPresignedResponse = await fetch('/api/files/presigned-url', {
+            const thumbnailPresignedResponse = await fetch(apiUrl('/api/files/presigned-url'), {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
@@ -1238,7 +1239,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         const maxRetries = 3
 
         try {
-          const completeResponse = await fetch('/api/files/upload-complete', {
+          const completeResponse = await fetch(apiUrl('/api/files/upload-complete'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -1467,7 +1468,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🚀 游标分页加载更多便签...', { nextCursor })
 
-      const response = await fetch(`/api/notes/cursor?userId=${user.id}&limit=50${nextCursor ? `&cursor=${nextCursor}` : ''}&groupId=${encodeURIComponent(selectedGroupId)}`)
+      const response = await fetch(apiUrl(`/api/notes/cursor?userId=${user.id}&limit=50${nextCursor ? `&cursor=${nextCursor}` : ''}&groupId=${encodeURIComponent(selectedGroupId)}`))
       const result = await response.json()
 
       if (result.success && result.data.length > 0) {

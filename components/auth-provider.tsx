@@ -6,6 +6,7 @@ import { createContext, useEffect, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { getOrCreateUserAvatarConfig, getUserAvatarUrl, getUserAvatarConfigFromDB, cleanExpiredAvatarCache, type AvatarConfig } from "@/lib/avatar-utils"
 import { hasUserPassword, verifyUserPassword } from "@/app/actions/setting-actions"
+import { apiUrl } from "@/lib/api-utils"
 
 // 认证状态枚举
 export enum AuthStatus {
@@ -240,7 +241,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       // 调用后端登录 API（无密码快速登录）
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password: '' }),
@@ -386,7 +387,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       // 调用后端登录 API，设置 HttpOnly Cookie
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),

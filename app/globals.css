@@ -211,28 +211,6 @@
   }
 }
 
-/* 简单文本编辑器样式 */
-.simple-text-editor {
-  min-height: 200px;
-  padding: 1rem;
-  border: none;
-  outline: none;
-  font-size: inherit;
-  line-height: 1.6;
-  color: inherit;
-  background: transparent;
-  resize: none;
-  width: 100%;
-}
-
-.simple-text-editor:focus {
-  outline: none;
-}
-
-.simple-text-editor::placeholder {
-  color: hsl(var(--muted-foreground));
-}
-
 /* 版权信息专用样式 - 使用系统默认字体 */
 .copyright-text {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;

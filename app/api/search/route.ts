@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
 import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
+const isDev = process.env.NODE_ENV !== 'production'
+const debugLog = isDev ? console.log.bind(console) : () => {}
+
 /**
  * 全局搜索API - 支持搜索便签、文件、链接
  * GET /api/search?userId=xxx&q=搜索关键词&limit=20
@@ -11,13 +14,17 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
     const searchQuery = searchParams.get('q')
-    const limit = parseInt(searchParams.get('limit') || '20', 10)
+    const rawLimit = parseInt(searchParams.get('limit') || '20', 10)
+    const limit = Number.isFinite(rawLimit) && rawLimit >= 1 && rawLimit <= 50 ? rawLimit : 20
 
     // 认证验证
     const authResult = await verifyApiAuth(userId)
     if (!authResult.success) {
       return createAuthErrorResponse(authResult)
     }
+
+    // userId已通过认证验证，此处安全使用
+    const validUserId = userId as string
 
     if (!searchQuery || !searchQuery.trim()) {
       return NextResponse.json({
@@ -32,16 +39,16 @@ export async function GET(request: NextRequest) {
     }
 
     const query_text = searchQuery.trim()
-    console.log('🔍 搜索API调用:', { userId, query: query_text, limit })
+    debugLog('🔍 搜索API调用:', { userId: validUserId, query: query_text, limit })
 
     // 先查看用户有多少数据
     const [totalNotes, totalFiles, totalLinks] = await Promise.all([
-      query('SELECT COUNT(*) as count FROM notes WHERE user_id = $1', [userId]),
-      query('SELECT COUNT(*) as count FROM files WHERE user_id = $1', [userId]),
-      query('SELECT COUNT(*) as count FROM links WHERE user_id = $1', [userId])
+      query('SELECT COUNT(*) as count FROM notes WHERE user_id = $1', [validUserId]),
+      query('SELECT COUNT(*) as count FROM files WHERE user_id = $1', [validUserId]),
+      query('SELECT COUNT(*) as count FROM links WHERE user_id = $1', [validUserId])
     ])
 
-    console.log('📊 用户数据统计:', {
+    debugLog('📊 用户数据统计:', {
       notes: totalNotes.rows[0]?.count || 0,
       files: totalFiles.rows[0]?.count || 0,
       links: totalLinks.rows[0]?.count || 0
@@ -49,14 +56,14 @@ export async function GET(request: NextRequest) {
 
     // 并行搜索所有类型的数据
     const [notesResult, filesResult, linksResult] = await Promise.all([
-      searchNotes(userId, query_text, limit),
-      searchFiles(userId, query_text, limit),
-      searchLinks(userId, query_text, limit)
+      searchNotes(validUserId, query_text, limit),
+      searchFiles(validUserId, query_text, limit),
+      searchLinks(validUserId, query_text, limit)
     ])
 
     const totalResults = notesResult.length + filesResult.length + linksResult.length
 
-    console.log('✅ 搜索完成:', {
+    debugLog('✅ 搜索完成:', {
       notes: notesResult.length,
       files: filesResult.length,
       links: linksResult.length,
@@ -92,12 +99,12 @@ export async function GET(request: NextRequest) {
  */
 async function searchNotes(userId: string, searchQuery: string, limit: number) {
   try {
-    console.log('🔍 搜索便签:', { userId, searchQuery, limit })
+    debugLog('🔍 搜索便签:', { userId, searchQuery, limit })
 
     // 使用多种搜索策略提高中文搜索效果
     const searchPattern = `%${searchQuery}%`
 
-    console.log('🔍 便签搜索参数:', { userId, searchQuery, searchPattern, limit })
+    debugLog('🔍 便签搜索参数:', { userId, searchQuery, searchPattern, limit })
 
     const result = await query(`
       SELECT
@@ -123,7 +130,7 @@ async function searchNotes(userId: string, searchQuery: string, limit: number) {
       LIMIT $4
     `, [userId, searchPattern, searchQuery, limit])
 
-    console.log('📝 便签SQL执行结果:', {
+    debugLog('📝 便签SQL执行结果:', {
       rowCount: result.rows.length,
       sampleContent: result.rows.slice(0, 2).map((row: any) => ({
         id: row.id,
@@ -131,7 +138,7 @@ async function searchNotes(userId: string, searchQuery: string, limit: number) {
       }))
     })
 
-    console.log('📝 便签搜索结果:', result.rows.length, '条')
+    debugLog('📝 便签搜索结果:', result.rows.length, '条')
 
     return result.rows.map((row: any) => ({
       id: row.id,
@@ -153,7 +160,7 @@ async function searchNotes(userId: string, searchQuery: string, limit: number) {
  */
 async function searchFiles(userId: string, searchQuery: string, limit: number) {
   try {
-    console.log('📁 搜索文件:', { userId, searchQuery, limit })
+    debugLog('📁 搜索文件:', { userId, searchQuery, limit })
 
     const result = await query(`
       SELECT
@@ -181,7 +188,7 @@ async function searchFiles(userId: string, searchQuery: string, limit: number) {
       LIMIT $4
     `, [userId, `%${searchQuery}%`, searchQuery, limit])
 
-    console.log('📁 文件搜索结果:', result.rows.length, '条')
+    debugLog('📁 文件搜索结果:', result.rows.length, '条')
 
     return result.rows.map((row: any) => ({
       id: row.id,
@@ -208,7 +215,7 @@ async function searchFiles(userId: string, searchQuery: string, limit: number) {
  */
 async function searchLinks(userId: string, searchQuery: string, limit: number) {
   try {
-    console.log('🔗 搜索链接:', { userId, searchQuery, limit })
+    debugLog('🔗 搜索链接:', { userId, searchQuery, limit })
 
     const result = await query(`
       SELECT
@@ -235,7 +242,7 @@ async function searchLinks(userId: string, searchQuery: string, limit: number) {
       LIMIT $4
     `, [userId, `%${searchQuery}%`, searchQuery, limit])
 
-    console.log('🔗 链接搜索结果:', result.rows.length, '条')
+    debugLog('🔗 链接搜索结果:', result.rows.length, '条')
 
     return result.rows.map((row: any) => ({
       id: row.id,

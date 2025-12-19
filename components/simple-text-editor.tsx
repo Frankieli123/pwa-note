@@ -72,7 +72,7 @@ export function SimpleTextEditor({
   }
 
   return (
-    <div className={cn("w-full h-full", className)}>
+    <div className={cn("w-full", className)}>
       <textarea
         ref={textareaRef}
         value={value}
@@ -83,27 +83,21 @@ export function SimpleTextEditor({
           // 基础样式
           "w-full min-h-[200px] p-4 border-0 outline-none resize-none",
           "bg-transparent text-foreground",
-          
+
           // 字体设置应用
           "font-apply-target",
-          
+
           // 禁用textarea自身滚动，由父容器统一处理
           "overflow-hidden",
-          
+
           // 占位符样式
           "placeholder:text-muted-foreground placeholder:font-apply-target",
-          
+
           // 焦点样式
           "focus:outline-none focus:ring-0",
-          
-          // 移动端优化
-          "touch-manipulation",
 
-          // 防止移动端字体放大
-          "text-size-adjust-none",
-          
-          // 禁用拼写检查和自动完成（可选）
-          "spellcheck-false"
+          // 移动端优化
+          "touch-manipulation"
         )}
         style={{
           // 确保字体设置正确应用

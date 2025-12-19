@@ -21,6 +21,10 @@ function getAppVersion() {
 }
 
 const nextConfig = {
+  // 代理访问路径配置
+  basePath: process.env.BASE_PATH || '',
+  assetPrefix: process.env.ASSET_PREFIX || '',
+
   env: {
     NEXT_PUBLIC_APP_VERSION: getAppVersion(),
   },

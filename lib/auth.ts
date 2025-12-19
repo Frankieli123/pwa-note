@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose'
+import { z } from 'zod'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -20,6 +21,13 @@ export interface TokenPayload {
   exp?: number
 }
 
+const tokenPayloadSchema = z.object({
+  userId: z.string(),
+  username: z.string(),
+  iat: z.number().optional(),
+  exp: z.number().optional(),
+})
+
 /**
  * 签发 JWT Token
  */
@@ -38,12 +46,28 @@ export async function signToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): Pro
  */
 export async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, encodedSecret)
-    return payload as unknown as TokenPayload
+    const { payload } = await jwtVerify(token, encodedSecret, { algorithms: ['HS256'] })
+    const result = tokenPayloadSchema.safeParse(payload)
+    if (!result.success) {
+      console.error('JWT payload 验证失败:', result.error.message)
+      return null
+    }
+    return result.data
   } catch (error) {
     console.error('JWT 验证失败:', error)
     return null
   }
+}
+
+export async function getAuthTokenFromCookies(): Promise<string | null> {
+  const cookieStore = await cookies()
+  return cookieStore.get('auth_token')?.value ?? null
+}
+
+export async function getAuthPayloadFromCookies(): Promise<TokenPayload | null> {
+  const token = await getAuthTokenFromCookies()
+  if (!token) return null
+  return verifyToken(token)
 }
 
 export type AuthResult = {
@@ -65,8 +89,7 @@ export async function verifyApiAuth(requestUserId: string | null): Promise<AuthR
     return { success: false, error: '缺少用户ID参数', status: 400 }
   }
 
-  const cookieStore = await cookies()
-  const token = cookieStore.get('auth_token')?.value
+  const token = await getAuthTokenFromCookies()
 
   if (!token) {
     return { success: false, error: '未登录', status: 401 }

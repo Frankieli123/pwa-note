@@ -18,10 +18,13 @@ export async function GET(request: NextRequest) {
       return createAuthErrorResponse(authResult)
     }
 
-    console.log('🚀 优先便签API调用:', { userId, limit })
+    // userId已通过认证验证，此处安全使用
+    const validUserId = userId as string
+
+    console.log('🚀 优先便签API调用:', { userId: validUserId, limit })
 
     // 超快速获取便签
-    const notes = await getNotes(userId, limit, 0)
+    const notes = await getNotes(validUserId, limit, 0)
 
     console.log('✅ 优先便签API完成:', notes.length, '条')
 

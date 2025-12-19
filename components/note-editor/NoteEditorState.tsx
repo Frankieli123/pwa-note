@@ -4,7 +4,6 @@ import { useState, useRef, useCallback } from "react"
 import { useSync } from "@/hooks/use-sync"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
-import { useSettings } from "@/hooks/use-settings"
 
 // HTML转纯文本的转换函数
 export const htmlToText = (html: string): string => {
@@ -61,7 +60,7 @@ export function useNoteEditorState() {
   // Refs
   const lastEditRef = useRef<Date>(new Date())
   const lastContentRef = useRef<string>("")
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
 
   // Hooks
@@ -90,10 +89,6 @@ export function useNoteEditorState() {
 
   // 手动保存便签
   const handleSaveNote = useCallback(async () => {
-    console.log("开始保存便签...")
-    console.log("内容:", content)
-    console.log("用户登录状态:", !!user)
-
     if (isContentEmpty(content)) {
       toast({
         title: "无法保存空笔记",
@@ -117,9 +112,7 @@ export function useNoteEditorState() {
 
     try {
       const trimmedContent = content.trim()
-      console.log("调用 saveNote 函数...")
       const result = await saveNote("new", trimmedContent)
-      console.log("保存结果:", result)
 
       if (result) {
         clearEditor()
@@ -130,7 +123,6 @@ export function useNoteEditorState() {
         })
       } else {
         const errorMsg = "保存便签时发生未知错误"
-        console.error("保存便签失败:", errorMsg)
         setSaveError(errorMsg)
         setIsErrorDialogOpen(true)
 
@@ -142,7 +134,6 @@ export function useNoteEditorState() {
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "保存便签时发生未知错误"
-      console.error("保存便签错误:", error)
       setSaveError(errorMsg)
       setIsErrorDialogOpen(true)
 
@@ -158,12 +149,8 @@ export function useNoteEditorState() {
 
   // 上传处理函数 - 修改为不插入编辑器，只上传到文件列表
   const handleUploadSuccess = useCallback((url: string, type: "image" | "file") => {
-    // 不再插入到编辑器内容中，只是上传到文件列表
-    // 文件已经通过 FileUploader 组件上传到了文件列表
-    console.log(`${type === "image" ? "图片" : "文件"}上传成功，已添加到文件列表`)
     setIsUploadDialogOpen(false)
 
-    // 可以显示成功提示
     toast({
       title: "上传成功",
       description: `${type === "image" ? "图片" : "文件"}已添加到文件列表`,

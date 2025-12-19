@@ -9,11 +9,12 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
+import { apiUrl } from "@/lib/api-utils"
 import { Button } from "@/components/ui/button"
 import { useSync } from "@/hooks/use-sync"
 import { useToast } from "@/hooks/use-toast"
 import { useTime } from "@/hooks/use-time"
-import { useState } from "react"
+import { useState, useRef, useCallback } from "react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
@@ -124,6 +125,66 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null)
   const [editingFile, setEditingFile] = useState<string | null>(null)
   const [editingName, setEditingName] = useState<string>("")
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1)
+  const gridRef = useRef<HTMLDivElement>(null)
+
+  // Keyboard navigation handler
+  const handleGridKeyDown = useCallback((e: React.KeyboardEvent, fileIndex: number, file: FileItem) => {
+    const cols = showAsThumbnails ? 3 : 1
+    const totalFiles = files.length
+
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault()
+        if (fileIndex < totalFiles - 1) {
+          setFocusedIndex(fileIndex + 1)
+          const nextCard = gridRef.current?.querySelector(`[data-file-index="${fileIndex + 1}"]`) as HTMLElement
+          nextCard?.focus()
+        }
+        break
+      case 'ArrowLeft':
+        e.preventDefault()
+        if (fileIndex > 0) {
+          setFocusedIndex(fileIndex - 1)
+          const prevCard = gridRef.current?.querySelector(`[data-file-index="${fileIndex - 1}"]`) as HTMLElement
+          prevCard?.focus()
+        }
+        break
+      case 'ArrowDown':
+        e.preventDefault()
+        if (fileIndex + cols < totalFiles) {
+          setFocusedIndex(fileIndex + cols)
+          const downCard = gridRef.current?.querySelector(`[data-file-index="${fileIndex + cols}"]`) as HTMLElement
+          downCard?.focus()
+        }
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        if (fileIndex - cols >= 0) {
+          setFocusedIndex(fileIndex - cols)
+          const upCard = gridRef.current?.querySelector(`[data-file-index="${fileIndex - cols}"]`) as HTMLElement
+          upCard?.focus()
+        }
+        break
+      case 'Enter':
+        e.preventDefault()
+        if (file.type.startsWith('image/')) {
+          setPreviewImage({ url: file.url, name: file.name })
+        } else {
+          handleDownloadClick(file)
+        }
+        break
+      case 'Delete':
+      case 'Backspace':
+        e.preventDefault()
+        handleDeleteClick(file.id)
+        break
+      case 'F2':
+        e.preventDefault()
+        handleStartEdit(file)
+        break
+    }
+  }, [files.length, showAsThumbnails])
 
   // 开始编辑文件名
   const handleStartEdit = (file: FileItem) => {
@@ -182,7 +243,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
         throw new Error('用户未登录')
       }
 
-      const downloadUrl = `/api/files/download?id=${file.id}&userId=${user.id}&format=download`
+      const downloadUrl = apiUrl(`/api/files/download?id=${file.id}&userId=${user.id}&format=download`)
 
       // 创建隐藏的下载链接
       const link = document.createElement('a')
@@ -219,9 +280,23 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
 
   return (
     <>
-      <div className={cn("grid gap-4", showAsThumbnails ? "grid-cols-2 md:grid-cols-3" : "grid-cols-1")}>
-        {files.map((file) => (
-          <Card key={file.id} className="overflow-hidden rounded-xl">
+      <div
+        ref={gridRef}
+        className={cn("grid gap-4", showAsThumbnails ? "grid-cols-2 md:grid-cols-3" : "grid-cols-1")}
+        role="grid"
+        aria-label="文件列表"
+      >
+        {files.map((file, index) => (
+          <Card
+            key={file.id}
+            className="overflow-hidden rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            tabIndex={0}
+            data-file-index={index}
+            role="gridcell"
+            aria-label={`文件: ${file.name}, ${formatFileSize(file.size)}, ${getRelativeTime(file.uploadedAt)}`}
+            onKeyDown={(e) => handleGridKeyDown(e, index, file)}
+            onFocus={() => setFocusedIndex(index)}
+          >
             <CardContent className="p-0">
               {showAsThumbnails && (file.thumbnail || file.type.startsWith('image/')) ? (
               <div className="relative aspect-square group">
@@ -253,6 +328,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                       variant="secondary"
                       className="h-8 w-8"
                       onClick={() => setPreviewImage({ url: file.url, name: file.name })}
+                      aria-label={`预览图片 ${file.name}`}
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
@@ -262,6 +338,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                     variant="secondary"
                     className="h-8 w-8"
                     onClick={() => handleDownloadClick(file)}
+                    aria-label={`下载文件 ${file.name}`}
                   >
                     <Download className="h-4 w-4" />
                   </Button>
@@ -270,6 +347,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                     variant="destructive"
                     className="h-8 w-8"
                     onClick={() => handleDeleteClick(file.id)}
+                    aria-label={`删除文件 ${file.name}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -332,6 +410,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                       variant="ghost"
                       className="h-8 w-8"
                       onClick={() => setPreviewImage({ url: file.url, name: file.name })}
+                      aria-label={`预览图片 ${file.name}`}
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
@@ -341,6 +420,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                     variant="ghost"
                     className="h-8 w-8"
                     onClick={() => handleDownloadClick(file)}
+                    aria-label={`下载文件 ${file.name}`}
                   >
                     <Download className="h-4 w-4" />
                   </Button>
@@ -349,6 +429,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                     variant="ghost"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
                     onClick={() => handleDeleteClick(file.id)}
+                    aria-label={`删除文件 ${file.name}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

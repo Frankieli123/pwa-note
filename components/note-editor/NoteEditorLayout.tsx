@@ -27,27 +27,20 @@ export function NoteEditorLayout({ toolbar, editor, className }: NoteEditorLayou
     return (
       <div
         className={cn(
-          "fixed inset-0 top-12 bottom-0 z-20 bg-background flex flex-col",
+          "fixed inset-x-0 top-12 bottom-0 z-20 bg-background flex flex-col",
           className
         )}
-        style={{
-          touchAction: 'none',
-          userSelect: 'none',
-          height: 'calc(100% - 3.5rem)',
-          overscrollBehavior: 'none'
-        }}
-        onTouchMove={(e) => e.preventDefault()}
       >
         {/* 移动端工具栏 */}
         {toolbar}
 
-        {/* 编辑器卡片 - 使用fixed定位完全阻止上拉 */}
-        <Card className="flex-1 w-full shadow-none bg-background/95 border-0 rounded-none m-0">
-          <CardContent className="px-2 h-full overflow-hidden">
-            {/* 编辑区域 - 使用多重技术禁止拖动 */}
+        {/* 编辑器卡片 */}
+        <Card className="flex-1 min-h-0 w-full shadow-none bg-background/95 border-0 rounded-none m-0">
+          <CardContent className="px-2 h-full min-h-0 flex flex-col overflow-hidden">
+            {/* 编辑区域 - 单一滚动容器 */}
             <div
-              className="h-full"
-              style={{ touchAction: 'none', userSelect: 'none', overscrollBehavior: 'none' }}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
+              style={{ WebkitOverflowScrolling: 'touch' }}
             >
               {editor}
             </div>
@@ -66,12 +59,12 @@ export function NoteEditorLayout({ toolbar, editor, className }: NoteEditorLayou
       "h-[85vh] max-h-[800px] max-w-3xl mx-auto",
       className
     )}>
-      <CardContent className="p-0 h-full flex flex-col">
+      <CardContent className="p-0 h-full min-h-0 flex flex-col">
         {/* 桌面端工具栏 */}
         {toolbar}
 
         {/* 编辑器区域 */}
-        <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 min-h-0 overflow-auto p-4">
           {editor}
         </div>
       </CardContent>
