@@ -5,11 +5,12 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Copy, Check, Trash2, Edit3, Save, X, Folder } from 'lucide-react'
+import { Copy, Check, Trash2, Edit3, Save, X, Folder, Maximize2 } from 'lucide-react'
 import { useTime } from '@/hooks/use-time'
 import { useToast } from '@/hooks/use-toast'
 import { htmlToText } from '@/components/note-editor/NoteEditorState'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { NoteFullContentDialog } from '@/components/note-full-content-dialog'
 
 interface Note {
   id: string
@@ -67,6 +68,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [viewingNote, setViewingNote] = useState<Note | null>(null)
 
   // 处理双击编辑
   const handleDoubleClick = useCallback((note: Note) => {
@@ -321,6 +323,23 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        onClick={() => setViewingNote(note)}
+                      >
+                        <Maximize2 className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>查看完整内容</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
                         onClick={() => handleCopyClick(note)}
                       >
                         {copiedNoteId === note.id ? (
@@ -413,6 +432,13 @@ export const VirtualNotesList = memo(function VirtualNotesList({
           </div>
         )}
       </div>
+
+      <NoteFullContentDialog
+        open={!!viewingNote}
+        onOpenChange={(open) => !open && setViewingNote(null)}
+        content={viewingNote?.content ?? ""}
+        time={viewingNote ? getRelativeTime(viewingNote.created_at) : undefined}
+      />
     </div>
   )
 })

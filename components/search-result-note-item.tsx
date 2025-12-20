@@ -4,11 +4,12 @@ import React, { useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Copy, Check, Trash2, Edit3, Save, X } from 'lucide-react'
+import { Copy, Check, Trash2, Edit3, Save, X, Maximize2 } from 'lucide-react'
 import { useTime } from '@/hooks/use-time'
 import { useToast } from '@/hooks/use-toast'
 import { useMobile } from '@/hooks/use-mobile'
 import { htmlToText } from '@/components/note-editor/NoteEditorState'
+import { NoteFullContentDialog } from '@/components/note-full-content-dialog'
 import { cn } from '@/lib/utils'
 
 interface Note {
@@ -55,6 +56,7 @@ export function SearchResultNoteItem({
   const [editingContent, setEditingContent] = useState("")
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isViewingFull, setIsViewingFull] = useState(false)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   // 处理双击编辑
@@ -404,6 +406,27 @@ export function SearchResultNoteItem({
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-muted-foreground hover:text-primary"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsViewingFull(true)
+                  }}
+                >
+                  <Maximize2 style={{ width: '14px', height: '14px' }} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>查看完整内容</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-primary"
                   onClick={handleCopyClick}
                 >
                   {copiedNoteId === note.id ? (
@@ -438,6 +461,13 @@ export function SearchResultNoteItem({
           </TooltipProvider>
         </div>
       </div>
+
+      <NoteFullContentDialog
+        open={isViewingFull}
+        onOpenChange={setIsViewingFull}
+        content={note.content}
+        time={displayTime()}
+      />
     </div>
   )
 }
