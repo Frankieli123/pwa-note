@@ -27,7 +27,7 @@ export function NoteEditorLayout({ toolbar, editor, className }: NoteEditorLayou
     return (
       <div
         className={cn(
-          "fixed inset-x-0 top-12 bottom-0 z-20 bg-background flex flex-col",
+          "fixed inset-x-0 top-[calc(3rem+env(safe-area-inset-top))] bottom-0 z-20 bg-background flex flex-col",
           className
         )}
       >
@@ -39,7 +39,7 @@ export function NoteEditorLayout({ toolbar, editor, className }: NoteEditorLayou
           <CardContent className="px-2 h-full min-h-0 flex flex-col overflow-hidden">
             {/* 编辑区域 - 单一滚动容器 */}
             <div
-              className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
+              className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain pb-[env(safe-area-inset-bottom)]"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
               {editor}

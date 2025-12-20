@@ -29,35 +29,35 @@ export function MobileNoteToolbar({
 }: MobileNoteToolbarProps) {
   return (
     <div className={cn(
-      "w-full flex justify-around items-center px-2 py-1 bg-background/95 border-b",
+      "w-full flex justify-around items-center px-2 py-2 bg-background/95 border-b",
       className
     )}>
       <Button
         variant="ghost"
         size="sm"
         onClick={onUploadImage}
-        className="flex-1 flex items-center justify-center gap-1 h-9"
+        className="flex-1 flex items-center justify-center gap-1 h-11"
       >
         <FileUp className="h-4 w-4" />
         <span className="text-base font-apply-target">图片</span>
       </Button>
-      
+
       <Button
         variant="ghost"
         size="sm"
         onClick={onUploadFile}
-        className="flex-1 flex items-center justify-center gap-1 h-9"
+        className="flex-1 flex items-center justify-center gap-1 h-11"
       >
         <Paperclip className="h-4 w-4" />
         <span className="text-base font-apply-target">文件</span>
       </Button>
-      
+
       <Button
         variant="ghost"
         size="sm"
         onClick={onSave}
         disabled={isSaving}
-        className="flex-1 flex items-center justify-center gap-1 h-9"
+        className="flex-1 flex items-center justify-center gap-1 h-11"
       >
         {isSaving ? (
           <Loader2 className="h-4 w-4 animate-spin" />

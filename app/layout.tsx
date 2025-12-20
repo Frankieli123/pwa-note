@@ -87,7 +87,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // maximumScale: 1, // 移除此限制以符合可访问性最佳实践
+  viewportFit: "cover",
 }
 
 export default function RootLayout({

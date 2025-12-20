@@ -243,17 +243,17 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
         </div>
         <div className="flex items-center gap-2">
           {isMobile ? (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-6 w-6" 
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
               onClick={(e) => {
                 e.stopPropagation();
                 toggleSync();
               }}
             >
               <Cloud className={cn(
-                "h-4 w-4",
+                "h-5 w-5",
                 status === "syncing" && "animate-breathing"
               )} />
             </Button>

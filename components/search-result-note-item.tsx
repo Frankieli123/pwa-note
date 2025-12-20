@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Copy, Check, Trash2, Edit3, Save, X, Maximize2 } from 'lucide-react'
+import { Copy, Check, Trash2, Edit3, Save, X, Eye } from 'lucide-react'
 import { useTime } from '@/hooks/use-time'
 import { useToast } from '@/hooks/use-toast'
 import { useMobile } from '@/hooks/use-mobile'
@@ -411,7 +411,7 @@ export function SearchResultNoteItem({
                     setIsViewingFull(true)
                   }}
                 >
-                  <Maximize2 style={{ width: '14px', height: '14px' }} />
+                  <Eye style={{ width: '14px', height: '14px' }} />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -467,6 +467,7 @@ export function SearchResultNoteItem({
         onOpenChange={setIsViewingFull}
         content={note.content}
         time={displayTime()}
+        onEdit={handleDoubleClick}
       />
     </div>
   )

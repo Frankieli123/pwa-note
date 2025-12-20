@@ -47,18 +47,18 @@ export function UserMenu({ className }: UserMenuProps) {
     <div className={cn("flex items-center", className)}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             className={cn(
               "rounded-full relative",
-              isMobile ? "h-7 w-7" : "h-8 w-8"
+              isMobile ? "h-9 w-9" : "h-9 w-9"
             )}
             aria-label={`用户菜单 - ${user.username}`}
           >
             <UserAvatar
               user={user}
-              size={isMobile ? 28 : 32}
+              size={isMobile ? 32 : 32}
               loading="eager"
               className="h-full w-full"
             />

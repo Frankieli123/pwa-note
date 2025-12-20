@@ -44,7 +44,8 @@
       "Bash(xargs kill:*)",
       "Bash(node -e \"\nconst { Pool } = require\\(''pg''\\);\nconst pool = new Pool\\({ connectionString: ''postgres://postgres:th1dITMTbjpOdIs6HNhE8F7xZ6cfTwuMrg4nmXbJ9aIAc7YyHwPDpWu2UDKBERPm@37.120.170.174:5435/postgres'' }\\);\n\\(async \\(\\) => {\n  const res = await pool.query\\(''SELECT id, name, type, minio_url FROM files WHERE user_id = $1 LIMIT 3'', [''user_17edd6'']\\);\n  console.log\\(JSON.stringify\\(res.rows, null, 2\\)\\);\n  await pool.end\\(\\);\n}\\)\\(\\);\n\")",
       "Bash(node -e \"\nconst { Pool } = require\\(''pg''\\);\nconst pool = new Pool\\({ connectionString: ''postgres://postgres:th1dITMTbjpOdIs6HNhE8F7xZ6cfTwuMrg4nmXbJ9aIAc7YyHwPDpWu2UDKBERPm@37.120.170.174:5435/postgres'' }\\);\n\\(async \\(\\) => {\n  const res = await pool.query\\(\"\"SELECT id, name, type, minio_url FROM files WHERE user_id = ''user_17edd6'' AND type LIKE ''image/%'' LIMIT 3\"\"\\);\n  console.log\\(''Images:'', JSON.stringify\\(res.rows, null, 2\\)\\);\n  \n  // Try to test access to one file\n  if \\(res.rows.length > 0\\) {\n    const url = res.rows[0].minio_url;\n    const response = await fetch\\(url, { method: ''HEAD'' }\\);\n    console.log\\(''Access test:'', response.status, response.statusText\\);\n  }\n  await pool.end\\(\\);\n}\\)\\(\\);\n\")",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(find:*)"
     ]
   }
 }

@@ -29,7 +29,7 @@ export function StatusBar({ onToggleSidebar, sidebarOpen, className }: StatusBar
   return (
     <header
       className={cn(
-        "w-full sticky top-0 z-30",
+        "w-full sticky top-0 z-30 pt-[env(safe-area-inset-top)]",
         isMobile
           ? "bg-background/95 border-b shadow-none"
           : "border-b bg-background/95 backdrop-blur-sm shadow-sm",
@@ -39,13 +39,13 @@ export function StatusBar({ onToggleSidebar, sidebarOpen, className }: StatusBar
     >
       <div className={cn(
         "flex items-center justify-between",
-        isMobile ? "px-0 h-12 mx-0 w-full" : "px-4 h-14 w-full"
+        isMobile ? "px-4 h-12 mx-0 w-full" : "px-4 h-14 w-full"
       )}>
         {/* 应用标题区域 */}
         <AppHeader />
 
         {/* 操作按钮区域 */}
-        <div className="flex items-center gap-1 sm:gap-2 justify-end px-3">
+        <div className="flex items-center gap-2 justify-end px-3">
           {/* 搜索按钮 */}
           <SearchButton />
 

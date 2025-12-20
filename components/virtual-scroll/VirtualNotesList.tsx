@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Copy, Check, Trash2, Edit3, Save, X, Folder, Maximize2 } from 'lucide-react'
+import { Copy, Check, Trash2, Edit3, Save, X, Folder, Eye } from 'lucide-react'
 import { useTime } from '@/hooks/use-time'
 import { useToast } from '@/hooks/use-toast'
 import { htmlToText } from '@/components/note-editor/NoteEditorState'
@@ -325,7 +325,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                         className="h-8 w-8 text-muted-foreground hover:text-primary"
                         onClick={() => setViewingNote(note)}
                       >
-                        <Maximize2 className="h-4 w-4" />
+                        <Eye className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -438,6 +438,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
         onOpenChange={(open) => !open && setViewingNote(null)}
         content={viewingNote?.content ?? ""}
         time={viewingNote ? getRelativeTime(viewingNote.created_at) : undefined}
+        onEdit={viewingNote ? () => handleDoubleClick(viewingNote) : undefined}
       />
     </div>
   )
