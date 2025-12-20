@@ -86,7 +86,7 @@ export function NoteFullContentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:max-w-2xl sm:max-h-[80vh] flex flex-col rounded-none sm:rounded-lg p-4 sm:p-6 gap-0">
+      <DialogContent className="w-full h-[100dvh] mx-0 max-w-none sm:mx-auto sm:max-w-2xl sm:h-[80vh] flex flex-col rounded-none sm:rounded-lg p-4 sm:p-6 gap-0">
         <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between space-y-0 pb-2 pr-8 sm:pr-0">
           <div className="flex flex-col gap-1">
             <DialogTitle className="font-apply-target font-medium text-lg">便签详情</DialogTitle>

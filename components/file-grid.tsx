@@ -443,7 +443,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
 
       {/* 图片预览对话框 */}
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0 sm:max-w-4xl">
+        <DialogContent className="mx-0 max-w-none sm:mx-auto max-h-[95vh] w-full h-full p-0 sm:max-w-4xl">
           <DialogTitle className="sr-only">
             {previewImage ? `预览图片: ${previewImage.name}` : "图片预览"}
           </DialogTitle>

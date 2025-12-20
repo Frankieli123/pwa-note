@@ -234,11 +234,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
       >
         <div className="flex items-center">
           <span className="font-medium text-xl">
-            同步面板 {isMobile && (notes.length > 0 || uploadedFiles.length > 0) &&
-              <span className="text-base text-muted-foreground ml-2">
-                ({notes.length + uploadedFiles.length}项)
-              </span>
-            }
+            同步面板
           </span>
         </div>
         <div className="flex items-center gap-2">
