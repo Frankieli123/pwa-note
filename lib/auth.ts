@@ -3,13 +3,15 @@ import { z } from 'zod'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
-// 生产环境必须设置 JWT_SECRET 环境变量
-const JWT_SECRET = process.env.JWT_SECRET
-if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
-  throw new Error('JWT_SECRET environment variable is required in production')
+// 延迟获取 JWT_SECRET，避免构建时报错
+function getEncodedSecret(): Uint8Array {
+  const JWT_SECRET = process.env.JWT_SECRET
+  if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable is required in production')
+  }
+  const SECRET_KEY = JWT_SECRET || 'dev-secret-key-change-in-prod'
+  return new TextEncoder().encode(SECRET_KEY)
 }
-const SECRET_KEY = JWT_SECRET || 'dev-secret-key-change-in-prod'
-const encodedSecret = new TextEncoder().encode(SECRET_KEY)
 
 // Token 过期时间
 const TOKEN_EXPIRY = '7d' // 7天
@@ -36,8 +38,8 @@ export async function signToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): Pro
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(TOKEN_EXPIRY)
-    .sign(encodedSecret)
-  
+    .sign(getEncodedSecret())
+
   return token
 }
 
@@ -46,7 +48,7 @@ export async function signToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): Pro
  */
 export async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, encodedSecret, { algorithms: ['HS256'] })
+    const { payload } = await jwtVerify(token, getEncodedSecret(), { algorithms: ['HS256'] })
     const result = tokenPayloadSchema.safeParse(payload)
     if (!result.success) {
       console.error('JWT payload 验证失败:', result.error.message)
