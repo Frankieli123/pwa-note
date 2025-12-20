@@ -467,7 +467,28 @@ export function SearchResultNoteItem({
         onOpenChange={setIsViewingFull}
         content={note.content}
         time={displayTime()}
-        onEdit={handleDoubleClick}
+        onSave={onSaveNote ? async (content: string) => {
+          try {
+            const result = await onSaveNote(note.id, content)
+            if (result) {
+              toast({
+                title: "保存成功",
+                description: "便签已更新",
+                duration: 2000,
+              })
+              return true
+            }
+            return false
+          } catch (error) {
+            console.error("保存编辑失败:", error)
+            toast({
+              title: "保存失败",
+              description: "网络错误，请稍后再试",
+              variant: "destructive",
+            })
+            return false
+          }
+        } : undefined}
       />
     </div>
   )

@@ -283,6 +283,23 @@ export const VirtualNotesList = memo(function VirtualNotesList({
 
             {!isEditing && (
               <div className="flex items-center gap-1">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        onClick={() => setViewingNote(note)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>查看完整内容</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 {onMoveNoteToGroup && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -316,23 +333,6 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-primary"
-                        onClick={() => setViewingNote(note)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>查看完整内容</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -438,7 +438,18 @@ export const VirtualNotesList = memo(function VirtualNotesList({
         onOpenChange={(open) => !open && setViewingNote(null)}
         content={viewingNote?.content ?? ""}
         time={viewingNote ? getRelativeTime(viewingNote.created_at) : undefined}
-        onEdit={viewingNote ? () => handleDoubleClick(viewingNote) : undefined}
+        onSave={viewingNote && onSaveNote ? async (content: string) => {
+          const result = await onSaveNote(viewingNote.id, content)
+          if (result) {
+            toast({
+              title: "保存成功",
+              description: "便签已更新",
+              duration: 2000,
+            })
+            return true
+          }
+          return false
+        } : undefined}
       />
     </div>
   )
