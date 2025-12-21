@@ -98,15 +98,15 @@ export function NoteFullContentDialog({
             </Button>
           )}
         </DialogHeader>
-        <div className="flex-1 overflow-y-auto mt-2 sm:mt-4 flex flex-col min-h-0">
+        <div className={`flex-1 mt-2 flex flex-col min-h-0 ${isEditing ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {isEditing ? (
-            <div className="flex-1 flex flex-col space-y-3">
+            <div className="flex-1 flex flex-col min-h-0" style={{ gap: '0.5rem' }}>
               <Textarea
                 ref={textareaRef}
                 value={editingContent}
                 onChange={(e) => setEditingContent(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="flex-1 resize-none editor-fixed-font text-base sm:text-sm leading-relaxed p-3 sm:min-h-0"
+                className="flex-1 min-h-[100px] resize-none editor-fixed-font text-base sm:text-sm leading-relaxed p-3"
                 placeholder="编辑便签内容..."
                 disabled={isSaving}
               />
