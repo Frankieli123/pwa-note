@@ -86,7 +86,7 @@ export function NoteFullContentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-[100dvh] mx-0 max-w-none sm:mx-auto sm:max-w-2xl sm:h-[80vh] flex flex-col rounded-none sm:rounded-lg p-4 sm:p-6 gap-0">
+      <DialogContent className="w-full h-[100dvh] mx-0 max-w-none sm:mx-auto sm:max-w-2xl sm:h-auto sm:max-h-[80vh] flex flex-col rounded-none sm:rounded-lg p-4 sm:p-6 gap-0">
         <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between space-y-0 pb-2 pr-8 sm:pr-0">
           <div className="flex flex-col gap-1">
             <DialogTitle className="font-apply-target font-medium text-lg">便签详情</DialogTitle>
@@ -106,7 +106,7 @@ export function NoteFullContentDialog({
                 value={editingContent}
                 onChange={(e) => setEditingContent(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="flex-1 resize-none editor-fixed-font text-base sm:text-sm leading-relaxed p-3"
+                className="flex-1 resize-none editor-fixed-font text-base sm:text-sm leading-relaxed p-3 sm:min-h-0"
                 placeholder="编辑便签内容..."
                 disabled={isSaving}
               />
