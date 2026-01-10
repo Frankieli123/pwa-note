@@ -1,6 +1,5 @@
 FROM node:20-bookworm-slim AS base
 WORKDIR /app
-ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Use a China-friendly npm registry for installing pnpm itself.
@@ -9,8 +8,9 @@ RUN npm config set registry https://registry.npmmirror.com/ \
 
 FROM base AS deps
 WORKDIR /app
+ENV PNPM_CONFIG_PRODUCTION=false
 COPY package.json pnpm-lock.yaml .npmrc ./
-RUN pnpm i --frozen-lockfile
+RUN pnpm i --frozen-lockfile --prod=false
 
 FROM base AS build
 WORKDIR /app
