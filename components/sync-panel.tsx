@@ -8,7 +8,7 @@ import { FileGrid } from "@/components/file-grid"
 import { SyncStatus } from "@/components/sync-status"
 import { useMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { FileText, Image as ImageIcon, Link2, StickyNote, Cloud, MoreVertical, Plus } from "lucide-react"
+import { FileText, Image as ImageIcon, Link2, StickyNote, Cloud, CloudOff, MoreVertical, Plus, Wand2, Loader2 } from "lucide-react"
 import { LinksList } from "@/components/links-list"
 import { LinkForm } from "@/components/link-form"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // 添加onExpandChange回调属性
 interface SyncPanelProps {
@@ -30,6 +40,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
     lastSync,
     status,
     sync,
+    user,
     notes,
     groups,
     selectedGroupId,
@@ -39,6 +50,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
     moveNoteToGroup,
     deleteNote,
     saveNote,
+    regenerateAllTitles,
     loadMoreNotesCursor,
     hasMoreNotes,
     isLoadingMore
@@ -49,9 +61,12 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
   const { toast } = useToast()
   const [isCollapsed, setIsCollapsed] = useState(isMobile ? true : false)
   const uploadedFiles = files || []; // Provide a default empty array if files is undefined
-  const isSyncEnabled = true; // Default to true since it's not provided by context
+  const isSyncEnabled = !!user
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false)
   const [newGroupName, setNewGroupName] = useState("")
+  const [isRegenerateDialogOpen, setIsRegenerateDialogOpen] = useState(false)
+  const [isRegeneratingTitles, setIsRegeneratingTitles] = useState(false)
+  const [manualSyncRequested, setManualSyncRequested] = useState(false)
 
   // 当展开状态变化时通知父组件
   useEffect(() => {
@@ -61,9 +76,26 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
   }, [isCollapsed, onExpandChange, isMobile]);
 
   // 点击云朵按钮强制刷新数据
+  useEffect(() => {
+    if (!isMobile) return
+    const handleEditNote = () => setIsCollapsed(true)
+    window.addEventListener("pwa-note:edit-note", handleEditNote)
+    return () => window.removeEventListener("pwa-note:edit-note", handleEditNote)
+  }, [isMobile])
+
   const toggleSync = () => {
+    if (!user) {
+      toast({
+        title: "未登录",
+        description: "登录后才能同步数据",
+        variant: "destructive",
+      })
+      return
+    }
+
     // 显式指定非静默模式，这样会显示同步状态和通知
     sync(false);
+    setManualSyncRequested(true)
     
     // 只显示同步开始通知，成功后不显示
     toast({
@@ -72,6 +104,66 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
       duration: 2000,
     });
   };
+
+  useEffect(() => {
+    if (!manualSyncRequested) return
+    if (status === "success") {
+      toast({
+        title: "同步完成",
+        duration: 1500,
+      })
+      setManualSyncRequested(false)
+      return
+    }
+    if (status === "error") {
+      setManualSyncRequested(false)
+    }
+  }, [manualSyncRequested, status, toast])
+
+  const handleOpenRegenerateDialog = (event?: { stopPropagation?: () => void }) => {
+    event?.stopPropagation?.()
+    if (!user) {
+      toast({
+        title: "未登录",
+        description: "登录后才能重新生成标题",
+        variant: "destructive",
+      })
+      return
+    }
+    setIsRegenerateDialogOpen(true)
+  }
+
+  const handleRegenerateAllTitles = async () => {
+    if (!user || isRegeneratingTitles) return
+
+    setIsRegeneratingTitles(true)
+    try {
+      const result = await regenerateAllTitles()
+      if (!result) {
+        toast({
+          title: "生成失败",
+          description: "未能重新生成标题，请稍后再试",
+          variant: "destructive",
+        })
+        return
+      }
+
+      toast({
+        title: "标题已更新",
+        description: `已重新生成 ${result.updated} 条标题`,
+        duration: 2500,
+      })
+      setIsRegenerateDialogOpen(false)
+    } catch {
+      toast({
+        title: "生成失败",
+        description: "未能重新生成标题，请稍后再试",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRegeneratingTitles(false)
+    }
+  }
 
   useEffect(() => {
     setIsCollapsed(isMobile ? true : false)
@@ -239,31 +331,94 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
         </div>
         <div className="flex items-center gap-2">
           {isMobile ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleSync();
-              }}
-            >
-              <Cloud className={cn(
-                "h-5 w-5",
-                status === "syncing" && "animate-breathing"
-              )} />
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                disabled={status === "syncing"}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleSync()
+                }}
+              >
+                {isSyncEnabled ? (
+                  <Cloud className={cn("h-5 w-5", status === "syncing" && "animate-breathing")} />
+                ) : (
+                  <CloudOff className="h-5 w-5" />
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                disabled={isRegeneratingTitles}
+                onClick={(e) => handleOpenRegenerateDialog(e)}
+              >
+                {isRegeneratingTitles ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Wand2 className="h-5 w-5" />
+                )}
+              </Button>
+            </>
           ) : (
-            <SyncStatus
-              status={status}
-              lastSyncTime={lastSync}
-              isEnabled={isSyncEnabled}
-              onToggle={toggleSync}
-            />
+            <>
+              <SyncStatus
+                status={status}
+                lastSyncTime={lastSync}
+                isEnabled={isSyncEnabled}
+                onToggle={toggleSync}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                disabled={isRegeneratingTitles}
+                onClick={() => handleOpenRegenerateDialog()}
+                title="重新生成所有标题"
+              >
+                {isRegeneratingTitles ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Wand2 className="h-5 w-5" />
+                )}
+              </Button>
+            </>
           )}
         </div>
       </div>
-      
+
+      <AlertDialog
+        open={isRegenerateDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && isRegeneratingTitles) return
+          setIsRegenerateDialogOpen(open)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>重新生成所有标题？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作会覆盖你现有的便签标题，可能需要一些时间；如果配置了 AI，也可能消耗调用次数。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRegeneratingTitles}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isRegeneratingTitles}
+              onClick={(e) => {
+                e.preventDefault()
+                void handleRegenerateAllTitles()
+              }}
+            >
+              {isRegeneratingTitles ? "生成中..." : "确认生成"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+       
       {(!isMobile || !isCollapsed) && (
         <div className={cn(
           "flex-1 flex flex-col overflow-hidden"

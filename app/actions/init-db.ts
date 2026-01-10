@@ -23,6 +23,7 @@ export async function initializeDatabase() {
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
         content TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
         group_id INTEGER,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -31,6 +32,7 @@ export async function initializeDatabase() {
     console.log("notes 表已创建或已存在")
 
     await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS group_id INTEGER`
+    await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT ''`
 
     await sql`
       DO $$

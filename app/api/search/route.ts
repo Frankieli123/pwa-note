@@ -110,22 +110,26 @@ async function searchNotes(userId: string, searchQuery: string, limit: number) {
       SELECT
         id,
         user_id,
+        title,
         content,
         created_at,
         updated_at,
         -- 计算相关度分数（修复除零错误，优化中文搜索）
         (
+          (CASE WHEN title ILIKE $2 THEN 20 ELSE 0 END) +
+          (CASE WHEN title LIKE $2 THEN 10 ELSE 0 END) +
           (CASE WHEN content ILIKE $2 THEN 10 ELSE 0 END) +
           (CASE WHEN content LIKE $2 THEN 5 ELSE 0 END) +
           CASE
             WHEN LENGTH($3) > 0 THEN
+              (LENGTH(title) - LENGTH(REPLACE(title, $3, ''))) / LENGTH($3) * 2 +
               (LENGTH(content) - LENGTH(REPLACE(content, $3, ''))) / LENGTH($3)
             ELSE 0
           END
         ) as relevance_score
       FROM notes
       WHERE user_id = $1
-        AND (content ILIKE $2 OR content LIKE $2)
+        AND (title ILIKE $2 OR title LIKE $2 OR content ILIKE $2 OR content LIKE $2)
       ORDER BY relevance_score DESC, created_at DESC
       LIMIT $4
     `, [userId, searchPattern, searchQuery, limit])
@@ -143,6 +147,7 @@ async function searchNotes(userId: string, searchQuery: string, limit: number) {
     return result.rows.map((row: any) => ({
       id: row.id,
       user_id: row.user_id,
+      title: row.title,
       content: row.content,
       created_at: row.created_at,
       updated_at: row.updated_at,

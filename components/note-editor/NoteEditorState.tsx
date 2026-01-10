@@ -1,13 +1,29 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { useSync } from "@/hooks/use-sync"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 
+// 检测内容是否真正是HTML（而不是包含 < 和 > 的普通文本，如shell脚本）
+export const isActualHtml = (content: string): boolean => {
+  if (!content) return false
+  
+  // 检测常见的HTML标签模式（必须是有效的HTML标签格式）
+  // 匹配 <tagname> 或 <tagname ...> 或 </tagname> 或 <tagname/>
+  const htmlTagPattern = /<\/?(?:div|p|br|span|a|img|ul|ol|li|h[1-6]|table|tr|td|th|thead|tbody|strong|em|b|i|u|s|code|pre|blockquote|hr|input|button|form|label|select|option|textarea|header|footer|nav|section|article|aside|main|figure|figcaption|video|audio|source|canvas|svg|path|style|script|link|meta|html|head|body|title)\b[^>]*\/?>/i
+  
+  return htmlTagPattern.test(content)
+}
+
 // HTML转纯文本的转换函数
 export const htmlToText = (html: string): string => {
   if (!html) return ''
+
+  // 如果不是真正的HTML，直接返回原内容
+  if (!isActualHtml(html)) {
+    return html
+  }
 
   // 创建临时DOM元素来正确解析HTML
   const tempDiv = document.createElement('div')
@@ -51,6 +67,7 @@ export function useNoteEditorState() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [lastAutoSaveTime, setLastAutoSaveTime] = useState<Date | null>(null)
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   
   // 上传相关状态
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
@@ -64,12 +81,78 @@ export function useNoteEditorState() {
   const editorRef = useRef<HTMLDivElement>(null)
 
   // Hooks
-  const { saveNote } = useSync()
+  const { saveNote, notes } = useSync()
   const { user } = useAuth()
   const { toast } = useToast()
 
 
   // 加载草稿内容
+  const contentRef = useRef("")
+  const editingNoteIdRef = useRef<string | null>(null)
+  const notesRef = useRef(notes)
+  const userRef = useRef(user)
+
+  useEffect(() => {
+    contentRef.current = content
+  }, [content])
+
+  useEffect(() => {
+    editingNoteIdRef.current = editingNoteId
+  }, [editingNoteId])
+
+  useEffect(() => {
+    notesRef.current = notes
+  }, [notes])
+
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
+
+  useEffect(() => {
+    const toText = (value: string) => (isActualHtml(value) ? htmlToText(value) : value)
+
+    const handleEditNote = (event: Event) => {
+      const note = (event as CustomEvent<any>).detail
+      if (!note?.id) return
+      if (editingNoteIdRef.current === String(note.id)) return
+
+      void (async () => {
+        const currentText = contentRef.current.trim()
+        if (currentText) {
+          const currentId = editingNoteIdRef.current
+          const currentBaseText = currentId
+            ? toText(notesRef.current.find((n: any) => n.id === currentId)?.content ?? "").trim()
+            : ""
+          const hasUnsaved = currentId ? currentText !== currentBaseText : true
+
+          if (hasUnsaved) {
+            const currentUser = userRef.current
+            if (currentUser) {
+              const saved = await saveNote("new", currentText)
+              if (saved) {
+                toast({ title: "已自动保存为新便签", duration: 1500 })
+                localStorage.removeItem("noteDraft")
+              } else {
+                localStorage.setItem("noteDraft", currentText)
+              }
+            } else {
+              toast({ title: "未登录，已保留草稿", variant: "destructive", duration: 1500 })
+              localStorage.setItem("noteDraft", currentText)
+            }
+          }
+        }
+
+        const nextText = toText(String(note.content ?? ""))
+        setContent(nextText)
+        setEditingNoteId(String(note.id))
+        lastContentRef.current = nextText
+      })()
+    }
+
+    window.addEventListener("pwa-note:edit-note", handleEditNote as EventListener)
+    return () => window.removeEventListener("pwa-note:edit-note", handleEditNote as EventListener)
+  }, [saveNote, toast])
+
   const loadDraft = useCallback(() => {
     if (typeof window === "undefined") return
 
@@ -83,6 +166,7 @@ export function useNoteEditorState() {
   // 清空编辑器
   const clearEditor = useCallback(() => {
     setContent("")
+    setEditingNoteId(null)
     localStorage.removeItem("noteDraft")
     lastContentRef.current = ""
   }, [])
@@ -112,7 +196,10 @@ export function useNoteEditorState() {
 
     try {
       const trimmedContent = content.trim()
-      const result = await saveNote("new", trimmedContent)
+      const preservedTitle = editingNoteId
+        ? (notes.find((n) => n.id === editingNoteId)?.title ?? "")
+        : ""
+      const result = await saveNote(editingNoteId || "new", trimmedContent, preservedTitle)
 
       if (result) {
         clearEditor()
@@ -145,7 +232,7 @@ export function useNoteEditorState() {
     } finally {
       setIsSaving(false)
     }
-  }, [content, user, saveNote, toast, clearEditor])
+  }, [content, user, saveNote, toast, clearEditor, editingNoteId, notes])
 
   // 上传处理函数 - 修改为不插入编辑器，只上传到文件列表
   const handleUploadSuccess = useCallback((url: string, type: "image" | "file") => {
@@ -171,6 +258,7 @@ export function useNoteEditorState() {
     isUploadDialogOpen,
     uploadType,
     isErrorDialogOpen,
+    editingNoteId,
     
     // Refs
     lastEditRef,

@@ -8,8 +8,7 @@ import { Copy, Check, Trash2, Edit3, Save, X, Eye } from 'lucide-react'
 import { useTime } from '@/hooks/use-time'
 import { useToast } from '@/hooks/use-toast'
 import { useMobile } from '@/hooks/use-mobile'
-import { htmlToText } from '@/components/note-editor/NoteEditorState'
-import { NoteFullContentDialog } from '@/components/note-full-content-dialog'
+import { htmlToText, isActualHtml } from '@/components/note-editor/NoteEditorState'
 import { cn } from '@/lib/utils'
 
 interface Note {
@@ -24,7 +23,7 @@ interface Note {
 interface SearchResultNoteItemProps {
   note: Note
   searchQuery?: string
-  onSaveNote?: (id: string, content: string) => Promise<any>
+  onSaveNote?: (id: string, content: string, title?: string) => Promise<any>
   onDeleteNote?: (id: string) => Promise<boolean>
   onClose?: () => void
   className?: string
@@ -56,7 +55,6 @@ export function SearchResultNoteItem({
   const [editingContent, setEditingContent] = useState("")
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [isViewingFull, setIsViewingFull] = useState(false)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   // 处理双击编辑
@@ -64,7 +62,7 @@ export function SearchResultNoteItem({
     setIsEditing(true)
     
     // 智能处理内容：如果是HTML格式则转换为纯文本
-    const contentForEdit = note.content.includes('<') && note.content.includes('>')
+    const contentForEdit = isActualHtml(note.content)
       ? htmlToText(note.content)
       : note.content
     setEditingContent(contentForEdit)
@@ -103,7 +101,7 @@ export function SearchResultNoteItem({
 
     setIsSaving(true)
     try {
-      const result = await onSaveNote(note.id, trimmedContent)
+      const result = await onSaveNote(note.id, trimmedContent, note.title ?? "")
       if (result) {
         setIsEditing(false)
         setEditingContent("")
@@ -123,7 +121,7 @@ export function SearchResultNoteItem({
     } finally {
       setIsSaving(false)
     }
-  }, [note.id, editingContent, onSaveNote, onDeleteNote, toast, onClose])
+  }, [note.id, note.title, editingContent, onSaveNote, onDeleteNote, toast, onClose])
 
   // 取消编辑
   const handleCancelEdit = useCallback(() => {
@@ -146,7 +144,7 @@ export function SearchResultNoteItem({
   const handleCopyClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     
-    const textContent = note.content.includes('<') && note.content.includes('>')
+    const textContent = isActualHtml(note.content)
       ? htmlToText(note.content)
       : note.content
 
@@ -195,7 +193,7 @@ export function SearchResultNoteItem({
 
   // 格式化内容并高亮搜索关键词
   const formatContentWithHighlight = useCallback((content: string) => {
-    const textContent = content.includes('<') && content.includes('>')
+    const textContent = isActualHtml(content)
       ? htmlToText(content)
       : content
 
@@ -216,7 +214,7 @@ export function SearchResultNoteItem({
 
   // 智能提取包含搜索关键词的内容片段
   const getSmartPreview = useCallback((content: string, maxLength: number = 200) => {
-    const textContent = content.includes('<') && content.includes('>')
+    const textContent = isActualHtml(content)
       ? htmlToText(content)
       : content
 
@@ -408,7 +406,8 @@ export function SearchResultNoteItem({
                   className="h-8 w-8 text-muted-foreground hover:text-primary"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setIsViewingFull(true)
+                    window.dispatchEvent(new CustomEvent('pwa-note:edit-note', { detail: note }))
+                    onClose?.()
                   }}
                 >
                   <Eye style={{ width: '14px', height: '14px' }} />
@@ -462,34 +461,6 @@ export function SearchResultNoteItem({
         </div>
       </div>
 
-      <NoteFullContentDialog
-        open={isViewingFull}
-        onOpenChange={setIsViewingFull}
-        content={note.content}
-        time={displayTime()}
-        onSave={onSaveNote ? async (content: string) => {
-          try {
-            const result = await onSaveNote(note.id, content)
-            if (result) {
-              toast({
-                title: "保存成功",
-                description: "便签已更新",
-                duration: 2000,
-              })
-              return true
-            }
-            return false
-          } catch (error) {
-            console.error("保存编辑失败:", error)
-            toast({
-              title: "保存失败",
-              description: "网络错误，请稍后再试",
-              variant: "destructive",
-            })
-            return false
-          }
-        } : undefined}
-      />
     </div>
   )
 }

@@ -29,6 +29,7 @@ export function FloatingNoteInput() {
     isUploadDialogOpen,
     uploadType,
     isErrorDialogOpen,
+    editingNoteId,
     lastEditRef,
     lastContentRef,
     autoSaveTimerRef,
@@ -65,14 +66,16 @@ export function FloatingNoteInput() {
   return (
     <>
       {/* 自动保存管理器 */}
-      <AutoSaveManager
-        content={content}
-        lastContentRef={lastContentRef}
-        lastEditRef={lastEditRef}
-        autoSaveTimerRef={autoSaveTimerRef}
-        setLastAutoSaveTime={setLastAutoSaveTime}
-        setIsSaving={setIsSaving}
-      />
+      {!editingNoteId && (
+        <AutoSaveManager
+          content={content}
+          lastContentRef={lastContentRef}
+          lastEditRef={lastEditRef}
+          autoSaveTimerRef={autoSaveTimerRef}
+          setLastAutoSaveTime={setLastAutoSaveTime}
+          setIsSaving={setIsSaving}
+        />
+      )}
 
       {/* 主要布局 */}
       <NoteEditorLayout

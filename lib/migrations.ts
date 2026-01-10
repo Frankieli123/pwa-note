@@ -23,6 +23,7 @@ async function main() {
       id SERIAL PRIMARY KEY,
       user_id VARCHAR(255) NOT NULL,
       content TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
       group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -56,6 +57,7 @@ async function main() {
     ALTER TABLE groups ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();
     ALTER TABLE groups ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
     ALTER TABLE notes ADD COLUMN IF NOT EXISTS group_id INTEGER;
+    ALTER TABLE notes ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
     DO $$
     BEGIN
       IF NOT EXISTS (

@@ -15,6 +15,7 @@ import {
   createNote as createNoteAction,
   updateNote as updateNoteAction,
   deleteNote as deleteNoteAction,
+  regenerateAllNoteTitles as regenerateAllNoteTitlesAction,
   getGroups as getGroupsAction,
   createGroup as createGroupAction,
   deleteGroup as deleteGroupAction,
@@ -116,6 +117,7 @@ interface SyncContextType {
   uploadFile: (file: globalThis.File, onProgress?: (progress: number) => void) => Promise<{ id: string; url: string } | null>
   deleteFile: (id: string) => Promise<boolean>
   renameFile: (id: string, newName: string) => Promise<boolean>
+  regenerateAllTitles: () => Promise<{ updated: number } | null>
   isInitialized: boolean
   loadMoreNotes: () => Promise<boolean>
   loadMoreNotesCursor: () => Promise<boolean>
@@ -702,7 +704,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       // 后台处理服务器保存操作
       if (isNewNote) {
         // 创建时传递客户端时间
-        result = await createNoteAction(user.id, content, clientTimeISO, tempNote.group_id);
+        result = await createNoteAction(user.id, content, clientTimeISO, tempNote.group_id, title);
       } else {
         // 确保ID是有效的数字
         const numId = parseInt(id, 10);
@@ -711,7 +713,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           throw new Error("无效的笔记ID");
         }
         // 更新时传递客户端时间
-        result = await updateNoteAction(numId, user.id, content, clientTimeISO);
+        result = await updateNoteAction(numId, user.id, content, clientTimeISO, title);
       }
       
       // 将服务器结果转换为客户端笔记
@@ -813,6 +815,48 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         description: "未能删除笔记，请稍后再试",
       })
       return false
+    }
+  }
+
+  const regenerateAllTitles = async (): Promise<{ updated: number } | null> => {
+    if (!user) return null
+
+    try {
+      const result = await regenerateAllNoteTitlesAction(user.id)
+      const titleById = new Map<string, { title: string; updatedAt?: Date }>()
+
+      for (const item of result.titles || []) {
+        const id = String((item as any).id)
+        const title = String((item as any).title ?? "")
+        const updatedAtRaw = (item as any).updated_at
+        const updatedAt = updatedAtRaw ? new Date(updatedAtRaw) : undefined
+        titleById.set(id, { title, updatedAt })
+      }
+
+      if (titleById.size > 0) {
+        setNotes((prev) =>
+          prev.map((note) => {
+            const next = titleById.get(note.id)
+            if (!next) return note
+            return {
+              ...note,
+              title: next.title,
+              updated_at: next.updatedAt ?? note.updated_at,
+            }
+          }),
+        )
+      }
+
+      const clientNow = new Date()
+      setLastSyncTime(clientNow)
+      lastSyncTimeRef.current = clientNow
+      lastContentUpdateRef.current = clientNow
+
+      broadcastUpdate()
+      return { updated: result.updated }
+    } catch (error) {
+      console.error("Failed to regenerate all titles", error)
+      return null
     }
   }
 
@@ -1525,6 +1569,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         uploadFile,
         deleteFile,
         renameFile,
+        regenerateAllTitles,
         isInitialized,
         loadMoreNotes,
         loadMoreNotesCursor,

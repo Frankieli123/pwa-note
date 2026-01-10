@@ -8,6 +8,7 @@ interface NoteRow {
   id: number
   user_id: string
   content: string
+  title: string
   group_id: number | null
   created_at: string
   updated_at: string
@@ -54,6 +55,7 @@ export type Note = {
   id: number
   user_id: string
   content: string
+  title: string
   group_id: number | null
   created_at: Date
   updated_at: Date
@@ -123,7 +125,7 @@ export async function getNotes(
       whereClause += ` AND group_id = $${queryParams.length}`
     }
 
-    let queryText = `SELECT id, user_id, content, group_id, created_at, updated_at FROM notes ${whereClause} ORDER BY created_at DESC`
+    let queryText = `SELECT id, user_id, content, title, group_id, created_at, updated_at FROM notes ${whereClause} ORDER BY created_at DESC`
 
     if (isLoadAll) {
       if (offset > 0) {
@@ -143,6 +145,7 @@ export async function getNotes(
       id: row.id,
       user_id: row.user_id,
       content: row.content,
+      title: row.title,
       group_id: row.group_id,
       created_at: row.created_at,
       updated_at: row.updated_at
@@ -187,7 +190,7 @@ export async function getNotesCursor(
 
     baseParams.push(limit + 1)
     queryText = `
-      SELECT id, user_id, content, group_id, created_at, updated_at
+      SELECT id, user_id, content, title, group_id, created_at, updated_at
       FROM notes
       WHERE ${whereParts.join(" AND ")}
       ORDER BY created_at DESC
@@ -214,6 +217,7 @@ export async function getNotesCursor(
         id: row.id,
         user_id: row.user_id,
         content: row.content,
+        title: row.title,
         group_id: row.group_id,
         created_at: new Date(row.created_at),
         updated_at: new Date(row.updated_at)
@@ -227,26 +231,156 @@ export async function getNotesCursor(
   }
 }
 
+function deriveTitleFromContent(content: string): string {
+  const raw = String(content ?? "")
+  if (!raw.trim()) return "未命名"
+
+  const withoutHtml = raw.replace(/<[^>]+>/g, "")
+  const normalized = withoutHtml.replace(/\r\n/g, "\n")
+
+  const firstLine = normalized
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0)
+
+  if (firstLine) return firstLine
+
+  const compact = normalized.replace(/\s+/g, " ").trim()
+  return compact || "未命名"
+}
+
+async function generateAiTitle(content: string): Promise<string | null> {
+  const apiKey = process.env.AI_TITLE_API_KEY
+  if (!apiKey) return null
+
+  const provider = String(process.env.AI_TITLE_PROVIDER || "openai")
+    .trim()
+    .toLowerCase()
+
+  const defaultBaseUrl =
+    provider === "gemini" ? "https://generativelanguage.googleapis.com" : "https://api.openai.com"
+
+  const rawBaseUrl = String(process.env.AI_TITLE_BASE_URL || defaultBaseUrl).trim()
+
+  const normalizeUrl = (url: string) => {
+    const trimmed = url.replace(/\/+$/, "")
+    if (!trimmed) return ""
+    if (/^https?:\/\//i.test(trimmed)) return trimmed
+    return `https://${trimmed}`
+  }
+
+  const ensureEndsWithVersion = (url: string, versionSegment: string) => {
+    const normalized = url.replace(/\/+$/, "")
+    const version = versionSegment.replace(/^\/+/, "")
+    if (!normalized) return ""
+    if (new RegExp(`/${version}$`, "i").test(normalized)) return normalized
+    if (new RegExp(`/${version}/`, "i").test(normalized)) return normalized
+    return `${normalized}/${version}`
+  }
+
+  const baseUrlNoVersion = normalizeUrl(rawBaseUrl)
+
+  const modelDefault = provider === "gemini" ? "gemini-1.5-flash" : "gpt-4o-mini"
+  const model = String(process.env.AI_TITLE_MODEL || modelDefault).trim() || modelDefault
+
+  const prompt =
+    `为以下便签内容生成一个简短标题（建议 5-20 个中文字符，允许英文）。\n\n${String(content ?? "")}`
+
+  try {
+    if (provider === "gemini") {
+      const baseUrl = ensureEndsWithVersion(baseUrlNoVersion, "/v1beta")
+      const modelName = model.replace(/^models\//i, "")
+
+      const response = await fetch(
+        `${baseUrl}/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.2 },
+          }),
+          signal: AbortSignal.timeout(6000),
+        },
+      )
+
+      if (!response.ok) return null
+      const data: any = await response.json()
+      const rawText = String(
+        data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "",
+      )
+
+      const title = rawText
+        .replace(/^[\s"'“”‘’]+|[\s"'“”‘’]+$/g, "")
+        .split(/\r?\n/)[0]
+        .trim()
+
+      return title || null
+    }
+
+    const baseUrl = ensureEndsWithVersion(baseUrlNoVersion, "/v1")
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: "system",
+            content: "你是一个为便签内容生成标题的助手。只输出标题本身，不要任何解释，不要加引号。",
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.2,
+      }),
+      signal: AbortSignal.timeout(6000),
+    })
+
+    if (!response.ok) return null
+    const data: any = await response.json()
+    const title = String(data?.choices?.[0]?.message?.content ?? "")
+      .replace(/^[\s"'“”‘’]+|[\s"'“”‘’]+$/g, "")
+      .split(/\r?\n/)[0]
+      .trim()
+
+    return title || null
+  } catch {
+    return null
+  }
+}
+
+async function generateNoteTitle(content: string): Promise<string> {
+  const aiTitle = await generateAiTitle(content)
+  return (aiTitle && aiTitle.trim()) ? aiTitle.trim() : deriveTitleFromContent(content)
+}
+
 export async function createNote(
   userId: string,
   content: string,
   clientTime?: string,
   groupId: number | null = null,
+  title: string = "",
 ): Promise<Note> {
   console.log("服务器操作: createNote", { userId, contentLength: content.length, clientTime, groupId })
 
   try {
+    const trimmedTitle = title.trim()
+    const titleToSave = trimmedTitle ? trimmedTitle : await generateNoteTitle(content)
     let result;
 
     // 如果提供了客户端时间，使用它作为创建时间和更新时间
     if (clientTime) {
       result = await query(
-        "INSERT INTO notes (user_id, content, group_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $4) RETURNING *",
-        [userId, content, groupId, new Date(clientTime)]
+        "INSERT INTO notes (user_id, content, title, group_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $5) RETURNING *",
+        [userId, content, titleToSave, groupId, new Date(clientTime)]
       );
     } else {
       // 没有提供客户端时间时使用默认的NOW()
-      result = await query("INSERT INTO notes (user_id, content, group_id) VALUES ($1, $2, $3) RETURNING *", [userId, content, groupId]);
+      result = await query("INSERT INTO notes (user_id, content, title, group_id) VALUES ($1, $2, $3, $4) RETURNING *", [userId, content, titleToSave, groupId]);
     }
 
     const row = result.rows[0];
@@ -254,6 +388,7 @@ export async function createNote(
       id: row.id,
       user_id: row.user_id,
       content: row.content,
+      title: row.title,
       group_id: row.group_id,
       created_at: row.created_at,
       updated_at: row.updated_at
@@ -268,24 +403,31 @@ export async function createNote(
   }
 }
 
-export async function updateNote(id: number, userId: string, content: string, clientTime?: string): Promise<Note> {
+export async function updateNote(
+  id: number,
+  userId: string,
+  content: string,
+  clientTime?: string,
+  title?: string,
+): Promise<Note> {
   // 确保content不为undefined，如果是则用空字符串代替
   content = content || "";
   console.log("服务器操作: updateNote", { id, userId, contentLength: content.length, clientTime })
   try {
+    const titleToSave = title?.trim() ? title.trim() : await generateNoteTitle(content)
     let result;
     
     // 如果提供了客户端时间，使用它作为更新时间
     if (clientTime) {
       result = await query(
-        "UPDATE notes SET content = $1, updated_at = $4 WHERE id = $2 AND user_id = $3 RETURNING *",
-        [content, id, userId, new Date(clientTime)],
+        "UPDATE notes SET content = $1, title = $2, updated_at = $5 WHERE id = $3 AND user_id = $4 RETURNING *",
+        [content, titleToSave, id, userId, new Date(clientTime)],
       );
     } else {
       // 没有提供客户端时间时使用默认的NOW()
       result = await query(
-        "UPDATE notes SET content = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *",
-        [content, id, userId],
+        "UPDATE notes SET content = $1, title = $2, updated_at = NOW() WHERE id = $3 AND user_id = $4 RETURNING *",
+        [content, titleToSave, id, userId],
       );
     }
     
@@ -294,6 +436,7 @@ export async function updateNote(id: number, userId: string, content: string, cl
       id: row.id,
       user_id: row.user_id,
       content: row.content,
+      title: row.title,
       group_id: row.group_id,
       created_at: row.created_at,
       updated_at: row.updated_at
@@ -306,6 +449,73 @@ export async function updateNote(id: number, userId: string, content: string, cl
     console.error("updateNote 错误:", error)
     throw error
   }
+}
+
+export async function regenerateAllNoteTitles(
+  userId: string,
+): Promise<{ updated: number; titles: { id: number; title: string; updated_at: Date }[] }> {
+  const notesResult = await query("SELECT id, content FROM notes WHERE user_id = $1 ORDER BY id ASC", [userId])
+  const rows = notesResult.rows as { id: number; content: string }[]
+
+  if (rows.length === 0) {
+    return { updated: 0, titles: [] }
+  }
+
+  const results: { id: number; title: string }[] = new Array(rows.length)
+  let nextIndex = 0
+  const concurrency = Math.min(3, rows.length)
+
+  await Promise.all(
+    Array.from({ length: concurrency }, async () => {
+      while (true) {
+        const index = nextIndex
+        nextIndex += 1
+        if (index >= rows.length) return
+
+        const row = rows[index]
+        const title = await generateNoteTitle(row.content)
+        results[index] = { id: row.id, title: title.trim() }
+      }
+    }),
+  )
+
+  const updatedRows: { id: number; title: string; updated_at: Date }[] = []
+  const chunkSize = 50
+
+  for (let start = 0; start < results.length; start += chunkSize) {
+    const chunk = results.slice(start, start + chunkSize)
+    const valuesSql = chunk
+      .map((_, i) => `($${2 + i * 2}, $${3 + i * 2})`)
+      .join(", ")
+
+    const params: any[] = [userId]
+    for (const item of chunk) {
+      params.push(item.id, item.title)
+    }
+
+    const updateResult = await query(
+      `
+        UPDATE notes AS n
+        SET title = v.title,
+            updated_at = NOW()
+        FROM (VALUES ${valuesSql}) AS v(id, title)
+        WHERE n.user_id = $1 AND n.id = v.id
+        RETURNING n.id, n.title, n.updated_at
+      `,
+      params,
+    )
+
+    for (const row of updateResult.rows as any[]) {
+      updatedRows.push({
+        id: row.id,
+        title: row.title,
+        updated_at: row.updated_at,
+      })
+    }
+  }
+
+  revalidatePath("/")
+  return { updated: updatedRows.length, titles: updatedRows }
 }
 
 export async function deleteNote(id: number, userId: string): Promise<void> {
@@ -415,6 +625,7 @@ export async function moveNoteToGroup(noteId: number, userId: string, groupId: n
       id: row.id,
       user_id: row.user_id,
       content: row.content,
+      title: row.title,
       group_id: row.group_id,
       created_at: new Date(row.created_at),
       updated_at: new Date(row.updated_at)

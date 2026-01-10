@@ -1,16 +1,16 @@
 "use client"
 
-import React, { useState, useRef, useCallback, memo } from 'react'
+import React, { useState, useRef, useCallback, useMemo, memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Copy, Check, Trash2, Edit3, Save, X, Folder, Eye } from 'lucide-react'
 import { useTime } from '@/hooks/use-time'
 import { useToast } from '@/hooks/use-toast'
-import { htmlToText } from '@/components/note-editor/NoteEditorState'
+import { htmlToText, isActualHtml } from '@/components/note-editor/NoteEditorState'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { NoteFullContentDialog } from '@/components/note-full-content-dialog'
 
 interface Note {
   id: string
@@ -32,7 +32,7 @@ interface VirtualNotesListProps {
   hasMore?: boolean
   isLoading?: boolean
   onDeleteNote?: (id: string) => Promise<boolean>
-  onSaveNote?: (id: string, content: string) => Promise<Note | null>
+  onSaveNote?: (id: string, content: string, title?: string) => Promise<Note | null>
   groups?: Group[]
   onMoveNoteToGroup?: (noteId: string, groupId: string) => Promise<boolean>
   className?: string
@@ -62,13 +62,21 @@ export const VirtualNotesList = memo(function VirtualNotesList({
   const { toast } = useToast()
   const containerRef = useRef<HTMLDivElement>(null)
 
+  const notesById = useMemo(() => new Map(notes.map((note) => [note.id, note])), [notes])
+
+  const dispatchEditNote = useCallback((note: Note) => {
+    window.dispatchEvent(new CustomEvent('pwa-note:edit-note', { detail: note }))
+  }, [])
+
   // 编辑状态
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState("")
+  const [editingTitleNoteId, setEditingTitleNoteId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState("")
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const titleInputRef = useRef<HTMLInputElement>(null)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [viewingNote, setViewingNote] = useState<Note | null>(null)
 
   // 处理双击编辑
   const handleDoubleClick = useCallback((note: Note) => {
@@ -80,7 +88,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
     setEditingNoteId(note.id)
     
     // 智能处理内容：如果是HTML格式则转换为纯文本
-    const contentForEdit = note.content.includes('<') && note.content.includes('>')
+    const contentForEdit = isActualHtml(note.content)
       ? htmlToText(note.content)
       : note.content
     setEditingContent(contentForEdit)
@@ -120,7 +128,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
     setEditingContent("")
 
     try {
-      const result = await onSaveNote(editingNoteId, trimmedContent)
+      const result = await onSaveNote(editingNoteId, trimmedContent, notesById.get(editingNoteId)?.title ?? "")
       if (result) {
         toast({
           title: "保存成功",
@@ -136,13 +144,47 @@ export const VirtualNotesList = memo(function VirtualNotesList({
         variant: "destructive",
       })
     }
-  }, [editingNoteId, editingContent, onSaveNote, onDeleteNote, toast])
+  }, [editingNoteId, editingContent, onSaveNote, onDeleteNote, toast, notesById])
 
   // 取消编辑
   const handleCancelEdit = useCallback(() => {
     setEditingNoteId(null)
     setEditingContent("")
   }, [])
+
+  const getAutoTitle = useCallback((note: Note) => {
+    const textContent = isActualHtml(note.content) ? htmlToText(note.content) : note.content
+    const firstLine = textContent
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0)
+    return firstLine || textContent.trim() || "未命名"
+  }, [])
+
+  const startTitleEdit = useCallback((note: Note) => {
+    setEditingTitleNoteId(note.id)
+    setEditingTitle(note.title ?? "")
+    setTimeout(() => {
+      titleInputRef.current?.focus()
+      titleInputRef.current?.select?.()
+    }, 50)
+  }, [])
+
+  const cancelTitleEdit = useCallback(() => {
+    setEditingTitleNoteId(null)
+    setEditingTitle("")
+  }, [])
+
+  const saveTitleEdit = useCallback(async (note: Note) => {
+    if (!onSaveNote) {
+      cancelTitleEdit()
+      return
+    }
+
+    const nextTitle = editingTitle.trim()
+    await onSaveNote(note.id, note.content, nextTitle)
+    cancelTitleEdit()
+  }, [cancelTitleEdit, editingTitle, onSaveNote])
 
   // 处理键盘快捷键
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -157,7 +199,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
 
   // 处理复制
   const handleCopyClick = useCallback((note: Note) => {
-    const textContent = note.content.includes('<') && note.content.includes('>')
+    const textContent = isActualHtml(note.content)
       ? htmlToText(note.content)
       : note.content
 
@@ -245,7 +287,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                 <div className="cursor-pointer" onDoubleClick={() => handleDoubleClick(note)}>
                   <div className="text-sm whitespace-pre-wrap font-apply-target hover:bg-muted/50 rounded transition-colors overflow-hidden mb-2">
                     {(() => {
-                      const content = note.content.includes('<') && note.content.includes('>')
+                      const content = isActualHtml(note.content)
                         ? htmlToText(note.content)
                         : note.content
 
@@ -282,7 +324,8 @@ export const VirtualNotesList = memo(function VirtualNotesList({
             </div>
 
             {!isEditing && (
-              <div className="flex items-center gap-1">
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-1">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -290,7 +333,10 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-muted-foreground hover:text-primary"
-                        onClick={() => setViewingNote(note)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          dispatchEditNote(note)
+                        }}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
@@ -371,6 +417,42 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+                </div>
+
+                <div className="w-[10.5rem] max-w-[10.5rem]">
+                  {editingTitleNoteId === note.id ? (
+                    <Input
+                      ref={titleInputRef}
+                      value={editingTitle}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          void saveTitleEdit(note)
+                        } else if (e.key === "Escape") {
+                          e.preventDefault()
+                          cancelTitleEdit()
+                        }
+                      }}
+                      onBlur={() => void saveTitleEdit(note)}
+                      placeholder="标题（留空自动生成）"
+                      className="h-7 px-2 text-xs"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className={`w-full text-right text-xs leading-snug line-clamp-2 break-words hover:underline ${note.title?.trim() ? "" : "opacity-70"}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        startTitleEdit(note)
+                      }}
+                      title={note.title?.trim() ? note.title : getAutoTitle(note)}
+                    >
+                      {note.title?.trim() ? note.title : getAutoTitle(note)}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -380,14 +462,22 @@ export const VirtualNotesList = memo(function VirtualNotesList({
   }, [
     editingNoteId,
     editingContent,
+    editingTitleNoteId,
+    editingTitle,
     copiedNoteId,
     getRelativeTime,
     handleDoubleClick,
     handleSaveEdit,
     handleCancelEdit,
+    getAutoTitle,
+    startTitleEdit,
+    cancelTitleEdit,
+    saveTitleEdit,
     handleKeyDown,
     handleCopyClick,
     handleDeleteClick
+    ,
+    dispatchEditNote
     ,
     groups,
     onMoveNoteToGroup
@@ -433,24 +523,6 @@ export const VirtualNotesList = memo(function VirtualNotesList({
         )}
       </div>
 
-      <NoteFullContentDialog
-        open={!!viewingNote}
-        onOpenChange={(open) => !open && setViewingNote(null)}
-        content={viewingNote?.content ?? ""}
-        time={viewingNote ? getRelativeTime(viewingNote.created_at) : undefined}
-        onSave={viewingNote && onSaveNote ? async (content: string) => {
-          const result = await onSaveNote(viewingNote.id, content)
-          if (result) {
-            toast({
-              title: "保存成功",
-              description: "便签已更新",
-              duration: 2000,
-            })
-            return true
-          }
-          return false
-        } : undefined}
-      />
     </div>
   )
 })

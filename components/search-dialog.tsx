@@ -317,12 +317,12 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
                   console.log(`📝 渲染便签 ${index + 1}:`, note)
 
                   // 包装操作函数以在操作后刷新搜索结果
-                  const handleSaveNote = async (id: string, content: string) => {
+                  const handleSaveNote = async (id: string, content: string, title?: string) => {
                     if (!saveNote) {
                       console.warn('saveNote function not available')
                       return null
                     }
-                    const result = await saveNote(id, content)
+                    const result = await saveNote(id, content, title)
                     // 操作成功后，短延迟重新搜索以更新结果
                     if (result) {
                       setTimeout(() => searchServer(searchQuery), 200)
