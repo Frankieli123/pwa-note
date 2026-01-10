@@ -249,6 +249,39 @@ function deriveTitleFromContent(content: string): string {
   return compact || "未命名"
 }
 
+function cleanAiTitle(raw: string): string | null {
+  const text = String(raw ?? "").replace(/\r\n/g, "\n").trim()
+  if (!text) return null
+
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  for (const line of lines) {
+    const lowered = line.toLowerCase()
+    if (lowered.includes("供选择")) continue
+    if (lowered.includes("这里为你生成")) continue
+    if (lowered.includes("以下是")) continue
+    if (lowered.includes("可选")) continue
+
+    const cleaned = line
+      .replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, "")
+      .replace(/^\d+[\.\)]\s*/g, "")
+      .replace(/^[\-*•]\s*/g, "")
+      .replace(/^标题[:：]\s*/g, "")
+      .trim()
+
+    if (!cleaned) continue
+    if (cleaned.length > 80) return cleaned.slice(0, 80).trim()
+    return cleaned
+  }
+
+  const fallback = lines[0] ?? ""
+  if (!fallback) return null
+  return fallback.replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, "").trim() || null
+}
+
 async function generateAiTitle(content: string): Promise<string | null> {
   const apiKey = process.env.AI_TITLE_API_KEY
   if (!apiKey) return null
@@ -283,8 +316,14 @@ async function generateAiTitle(content: string): Promise<string | null> {
   const modelDefault = provider === "gemini" ? "gemini-1.5-flash" : "gpt-4o-mini"
   const model = String(process.env.AI_TITLE_MODEL || modelDefault).trim() || modelDefault
 
-  const prompt =
-    `为以下便签内容生成一个简短标题（建议 5-20 个中文字符，允许英文）。\n\n${String(content ?? "")}`
+  const prompt = [
+    "你是一个为便签内容生成标题的助手。",
+    "只输出一个标题：不要解释、不要列表、不要加引号、不要任何前缀（例如“标题：”）。",
+    "标题建议 5-20 个中文字符，允许英文。",
+    "",
+    "便签内容：",
+    String(content ?? ""),
+  ].join("\n")
 
   try {
     if (provider === "gemini") {
@@ -310,12 +349,7 @@ async function generateAiTitle(content: string): Promise<string | null> {
         data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "",
       )
 
-      const title = rawText
-        .replace(/^[\s"'“”‘’]+|[\s"'“”‘’]+$/g, "")
-        .split(/\r?\n/)[0]
-        .trim()
-
-      return title || null
+      return cleanAiTitle(rawText)
     }
 
     const baseUrl = ensureEndsWithVersion(baseUrlNoVersion, "/v1")
@@ -331,7 +365,7 @@ async function generateAiTitle(content: string): Promise<string | null> {
         messages: [
           {
             role: "system",
-            content: "你是一个为便签内容生成标题的助手。只输出标题本身，不要任何解释，不要加引号。",
+            content: "你是一个为便签内容生成标题的助手。只输出一个标题，不要解释、不要列表、不要加引号、不要任何前缀。",
           },
           { role: "user", content: prompt },
         ],
@@ -342,12 +376,7 @@ async function generateAiTitle(content: string): Promise<string | null> {
 
     if (!response.ok) return null
     const data: any = await response.json()
-    const title = String(data?.choices?.[0]?.message?.content ?? "")
-      .replace(/^[\s"'“”‘’]+|[\s"'“”‘’]+$/g, "")
-      .split(/\r?\n/)[0]
-      .trim()
-
-    return title || null
+    return cleanAiTitle(data?.choices?.[0]?.message?.content ?? "")
   } catch {
     return null
   }

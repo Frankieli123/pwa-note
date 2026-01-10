@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Copy, Check, Trash2, Edit3, Save, X, Folder, Eye } from 'lucide-react'
+import { Copy, Check, Trash2, Edit3, Save, X, Folder, Eye, Type } from 'lucide-react'
 import { useTime } from '@/hooks/use-time'
 import { useToast } from '@/hooks/use-toast'
 import { htmlToText, isActualHtml } from '@/components/note-editor/NoteEditorState'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 interface Note {
   id: string
@@ -419,7 +420,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                 </TooltipProvider>
                 </div>
 
-                <div className="w-[10.5rem] max-w-[10.5rem]">
+                <div className="mt-1 w-[10.5rem] max-w-[10.5rem]">
                   {editingTitleNoteId === note.id ? (
                     <Input
                       ref={titleInputRef}
@@ -437,12 +438,17 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                       }}
                       onBlur={() => void saveTitleEdit(note)}
                       placeholder="标题（留空自动生成）"
-                      className="h-7 px-2 text-xs"
+                      className="h-8 px-2 text-sm font-apply-target"
                     />
                   ) : (
                     <button
                       type="button"
-                      className={`w-full text-right text-xs leading-snug line-clamp-2 break-words hover:underline ${note.title?.trim() ? "" : "opacity-70"}`}
+                      className={cn(
+                        "w-full rounded-md px-2 py-1.5 text-left text-sm font-apply-target",
+                        "truncate",
+                        "bg-muted/30 hover:bg-muted/50 transition-colors",
+                        note.title?.trim() ? "text-foreground font-medium" : "text-muted-foreground italic",
+                      )}
                       onClick={(e) => {
                         e.stopPropagation()
                         startTitleEdit(note)

@@ -8,7 +8,7 @@ import { FileGrid } from "@/components/file-grid"
 import { SyncStatus } from "@/components/sync-status"
 import { useMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { FileText, Image as ImageIcon, Link2, StickyNote, Cloud, CloudOff, MoreVertical, Plus, Wand2, Loader2 } from "lucide-react"
+import { FileText, Image as ImageIcon, Link2, StickyNote, Cloud, CloudOff, MoreVertical, Plus, Sparkles, Loader2 } from "lucide-react"
 import { LinksList } from "@/components/links-list"
 import { LinkForm } from "@/components/link-form"
 import { Button } from "@/components/ui/button"
@@ -336,6 +336,20 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9"
+                disabled={isRegeneratingTitles}
+                onClick={(e) => handleOpenRegenerateDialog(e)}
+              >
+                {isRegeneratingTitles ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-5 w-5" />
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
                 disabled={status === "syncing"}
                 onClick={(e) => {
                   e.stopPropagation()
@@ -348,29 +362,9 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                   <CloudOff className="h-5 w-5" />
                 )}
               </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                disabled={isRegeneratingTitles}
-                onClick={(e) => handleOpenRegenerateDialog(e)}
-              >
-                {isRegeneratingTitles ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Wand2 className="h-5 w-5" />
-                )}
-              </Button>
             </>
           ) : (
             <>
-              <SyncStatus
-                status={status}
-                lastSyncTime={lastSync}
-                isEnabled={isSyncEnabled}
-                onToggle={toggleSync}
-              />
               <Button
                 variant="ghost"
                 size="icon"
@@ -382,9 +376,16 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
                 {isRegeneratingTitles ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
-                  <Wand2 className="h-5 w-5" />
+                  <Sparkles className="h-5 w-5" />
                 )}
               </Button>
+
+              <SyncStatus
+                status={status}
+                lastSyncTime={lastSync}
+                isEnabled={isSyncEnabled}
+                onToggle={toggleSync}
+              />
             </>
           )}
         </div>
