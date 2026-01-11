@@ -324,108 +324,106 @@ export const VirtualNotesList = memo(function VirtualNotesList({
             </div>
 
             {!isEditing && (
-              <div className="grid grid-cols-[2rem_10.5rem] items-start gap-x-1 gap-y-1">
-                <div className="flex justify-center">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-primary"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          dispatchEditNote(note)
-                        }}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>查看完整内容</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                </div>
+              <div className="flex flex-col items-end gap-1">
                 <div className="flex items-center justify-end gap-1">
-                {onMoveNoteToGroup && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-primary"
-                      >
-                        <Folder className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => {
-                          onMoveNoteToGroup(note.id, 'ungrouped')
-                        }}
-                      >
-                        移到未分组
-                      </DropdownMenuItem>
-                      {groups && groups.length > 0 && <DropdownMenuSeparator />}
-                      {groups?.map((g) => (
-                        <DropdownMenuItem
-                          key={g.id}
-                          onClick={() => {
-                            onMoveNoteToGroup(note.id, g.id)
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            dispatchEditNote(note)
                           }}
                         >
-                          {g.name}
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>查看完整内容</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  {onMoveNoteToGroup && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        >
+                          <Folder className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            onMoveNoteToGroup(note.id, "ungrouped")
+                          }}
+                        >
+                          移到未分组
                         </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-primary"
-                        onClick={() => handleCopyClick(note)}
-                      >
-                        {copiedNoteId === note.id ? (
-                          <Check className="h-4 w-4" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>复制内容</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => handleDeleteClick(note.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>删除便签</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                        {groups && groups.length > 0 && <DropdownMenuSeparator />}
+                        {groups?.map((g) => (
+                          <DropdownMenuItem
+                            key={g.id}
+                            onClick={() => {
+                              onMoveNoteToGroup(note.id, g.id)
+                            }}
+                          >
+                            {g.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          onClick={() => handleCopyClick(note)}
+                        >
+                          {copiedNoteId === note.id ? (
+                            <Check className="h-4 w-4" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>复制内容</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteClick(note.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>删除便签</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
 
-                <div className="flex justify-center items-center">
-                  <div className="w-1.5 h-12 rounded-full bg-primary/30" />
-                </div>
-
-                <div className="w-[10.5rem] max-w-[10.5rem] h-12">
+                <div className="w-[10.5rem] max-w-[10.5rem] h-12 flex items-stretch gap-1">
+                  <div className="h-full w-0 border-l border-dashed border-muted-foreground/30" />
                   {editingTitleNoteId === note.id ? (
                     <Textarea
                       ref={titleInputRef}
@@ -445,7 +443,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                       onBlur={() => void saveTitleEdit(note)}
                       placeholder="标题（留空自动生成）"
                       className={cn(
-                        "h-full min-h-0 px-2 py-1",
+                        "flex-1 min-w-0 w-auto h-full min-h-0 px-2 py-1",
                         "text-sm font-apply-target not-italic font-medium leading-tight",
                         "resize-none",
                         "rounded-md",
@@ -455,7 +453,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                     <button
                       type="button"
                       className={cn(
-                        "w-full h-full rounded-md px-2 py-1 text-left text-sm font-apply-target not-italic font-medium",
+                        "flex-1 min-w-0 w-auto h-full rounded-md px-2 py-1 text-left text-sm font-apply-target not-italic font-medium",
                         "line-clamp-2 whitespace-pre-line break-words",
                         "hover:bg-accent/50 transition-colors",
                       )}

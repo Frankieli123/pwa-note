@@ -45,7 +45,7 @@ export function AutoSaveManager({
     // 调试信息：仅在间隔发生变化时打印
     const prevIntervalRef = (window as any).__prevAutoSaveIntervalRef || { current: undefined }
     if (prevIntervalRef.current !== autoSaveIntervalSeconds) {
-      console.log("自动保存间隔设置为:", settings.syncInterval, "秒")
+      console.log("自动保存间隔设置为:", autoSaveIntervalSeconds, "秒")
       prevIntervalRef.current = autoSaveIntervalSeconds
       ;(window as any).__prevAutoSaveIntervalRef = prevIntervalRef
     }
@@ -63,13 +63,8 @@ export function AutoSaveManager({
       clearTimeout(autoSaveTimerRef.current)
     }
 
-    if (settings.syncInterval === 0) {
-      console.log("自动保存已关闭，跳过设置计时器")
-
-    }
-
     // 设置新的自动保存计时器
-    console.log(`设置新的自动保存计时器: ${settings.syncInterval}秒后执行`)
+    console.log(`设置新的自动保存计时器: ${autoSaveIntervalSeconds}秒后执行`)
     autoSaveTimerRef.current = setTimeout(async () => {
       // 检查内容是否真正为空（包括只有HTML标签的情况）
       if (!isContentEmpty(content) && content !== lastContentRef.current && user) {
