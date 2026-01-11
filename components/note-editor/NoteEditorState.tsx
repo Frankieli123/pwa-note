@@ -196,10 +196,7 @@ export function useNoteEditorState() {
 
     try {
       const trimmedContent = content.trim()
-      const preservedTitle = editingNoteId
-        ? (notes.find((n) => n.id === editingNoteId)?.title ?? "")
-        : ""
-      const result = await saveNote(editingNoteId || "new", trimmedContent, preservedTitle)
+      const result = await saveNote("new", trimmedContent)
 
       if (result) {
         clearEditor()
@@ -232,7 +229,7 @@ export function useNoteEditorState() {
     } finally {
       setIsSaving(false)
     }
-  }, [content, user, saveNote, toast, clearEditor, editingNoteId, notes])
+  }, [content, user, saveNote, toast, clearEditor])
 
   // 上传处理函数 - 修改为不插入编辑器，只上传到文件列表
   const handleUploadSuccess = useCallback((url: string, type: "image" | "file") => {
