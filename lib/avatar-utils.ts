@@ -451,7 +451,7 @@ export async function saveUserAvatarConfig(userId: string, config: AvatarConfig)
       await saveUserSettings(userId, {
         font_family: existingSettings?.font_family || 'system',
         font_size: existingSettings?.font_size || 'medium',
-        sync_interval: existingSettings?.sync_interval || 30,
+        sync_interval: existingSettings?.sync_interval ?? 30,
         avatar_style: config.style,
         avatar_seed: config.seed
       })

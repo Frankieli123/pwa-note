@@ -324,8 +324,8 @@ export const VirtualNotesList = memo(function VirtualNotesList({
             </div>
 
             {!isEditing && (
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-1">
+              <div className="grid grid-cols-[2rem_10.5rem] items-start gap-x-1 gap-y-1">
+                <div className="flex justify-center">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -346,6 +346,8 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+                </div>
+                <div className="flex items-center justify-end gap-1">
                 {onMoveNoteToGroup && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -419,7 +421,11 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                 </TooltipProvider>
                 </div>
 
-                <div className="mt-1 w-[10.5rem] max-w-[10.5rem]">
+                <div className="flex justify-center items-center">
+                  <div className="w-1.5 h-12 rounded-full bg-primary/30" />
+                </div>
+
+                <div className="w-[10.5rem] max-w-[10.5rem] h-12">
                   {editingTitleNoteId === note.id ? (
                     <Textarea
                       ref={titleInputRef}
@@ -439,20 +445,19 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                       onBlur={() => void saveTitleEdit(note)}
                       placeholder="标题（留空自动生成）"
                       className={cn(
-                        "min-h-[3rem] h-12 px-2 py-1",
+                        "h-full min-h-0 px-2 py-1",
                         "text-sm font-apply-target not-italic font-medium leading-tight",
                         "resize-none",
-                        "rounded-md border-l-[3px] border-l-primary/30",
+                        "rounded-md",
                       )}
                     />
                   ) : (
                     <button
                       type="button"
                       className={cn(
-                        "w-full rounded-r-md rounded-l-none pl-2.5 pr-2 py-1 text-left text-sm font-apply-target not-italic font-medium",
+                        "w-full h-full rounded-md px-2 py-1 text-left text-sm font-apply-target not-italic font-medium",
                         "line-clamp-2 whitespace-pre-line break-words",
                         "hover:bg-accent/50 transition-colors",
-                        "border-l-[3px] border-l-primary/20 hover:border-l-primary/60",
                       )}
                       onClick={(e) => {
                         e.stopPropagation()

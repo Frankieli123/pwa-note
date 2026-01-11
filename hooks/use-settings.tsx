@@ -11,7 +11,7 @@ export type FontFamily =
   | "ma-shan-zheng"
   | "zcool-xiaowei"
 export type FontSize = "small" | "medium" | "large" | "x-large"
-export type SyncInterval = 5 | 10 | 30 | 60 | 300 | 600
+export type SyncInterval = 0 | 5 | 10 | 30 | 60 | 300 | 600
 
 export function useSettings() {
   const context = useContext(SettingsContext)

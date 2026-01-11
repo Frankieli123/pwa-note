@@ -130,7 +130,13 @@ export const SyncContext = createContext<SyncContextType | null>(null)
 export function SyncProvider({ children }: { children: React.ReactNode }) {
   const { user } = useContext(AuthContext)
   const { settings } = useContext(SettingsContext)
-  const syncInterval = settings?.syncInterval ? settings.syncInterval * 60 * 1000 : 5 * 60 * 1000 // Convert to milliseconds
+  const rawSyncInterval = settings?.syncInterval
+  const syncInterval =
+    typeof rawSyncInterval === "number"
+      ? rawSyncInterval === 0
+        ? 0
+        : rawSyncInterval * 60 * 1000
+      : 5 * 60 * 1000 // Convert to milliseconds
   const autoSync = true // Assuming autoSync is always enabled
 
   const { toast } = useToast()
@@ -333,7 +339,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   // Set up sync timer and update checker
   useEffect(() => {
-    if (!userId || !autoSync) {
+    if (!userId || !autoSync || syncInterval === 0) {
       if (syncTimerRef.current) {
         clearInterval(syncTimerRef.current)
         syncTimerRef.current = null
@@ -341,6 +347,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       if (checkUpdatesTimerRef.current) {
         clearInterval(checkUpdatesTimerRef.current)
         checkUpdatesTimerRef.current = null
+      }
+      if (syncChannel.current) {
+        syncChannel.current.close()
+        syncChannel.current = null
       }
       return
     }
@@ -367,7 +377,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       if (navigator.onLine) {
         syncRef.current(true)
       }
-    }, syncInterval || 5 * 60 * 1000)
+    }, syncInterval)
 
     // 每2分钟检查一次更新（优化频率，减少数据库压力）
     const checkInterval = setInterval(() => {

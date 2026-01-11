@@ -108,6 +108,7 @@ export function SettingsDialog() {
 
   const syncIntervalOptions = useMemo(
     () => [
+      { value: "0", label: "从不", shortLabel: "从不" },
       { value: "5", label: "5秒", shortLabel: "5秒" },
       { value: "10", label: "10秒", shortLabel: "10秒" },
       { value: "30", label: "30秒", shortLabel: "30秒" },
@@ -147,7 +148,7 @@ export function SettingsDialog() {
 
   const handleSyncIntervalChange = useCallback(
     (value: string) => {
-      updateSettings({ syncInterval: Number.parseInt(value) as 5 | 10 | 30 | 60 | 300 | 600 })
+      updateSettings({ syncInterval: Number.parseInt(value) as 0 | 5 | 10 | 30 | 60 | 300 | 600 })
     },
     [updateSettings],
   )

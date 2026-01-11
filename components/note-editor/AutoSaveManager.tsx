@@ -40,11 +40,13 @@ export function AutoSaveManager({
   useEffect(() => {
     if (typeof window === "undefined") return
 
+    const autoSaveIntervalSeconds = settings.syncInterval === 0 ? 5 : settings.syncInterval
+
     // 调试信息：仅在间隔发生变化时打印
     const prevIntervalRef = (window as any).__prevAutoSaveIntervalRef || { current: undefined }
-    if (prevIntervalRef.current !== settings.syncInterval) {
+    if (prevIntervalRef.current !== autoSaveIntervalSeconds) {
       console.log("自动保存间隔设置为:", settings.syncInterval, "秒")
-      prevIntervalRef.current = settings.syncInterval
+      prevIntervalRef.current = autoSaveIntervalSeconds
       ;(window as any).__prevAutoSaveIntervalRef = prevIntervalRef
     }
 
@@ -59,6 +61,11 @@ export function AutoSaveManager({
     if (autoSaveTimerRef.current) {
       console.log("清除之前的自动保存计时器")
       clearTimeout(autoSaveTimerRef.current)
+    }
+
+    if (settings.syncInterval === 0) {
+      console.log("自动保存已关闭，跳过设置计时器")
+
     }
 
     // 设置新的自动保存计时器
@@ -86,7 +93,7 @@ export function AutoSaveManager({
       } else {
         console.log("内容为空、未变化或用户未登录，跳过自动保存")
       }
-    }, settings.syncInterval * 1000)
+    }, autoSaveIntervalSeconds * 1000)
 
     return () => {
       if (autoSaveTimerRef.current) {
