@@ -4,9 +4,8 @@ import React, { useState, useRef, useCallback, useMemo, memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Copy, Check, Trash2, Edit3, Save, X, Folder, Eye, Type } from 'lucide-react'
+import { Copy, Check, Trash2, Edit3, Save, X, Folder, Eye } from 'lucide-react'
 import { useTime } from '@/hooks/use-time'
 import { useToast } from '@/hooks/use-toast'
 import { htmlToText, isActualHtml } from '@/components/note-editor/NoteEditorState'
@@ -76,7 +75,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
   const [editingTitle, setEditingTitle] = useState("")
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const titleInputRef = useRef<HTMLInputElement>(null)
+  const titleInputRef = useRef<HTMLTextAreaElement>(null)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   // 处理双击编辑
@@ -422,13 +421,14 @@ export const VirtualNotesList = memo(function VirtualNotesList({
 
                 <div className="mt-1 w-[10.5rem] max-w-[10.5rem]">
                   {editingTitleNoteId === note.id ? (
-                    <Input
+                    <Textarea
                       ref={titleInputRef}
                       value={editingTitle}
+                      rows={2}
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) => setEditingTitle(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") {
+                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                           e.preventDefault()
                           void saveTitleEdit(note)
                         } else if (e.key === "Escape") {
@@ -438,16 +438,21 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                       }}
                       onBlur={() => void saveTitleEdit(note)}
                       placeholder="标题（留空自动生成）"
-                      className="h-8 px-2 text-base not-italic font-sans font-medium"
+                      className={cn(
+                        "min-h-[3rem] h-12 px-2 py-1",
+                        "text-sm font-apply-target not-italic font-medium leading-tight",
+                        "resize-none",
+                        "rounded-md border-l-[3px] border-l-primary/30",
+                      )}
                     />
                   ) : (
                     <button
                       type="button"
                       className={cn(
-                        "w-full rounded-md px-2 py-1.5 text-left text-base not-italic font-sans",
-                        "truncate",
-                        "bg-muted/30 hover:bg-muted/50 transition-colors",
-                        "text-foreground font-medium",
+                        "w-full rounded-r-md rounded-l-none pl-2.5 pr-2 py-1 text-left text-sm font-apply-target not-italic font-medium",
+                        "line-clamp-2 whitespace-pre-line break-words",
+                        "hover:bg-accent/50 transition-colors",
+                        "border-l-[3px] border-l-primary/20 hover:border-l-primary/60",
                       )}
                       onClick={(e) => {
                         e.stopPropagation()
