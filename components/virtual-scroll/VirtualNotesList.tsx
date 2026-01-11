@@ -438,16 +438,16 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                       }}
                       onBlur={() => void saveTitleEdit(note)}
                       placeholder="标题（留空自动生成）"
-                      className="h-8 px-2 text-sm font-apply-target"
+                      className="h-8 px-2 text-base not-italic font-sans font-medium"
                     />
                   ) : (
                     <button
                       type="button"
                       className={cn(
-                        "w-full rounded-md px-2 py-1.5 text-left text-sm font-apply-target",
+                        "w-full rounded-md px-2 py-1.5 text-left text-base not-italic font-sans",
                         "truncate",
                         "bg-muted/30 hover:bg-muted/50 transition-colors",
-                        note.title?.trim() ? "text-foreground font-medium" : "text-muted-foreground italic",
+                        "text-foreground font-medium",
                       )}
                       onClick={(e) => {
                         e.stopPropagation()

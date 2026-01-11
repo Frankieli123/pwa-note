@@ -742,6 +742,20 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         
         // 再次广播更新（现在有了真实ID）
         broadcastUpdate();
+      } else {
+        // 现有笔记：用服务器返回的最新数据回填（包含AI生成/清洗后的标题）
+        setNotes((prev) => {
+          const existingIndex = prev.findIndex((n) => n.id === clientNote.id)
+          if (existingIndex !== -1) {
+            return [
+              ...prev.slice(0, existingIndex),
+              clientNote,
+              ...prev.slice(existingIndex + 1),
+            ]
+          }
+          return [clientNote, ...prev]
+        })
+        broadcastUpdate()
       }
       
       return clientNote;
