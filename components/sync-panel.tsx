@@ -136,6 +136,13 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
   const handleRegenerateAllTitles = async () => {
     if (!user || isRegeneratingTitles) return
 
+    setIsRegenerateDialogOpen(false)
+    toast({
+      title: "正在生成",
+      description: "已在后台生成标题，可继续使用",
+      duration: 1500,
+    })
+
     setIsRegeneratingTitles(true)
     try {
       const result = await regenerateAllTitles()
@@ -153,7 +160,6 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
         description: `已重新生成 ${result.updated} 条标题`,
         duration: 2500,
       })
-      setIsRegenerateDialogOpen(false)
     } catch {
       toast({
         title: "生成失败",
@@ -393,10 +399,7 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
 
       <AlertDialog
         open={isRegenerateDialogOpen}
-        onOpenChange={(open) => {
-          if (!open && isRegeneratingTitles) return
-          setIsRegenerateDialogOpen(open)
-        }}
+        onOpenChange={setIsRegenerateDialogOpen}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -406,15 +409,14 @@ export function SyncPanel({ onExpandChange }: SyncPanelProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isRegeneratingTitles}>取消</AlertDialogCancel>
+            <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
-              disabled={isRegeneratingTitles}
               onClick={(e) => {
                 e.preventDefault()
                 void handleRegenerateAllTitles()
               }}
             >
-              {isRegeneratingTitles ? "生成中..." : "确认生成"}
+              确认生成
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

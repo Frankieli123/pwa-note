@@ -514,7 +514,7 @@ export async function regenerateAllNoteTitles(
   for (let start = 0; start < results.length; start += chunkSize) {
     const chunk = results.slice(start, start + chunkSize)
     const valuesSql = chunk
-      .map((_, i) => `($${2 + i * 2}, $${3 + i * 2})`)
+      .map((_, i) => `($${2 + i * 2}::int, $${3 + i * 2})`)
       .join(", ")
 
     const params: any[] = [userId]
