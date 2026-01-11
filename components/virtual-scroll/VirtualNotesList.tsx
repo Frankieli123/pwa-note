@@ -422,7 +422,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                   </TooltipProvider>
                 </div>
 
-                <div className="w-[10.5rem] max-w-[10.5rem] h-12 flex items-stretch gap-1">
+                <div className="w-[10.5rem] max-w-[10.5rem] h-12 flex items-stretch gap-0.5 pl-7">
                   <div className="h-full w-0 border-l border-dashed border-muted-foreground/30" />
                   {editingTitleNoteId === note.id ? (
                     <Textarea
