@@ -9,6 +9,7 @@ import { AuthContext } from "./auth-provider"
 import { useRouter } from 'next/navigation'
 import { usePathname } from 'next/navigation'
 import { SettingsContext } from './settings-provider'
+import { validateFileSize } from "@/lib/file-validation"
 
 import {
   getNotes as getNotesAction,
@@ -1014,6 +1015,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const resolveUploadMimeType = (file: globalThis.File): string => {
+    const mimeType = (file.type || "").trim()
+    return mimeType || "application/octet-stream"
+  }
+
+  const isBlockedUploadMimeType = (file: globalThis.File, mimeType: string): boolean => {
+    if (mimeType.toLowerCase() === "image/svg+xml") return true
+    return file.name.toLowerCase().endsWith(".svg")
+  }
+
   // Upload a file (直接上传到 MinIO)
   const uploadFile = async (
     file: globalThis.File,
@@ -1022,17 +1033,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (!user) return null
 
     try {
-      // 导入MinIO工具函数
-      const {
-        validateFileSize,
-        isFileTypeSupported
-      } = await import('@/lib/minio-utils')
-
-      // 验证文件类型和大小
-      if (!isFileTypeSupported(file.type)) {
-        throw new Error(`不支持的文件类型: ${file.type}`)
+      const uploadMimeType = resolveUploadMimeType(file)
+      if (isBlockedUploadMimeType(file, uploadMimeType)) {
+        throw new Error(`不支持的文件类型: ${uploadMimeType}`)
       }
 
+      // 验证文件类型和大小
       const sizeValidation = validateFileSize(file)
       if (!sizeValidation.valid) {
         throw new Error(sizeValidation.error || '文件大小验证失败')
@@ -1053,7 +1059,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             },
             body: JSON.stringify({
               fileName: file.name,
-              fileType: file.type,
+              fileType: uploadMimeType,
               fileSize: file.size,
               userId: user.id
             })
@@ -1222,7 +1228,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             })
             
             xhr.open('PUT', presignedData.data.uploadUrl)
-            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+            xhr.setRequestHeader('Content-Type', uploadMimeType)
             xhr.timeout = 300000
           xhr.send(file)
           })
@@ -1234,7 +1240,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       // 第三步：处理缩略图（如果是图片）
       let thumbnailUrl: string | null = null
-      if (file.type.startsWith('image/')) {
+      if (uploadMimeType.startsWith('image/') && uploadMimeType.toLowerCase() !== 'image/svg+xml') {
         try {
           console.log('📸 生成缩略图...')
           const tempUrl = URL.createObjectURL(file)
@@ -1315,7 +1321,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             body: JSON.stringify({
               objectKey: presignedData.data.objectKey,
               fileName: file.name,
-              fileType: file.type,
+              fileType: uploadMimeType,
               fileSize: file.size,
               userId: user.id,
               fileUrl: presignedData.data.fileUrl,
