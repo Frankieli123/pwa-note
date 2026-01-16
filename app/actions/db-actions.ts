@@ -384,7 +384,7 @@ async function generateAiTitle(content: string): Promise<string | null> {
 
 async function generateNoteTitle(content: string): Promise<string> {
   const aiTitle = await generateAiTitle(content)
-  return (aiTitle && aiTitle.trim()) ? aiTitle.trim() : deriveTitleFromContent(content)
+  return (aiTitle && aiTitle.trim()) ? aiTitle.trim() : ""
 }
 
 export async function createNote(
@@ -443,21 +443,36 @@ export async function updateNote(
   content = content || "";
   console.log("服务器操作: updateNote", { id, userId, contentLength: content.length, clientTime })
   try {
-    const titleToSave = title?.trim() ? title.trim() : await generateNoteTitle(content)
     let result;
-    
+
+    const titleToSave = typeof title === "string" ? title.trim() : undefined
+
     // 如果提供了客户端时间，使用它作为更新时间
     if (clientTime) {
-      result = await query(
-        "UPDATE notes SET content = $1, title = $2, updated_at = $5 WHERE id = $3 AND user_id = $4 RETURNING *",
-        [content, titleToSave, id, userId, new Date(clientTime)],
-      );
+      if (titleToSave === undefined) {
+        result = await query(
+          "UPDATE notes SET content = $1, updated_at = $4 WHERE id = $2 AND user_id = $3 RETURNING *",
+          [content, id, userId, new Date(clientTime)],
+        );
+      } else {
+        result = await query(
+          "UPDATE notes SET content = $1, title = $2, updated_at = $5 WHERE id = $3 AND user_id = $4 RETURNING *",
+          [content, titleToSave, id, userId, new Date(clientTime)],
+        );
+      }
     } else {
       // 没有提供客户端时间时使用默认的NOW()
-      result = await query(
-        "UPDATE notes SET content = $1, title = $2, updated_at = NOW() WHERE id = $3 AND user_id = $4 RETURNING *",
-        [content, titleToSave, id, userId],
-      );
+      if (titleToSave === undefined) {
+        result = await query(
+          "UPDATE notes SET content = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *",
+          [content, id, userId],
+        );
+      } else {
+        result = await query(
+          "UPDATE notes SET content = $1, title = $2, updated_at = NOW() WHERE id = $3 AND user_id = $4 RETURNING *",
+          [content, titleToSave, id, userId],
+        );
+      }
     }
     
     const row = result.rows[0];
@@ -502,8 +517,8 @@ export async function regenerateAllNoteTitles(
         if (index >= rows.length) return
 
         const row = rows[index]
-        const title = await generateNoteTitle(row.content)
-        results[index] = { id: row.id, title: title.trim() }
+        const title = (await generateNoteTitle(row.content)).trim()
+        results[index] = { id: row.id, title }
       }
     }),
   )
@@ -512,7 +527,10 @@ export async function regenerateAllNoteTitles(
   const chunkSize = 50
 
   for (let start = 0; start < results.length; start += chunkSize) {
-    const chunk = results.slice(start, start + chunkSize)
+    const chunk = results
+      .slice(start, start + chunkSize)
+      .filter((item) => item?.title?.trim())
+    if (chunk.length === 0) continue
     const valuesSql = chunk
       .map((_, i) => `($${2 + i * 2}::int, $${3 + i * 2})`)
       .join(", ")

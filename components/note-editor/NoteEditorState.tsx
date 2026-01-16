@@ -68,6 +68,7 @@ export function useNoteEditorState() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [lastAutoSaveTime, setLastAutoSaveTime] = useState<Date | null>(null)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const isSubmittingRef = useRef(false)
   
   // 上传相关状态
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
@@ -128,13 +129,16 @@ export function useNoteEditorState() {
           if (hasUnsaved) {
             const currentUser = userRef.current
             if (currentUser) {
-              const saved = await saveNote("new", currentText)
-              if (saved) {
-                toast({ title: "已自动保存为新便签", duration: 1500 })
-                localStorage.removeItem("noteDraft")
-              } else {
-                localStorage.setItem("noteDraft", currentText)
-              }
+              const toSave = currentText
+              void (async () => {
+                const saved = await saveNote("new", toSave)
+                if (saved) {
+                  toast({ title: "已自动保存为新便签", duration: 1500 })
+                  localStorage.removeItem("noteDraft")
+                } else {
+                  localStorage.setItem("noteDraft", toSave)
+                }
+              })()
             } else {
               toast({ title: "未登录，已保留草稿", variant: "destructive", duration: 1500 })
               localStorage.setItem("noteDraft", currentText)
@@ -173,6 +177,8 @@ export function useNoteEditorState() {
 
   // 手动保存便签
   const handleSaveNote = useCallback(async () => {
+    if (isSubmittingRef.current) return
+
     if (isContentEmpty(content)) {
       toast({
         title: "无法保存空笔记",
@@ -196,26 +202,50 @@ export function useNoteEditorState() {
 
     try {
       const trimmedContent = content.trim()
-      const result = await saveNote("new", trimmedContent)
+      isSubmittingRef.current = true
+      localStorage.setItem("noteDraft", trimmedContent)
 
-      if (result) {
-        clearEditor()
-        
-        toast({
-          title: "保存成功",
-          description: "便签已保存",
-        })
-      } else {
-        const errorMsg = "保存便签时发生未知错误"
-        setSaveError(errorMsg)
-        setIsErrorDialogOpen(true)
+      const savePromise = saveNote("new", trimmedContent)
 
-        toast({
-          title: "保存失败",
-          description: "无法保存便签",
-          variant: "destructive",
-        })
-      }
+      setContent("")
+      setEditingNoteId(null)
+      lastContentRef.current = ""
+
+      setTimeout(() => setIsSaving(false), 250)
+
+      void (async () => {
+        try {
+          const result = await savePromise
+          if (result) {
+            localStorage.removeItem("noteDraft")
+            toast({ title: "保存成功", description: "便签已添加到列表" })
+            return
+          }
+
+          setSaveError("保存便签时发生未知错误")
+          setIsErrorDialogOpen(true)
+          toast({ title: "保存失败", description: "无法保存便签", variant: "destructive" })
+
+          if (!contentRef.current.trim()) {
+            setContent(trimmedContent)
+            lastContentRef.current = trimmedContent
+          }
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : "保存便签时发生未知错误"
+          setSaveError(errorMsg)
+          setIsErrorDialogOpen(true)
+          toast({ title: "保存失败", description: errorMsg, variant: "destructive" })
+
+          if (!contentRef.current.trim()) {
+            setContent(trimmedContent)
+            lastContentRef.current = trimmedContent
+          }
+        } finally {
+          isSubmittingRef.current = false
+        }
+      })()
+
+      return
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "保存便签时发生未知错误"
       setSaveError(errorMsg)
@@ -227,9 +257,9 @@ export function useNoteEditorState() {
         variant: "destructive",
       })
     } finally {
-      setIsSaving(false)
+      if (!isSubmittingRef.current) setIsSaving(false)
     }
-  }, [content, user, saveNote, toast, clearEditor])
+  }, [content, user, saveNote, toast])
 
   // 上传处理函数 - 修改为不插入编辑器，只上传到文件列表
   const handleUploadSuccess = useCallback((url: string, type: "image" | "file") => {

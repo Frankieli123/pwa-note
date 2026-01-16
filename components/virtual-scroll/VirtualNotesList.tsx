@@ -152,15 +152,6 @@ export const VirtualNotesList = memo(function VirtualNotesList({
     setEditingContent("")
   }, [])
 
-  const getAutoTitle = useCallback((note: Note) => {
-    const textContent = isActualHtml(note.content) ? htmlToText(note.content) : note.content
-    const firstLine = textContent
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find((line) => line.length > 0)
-    return firstLine || textContent.trim() || "未命名"
-  }, [])
-
   const startTitleEdit = useCallback((note: Note) => {
     setEditingTitleNoteId(note.id)
     setEditingTitle(note.title ?? "")
@@ -441,7 +432,7 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                         }
                       }}
                       onBlur={() => void saveTitleEdit(note)}
-                      placeholder="标题（留空自动生成）"
+                      placeholder="标题（可选）"
                       className={cn(
                         "flex-1 min-w-0 w-auto h-full min-h-0 px-2 py-1",
                         "text-sm font-apply-target not-italic font-medium leading-tight",
@@ -461,9 +452,9 @@ export const VirtualNotesList = memo(function VirtualNotesList({
                         e.stopPropagation()
                         startTitleEdit(note)
                       }}
-                      title={note.title?.trim() ? note.title : getAutoTitle(note)}
+                      title={note.title?.trim() ? note.title : ""}
                     >
-                      {note.title?.trim() ? note.title : getAutoTitle(note)}
+                      {note.title?.trim() ? note.title : ""}
                     </button>
                   )}
                 </div>
@@ -483,7 +474,6 @@ export const VirtualNotesList = memo(function VirtualNotesList({
     handleDoubleClick,
     handleSaveEdit,
     handleCancelEdit,
-    getAutoTitle,
     startTitleEdit,
     cancelTitleEdit,
     saveTitleEdit,

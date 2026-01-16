@@ -210,14 +210,6 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   // 从SyncContext获取便签操作函数（保持现有功能）
   const { saveNote, deleteNote } = syncContext || {}
 
-  // 添加调试信息
-  console.log('🔍 搜索状态:', {
-    searchQuery,
-    isSearching,
-    serverResults,
-    searchResults
-  })
-
   // 处理便签点击
   const handleNoteClick = (note: any) => {
     // TODO: 实现跳转到便签的逻辑
@@ -298,24 +290,20 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
         value={searchQuery}
         onValueChange={setSearchQuery}
       />
-      <CommandList>
+      <CommandList className="relative h-[300px] max-h-[300px]">
         {isSearching && (
-          <div className="flex items-center justify-center py-6">
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/70">
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
             <span className="text-sm text-muted-foreground">搜索中...</span>
           </div>
         )}
 
-
-
-        {!isSearching && searchQuery.trim() && (
+        {searchQuery.trim() && (
           <>
             {/* 便签结果 */}
             {searchResults.notes.length > 0 && (
               <CommandGroup heading="便签">
                 {searchResults.notes.map((note, index) => {
-                  console.log(`📝 渲染便签 ${index + 1}:`, note)
-
                   // 包装操作函数以在操作后刷新搜索结果
                   const handleSaveNote = async (id: string, content: string, title?: string) => {
                     if (!saveNote) {
@@ -346,7 +334,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
                   return (
                     <CommandItem
                       key={`note-${note.id}`}
-                      value={`${note.title || '无标题'} ${note.content || ''} ${note.id}`}
+                      value={`${note.title ?? ''} ${note.content || ''} ${note.id}`}
                       onSelect={() => {}} // 禁用默认选择行为
                       className="p-0 h-auto cursor-pointer"
                     >
