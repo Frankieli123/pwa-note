@@ -126,9 +126,30 @@ export default function RootLayout({
                     .then(function(registration) {
                       console.log('SW registered: ', registration);
 
-                      // 检查是否有更新
-                      registration.addEventListener('updatefound', () => {
-                        console.log('SW 更新可用');
+                      // 自动接管新版本，避免缓存导致的版本不一致（如 Server Action ID 不匹配）
+                      var refreshing = false;
+                      navigator.serviceWorker.addEventListener('controllerchange', function () {
+                        if (refreshing) return;
+                        refreshing = true;
+                        window.location.reload();
+                      });
+
+                      var activateWaitingWorker = function () {
+                        if (registration.waiting) {
+                          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                      };
+
+                      activateWaitingWorker();
+
+                      registration.addEventListener('updatefound', function () {
+                        var newWorker = registration.installing;
+                        if (!newWorker) return;
+                        newWorker.addEventListener('statechange', function () {
+                          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            activateWaitingWorker();
+                          }
+                        });
                       });
                     })
                     .catch(function(registrationError) {

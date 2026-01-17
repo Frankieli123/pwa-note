@@ -1,73 +1,78 @@
 // Service Worker for PWA
-// 版本号将在构建时被替换
-const APP_VERSION = 'sw-fix-' + Date.now();
-const CACHE_NAME = `quick-notes-${APP_VERSION}`;
-const urlsToCache = [
-  '/',
-  '/favicon.png',
-  '/icons/icon-144x144.png',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
-  '/manifest.json'
-];
+// 版本号会在构建时被 scripts/build-version.js 替换为真实版本
+const APP_VERSION = '2916d955'
+const CACHE_PREFIX = 'quick-notes-'
+const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`
 
-// Install event
+const scope = new URL(self.registration.scope)
+const scopePath = scope.pathname.replace(/\/$/, '')
+const withScope = (path) => `${scopePath}${path}`
+
+const urlsToCache = [
+  withScope('/'),
+  withScope('/favicon.png'),
+  withScope('/icons/icon-144x144.png'),
+  withScope('/icons/icon-192x192.png'),
+  withScope('/icons/icon-512x512.png'),
+  withScope('/manifest.json'),
+  withScope('/version.json'),
+]
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll(urlsToCache);
-      })
-  );
-});
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache)).then(() => self.skipWaiting()),
+  )
+})
 
-// Fetch event
-self.addEventListener('fetch', (event) => {
-  // 跳过对外部API的拦截（MinIO、头像API等）
-  const url = new URL(event.request.url);
-  const isExternalAPI = 
-    url.hostname.includes('minio') ||
-    url.hostname.includes('dicebear.com') ||
-    url.hostname !== self.location.hostname;
-  
-  // 跳过非GET请求的拦截（POST、PUT、DELETE等）
-  const isNonGetRequest = event.request.method !== 'GET';
-  
-  if (isExternalAPI || isNonGetRequest) {
-    // 直接发送请求，不经过缓存
-    return;
-  }
-  
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Return cached version or fetch from network
-        return response || fetch(event.request);
-      }
-    )
-  );
-});
-
-// Activate event
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
+    caches.keys().then((cacheNames) => (
+      Promise.all(
         cacheNames.map((cacheName) => {
-          // 删除所有旧版本的缓存
-          if (cacheName !== CACHE_NAME && cacheName.startsWith('quick-notes-')) {
-            console.log('删除旧缓存:', cacheName);
-            return caches.delete(cacheName);
+          if (cacheName !== CACHE_NAME && cacheName.startsWith(CACHE_PREFIX)) {
+            return caches.delete(cacheName)
           }
-        })
-      );
-    })
-  );
-});
+          return undefined
+        }),
+      )
+    )).then(() => self.clients.claim()),
+  )
+})
 
-// 监听来自主线程的消息
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
+self.addEventListener('fetch', (event) => {
+  const { request } = event
+  const url = new URL(request.url)
+
+  const isExternalRequest = url.origin !== self.location.origin
+  if (isExternalRequest || request.method !== 'GET') return
+
+  if (url.pathname.startsWith(withScope('/api/'))) return
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone()
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {})
+          return response
+        })
+        .catch(async () => {
+          const cached = await caches.match(request)
+          if (cached) return cached
+          const fallback = await caches.match(withScope('/'))
+          return fallback || Response.error()
+        }),
+    )
+    return
   }
-});
+
+  event.respondWith(
+    caches.match(request).then((response) => response || fetch(request)),
+  )
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
+})

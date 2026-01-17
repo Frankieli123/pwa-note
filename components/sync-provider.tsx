@@ -259,6 +259,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const lastBroadcastRef = useRef<number | null>(null)
   const lastContentUpdateRef = useRef<Date | null>(null)
   const syncOptimizedRef = useRef<(silent?: boolean) => Promise<void>>(async () => {})
+  const didTriggerHardReloadRef = useRef(false)
   const syncRef = useRef<(silent?: boolean) => Promise<void>>(async () => {})
   const checkForUpdatesRef = useRef<() => Promise<void>>(async () => {})
   const userId = user?.id
@@ -772,6 +773,21 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       return clientNote;
     } catch (error) {
       console.error("Failed to save note", error);
+
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      if (
+        !didTriggerHardReloadRef.current &&
+        errorMessage.includes("Failed to find Server Action")
+      ) {
+        didTriggerHardReloadRef.current = true
+        toast({
+          variant: "destructive",
+          title: "版本不一致",
+          description: "检测到缓存版本不一致，正在刷新页面...",
+          duration: 2000,
+        })
+        setTimeout(() => window.location.reload(), 600)
+      }
       
       // 便签保存失败，不再支持离线重试
       
