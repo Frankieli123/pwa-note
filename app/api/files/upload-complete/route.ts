@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Client } from 'minio'
 import { sql } from '@/lib/db'
 import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
@@ -29,23 +30,61 @@ const MINIO_CONFIG = {
   region: process.env.MINIO_REGION || 'us-east-1'
 }
 
+function parseEndpoint(endpoint: string): { host: string; port: number; useSSL: boolean } {
+  try {
+    const url = new URL(endpoint)
+    const useSSL = url.protocol === 'https:'
+    const defaultPort = useSSL ? 443 : 9000
+    const port = url.port ? parseInt(url.port, 10) : defaultPort
+    return { host: url.hostname, port, useSSL }
+  } catch {
+    throw new Error(`MINIO_ENDPOINT 配置无效: "${endpoint}"。请确保是绝对URL (如 http://localhost:9000)`)
+  }
+}
+
+function getMinioClient(): Client {
+  const { host, port, useSSL } = parseEndpoint(MINIO_CONFIG.endpoint)
+  return new Client({
+    endPoint: host,
+    port,
+    useSSL,
+    accessKey: MINIO_CONFIG.accessKey,
+    secretKey: MINIO_CONFIG.secretKey,
+    region: MINIO_CONFIG.region,
+  })
+}
+
+function isMinioNotFoundError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const err = error as { code?: unknown; name?: unknown; message?: unknown }
+  const code = typeof err.code === 'string' ? err.code : typeof err.name === 'string' ? err.name : ''
+  if (code === 'NotFound' || code === 'NoSuchKey' || code === 'NoSuchBucket') return true
+  const message = typeof err.message === 'string' ? err.message : ''
+  return /not[\s-]?found|nosuchkey/i.test(message)
+}
+
 /**
  * 验证文件是否确实存在于 MinIO
  */
 async function verifyFileExists(objectKey: string): Promise<boolean> {
-  try {
-    const url = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}/${objectKey}`
-    
-    // 发送 HEAD 请求检查文件是否存在
-    const response = await fetch(url, {
-      method: 'HEAD'
-    })
+  const client = getMinioClient()
+  const backoffMs = [0, 200, 500, 1000, 2000]
+  let lastError: unknown
 
-    return response.ok
-  } catch (error) {
-    console.error('验证文件存在性失败:', error)
-    return false
+  for (const delayMs of backoffMs) {
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs))
+
+    try {
+      await client.statObject(MINIO_CONFIG.bucketName, objectKey)
+      return true
+    } catch (error) {
+      if (isMinioNotFoundError(error)) return false
+      lastError = error
+    }
   }
+
+  console.error('验证文件存在性失败（非 NotFound）:', lastError)
+  throw lastError
 }
 
 export async function POST(request: NextRequest) {
