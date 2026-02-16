@@ -449,13 +449,17 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
           </DialogTitle>
           {previewImage && (
             <div className="relative w-full h-full">
-              <Image
-                src={previewImage.url}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={(() => {
+                  const file = files.find(f => f.url === previewImage.url)
+                  if (file && user) {
+                    return apiUrl(`/api/files/download?id=${file.id}&userId=${user.id}&format=download`)
+                  }
+                  return previewImage.url
+                })()}
                 alt={previewImage.name}
-                width={800}
-                height={600}
                 className="w-full h-auto max-h-[85vh] object-contain"
-                priority
               />
               <div className="absolute bottom-0 left-0 right-0 bg-background/80 backdrop-blur-sm p-2 sm:p-4">
                 <p className="text-xs sm:text-sm font-medium truncate">{previewImage.name}</p>
