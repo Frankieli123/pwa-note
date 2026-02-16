@@ -1,68 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getFiles } from '@/app/actions/db-actions'
+import { getFileWithMinio } from '@/app/actions/db-actions'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 import { downloadFileFromMinio } from '@/lib/minio-utils'
 
 /**
- * 生成MinIO签名URL用于安全下载
+ * 以应用自身的 API 代理方式提供文件访问。
+ * - 避免前端直接请求私有 MinIO URL 导致 403
+ * - 支持 inline 预览 / attachment 下载
+ * - 支持 thumbnail 变体（如果存在）
  */
-function generateSignedUrl(filePath: string, expiresIn: number = 3600): string {
-  const MINIO_CONFIG = {
-    endpoint: process.env.MINIO_ENDPOINT || 'https://minio-pwa.vryo.de',
-    accessKey: process.env.MINIO_ACCESS_KEY || 'a3180623',
-    secretKey: process.env.MINIO_SECRET_KEY || 'a3865373',
-    bucketName: process.env.MINIO_BUCKET_NAME || 'pwa-note-files',
-    region: process.env.MINIO_REGION || 'us-east-1'
-  }
+type FileRecord = Awaited<ReturnType<typeof getFileWithMinio>>
 
-  // 从完整URL中提取文件路径
-  const url = new URL(filePath)
-  const objectKey = url.pathname.substring(`/${MINIO_CONFIG.bucketName}/`.length)
+async function serveFromMinio(params: {
+  file: NonNullable<FileRecord>
+  requestUserId: string
+  variant: 'original' | 'thumbnail'
+  disposition: 'inline' | 'attachment'
+}) {
+  const { file, requestUserId, variant, disposition } = params
 
-  // 生成预签名URL的参数
-  const now = new Date()
-  const expires = new Date(now.getTime() + expiresIn * 1000)
-  const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, '')
-  const timeStamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '') + 'Z'
-
-  // 构建签名URL（简化版本）
-  const signedUrl = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}/${objectKey}?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${MINIO_CONFIG.accessKey}%2F${dateStamp}%2F${MINIO_CONFIG.region}%2Fs3%2Faws4_request&X-Amz-Date=${timeStamp}&X-Amz-Expires=${expiresIn}&X-Amz-SignedHeaders=host`
-
-  return signedUrl
-}
-
-/**
- * 处理强制下载文件 - 使用正确的MinIO认证
- */
-async function handleDownload(file: { minio_url: string; type: string; name: string; user_id: string }, requestUserId: string) {
-  try {
-    // 验证用户权限：只能下载自己的文件
-    if (file.user_id !== requestUserId) {
-      throw new Error('无权限访问此文件')
-    }
-
-    // 使用正确的MinIO下载方法
-    const fileBuffer = await downloadFileFromMinio(file.minio_url)
-
-    // 设置下载响应头
-    const headers = new Headers()
-    headers.set('Content-Type', file.type || 'application/octet-stream')
-    headers.set('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`)
-    headers.set('Content-Length', fileBuffer.byteLength.toString())
-
-    return new NextResponse(fileBuffer, {
-      status: 200,
-      headers
-    })
-  } catch (error) {
-    console.error('Download error:', error)
+  if (file.user_id !== requestUserId) {
     return NextResponse.json(
-      {
-        error: 'Download failed',
-        message: error instanceof Error ? error.message : '文件下载失败，请稍后再试'
-      },
-      { status: 500 }
+      { error: 'Access denied', message: '无权限访问此文件' },
+      { status: 403 }
     )
   }
+
+  const useThumbnail = variant === 'thumbnail' && !!file.thumbnail_url
+  const sourceUrl = useThumbnail ? file.thumbnail_url! : file.minio_url
+  const contentType = useThumbnail ? 'image/jpeg' : (file.type || 'application/octet-stream')
+
+  const fileBuffer = await downloadFileFromMinio(sourceUrl)
+
+  const headers = new Headers()
+  headers.set('Content-Type', contentType)
+  headers.set('Content-Disposition', `${disposition}; filename="${encodeURIComponent(file.name)}"`)
+  headers.set('Content-Length', fileBuffer.byteLength.toString())
+  headers.set('Cache-Control', 'private, max-age=3600')
+
+  return new NextResponse(fileBuffer, { status: 200, headers })
 }
 
 /**
@@ -82,6 +58,7 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId')
     const format = searchParams.get('format') || 'redirect'
     const forceDownload = searchParams.get('download') === 'true'
+    const variant = (searchParams.get('variant') || 'original') as 'original' | 'thumbnail'
 
     // 验证必需参数
     if (!fileId || !userId) {
@@ -94,8 +71,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // 认证验证（cookie + userId 匹配）
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
+    }
+
     // 验证格式参数
-    const validFormats = ['redirect', 'download', 'json']
+    const validFormats = ['redirect', 'download', 'inline', 'json']
     if (!validFormats.includes(format)) {
       return NextResponse.json(
         {
@@ -106,9 +89,30 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // 验证 variant 参数
+    if (variant !== 'original' && variant !== 'thumbnail') {
+      return NextResponse.json(
+        {
+          error: 'Invalid variant',
+          message: '无效的 variant 参数，支持：original, thumbnail'
+        },
+        { status: 400 }
+      )
+    }
+
     // 获取文件信息
-    const files = await getFiles(userId)
-    const file = files.find(f => f.id === parseInt(fileId))
+    const numericFileId = parseInt(fileId, 10)
+    if (Number.isNaN(numericFileId)) {
+      return NextResponse.json(
+        {
+          error: 'Invalid file ID',
+          message: '无效的文件ID'
+        },
+        { status: 400 }
+      )
+    }
+
+    const file = await getFileWithMinio(numericFileId, userId)
 
     if (!file) {
       return NextResponse.json(
@@ -117,17 +121,6 @@ export async function GET(request: NextRequest) {
           message: '文件不存在或无权限访问'
         },
         { status: 404 }
-      )
-    }
-
-    // 验证文件所有权：确保用户只能访问自己的文件
-    if (file.user_id !== userId) {
-      return NextResponse.json(
-        {
-          error: 'Access denied',
-          message: '无权限访问此文件'
-        },
-        { status: 403 }
       )
     }
 
@@ -144,18 +137,30 @@ export async function GET(request: NextRequest) {
     // 根据格式返回不同的响应
     switch (format) {
       case 'redirect':
-        // 对于redirect，我们也需要验证权限，不能直接重定向到MinIO URL
-        if (forceDownload) {
-          // 如果要求强制下载，使用download格式
-          return await handleDownload(file, userId)
+        // 避免暴露 MinIO URL：redirect 到自身 inline/download
+        {
+          const redirectUrl = new URL(request.url)
+          redirectUrl.searchParams.set('format', forceDownload ? 'download' : 'inline')
+          return NextResponse.redirect(redirectUrl, 302)
         }
-        // 生成临时签名URL进行重定向（1小时有效期）
-        const signedUrl = generateSignedUrl(file.minio_url, 3600)
-        return NextResponse.redirect(signedUrl, 302)
 
       case 'download':
         // 强制下载文件
-        return await handleDownload(file, userId)
+        return await serveFromMinio({
+          file,
+          requestUserId: userId,
+          variant,
+          disposition: 'attachment'
+        })
+
+      case 'inline':
+        // 浏览器预览（用于图片缩略图等）
+        return await serveFromMinio({
+          file,
+          requestUserId: userId,
+          variant,
+          disposition: 'inline'
+        })
 
       case 'json':
         // 返回完整的文件信息JSON
@@ -215,9 +220,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 认证验证（cookie + userId 匹配）
+    const authResult = await verifyApiAuth(typeof userId === 'string' ? userId : null)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
+    }
+
     // 获取文件信息
-    const files = await getFiles(userId)
-    const file = files.find(f => f.id === parseInt(fileId))
+    const numericFileId = typeof fileId === 'string' ? parseInt(fileId, 10) : Number(fileId)
+    if (!Number.isFinite(numericFileId)) {
+      return NextResponse.json(
+        { error: 'Invalid file ID', message: '无效的文件ID' },
+        { status: 400 }
+      )
+    }
+
+    const file = await getFileWithMinio(numericFileId, userId)
 
     if (!file) {
       return NextResponse.json(

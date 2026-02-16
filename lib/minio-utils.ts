@@ -346,7 +346,8 @@ export async function downloadFileFromMinio(fileUrl: string): Promise<ArrayBuffe
     const url = new URL(fileUrl)
     const objectKey = url.pathname.substring(`/${MINIO_CONFIG.bucketName}/`.length)
 
-    console.log(`📥 下载 MinIO 文件: ${objectKey}`)
+    const debug = process.env.MINIO_DEBUG === 'true'
+    if (debug) console.log(`📥 下载 MinIO 文件: ${objectKey}`)
 
     const downloadUrl = `${MINIO_CONFIG.endpoint}/${MINIO_CONFIG.bucketName}/${objectKey}`
     const path = `/${MINIO_CONFIG.bucketName}/${objectKey}`
@@ -373,7 +374,7 @@ export async function downloadFileFromMinio(fileUrl: string): Promise<ArrayBuffe
     }
 
     const fileBuffer = await response.arrayBuffer()
-    console.log(`✅ MinIO 文件下载成功: ${objectKey}, 大小: ${fileBuffer.byteLength} bytes`)
+    if (debug) console.log(`✅ MinIO 文件下载成功: ${objectKey}, 大小: ${fileBuffer.byteLength} bytes`)
 
     return fileBuffer
   } catch (error) {

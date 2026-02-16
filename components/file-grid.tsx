@@ -274,6 +274,11 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  const getInlineFileUrl = (fileId: string, variant: "original" | "thumbnail") => {
+    if (!user) return "/placeholder.svg"
+    return apiUrl(`/api/files/download?id=${fileId}&userId=${user.id}&format=inline&variant=${variant}`)
+  }
+
   if (files.length === 0) {
     return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-apply-target">暂无上传文件</div>
   }
@@ -301,18 +306,24 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
               {showAsThumbnails && (file.thumbnail || file.type.startsWith('image/')) ? (
               <div className="relative aspect-square group">
                 <Image
-                  src={file.thumbnail || file.url || "/placeholder.svg"}
+                  src={getInlineFileUrl(file.id, file.thumbnail ? "thumbnail" : "original")}
                   alt={file.name}
                   fill
+                  unoptimized
                   className="object-cover"
                   onError={(e) => {
-                    // 如果缩略图加载失败，尝试使用原图
-                    const target = e.target as HTMLImageElement;
-                    if (target.src !== file.url && file.type.startsWith('image/')) {
-                      target.src = file.url;
-                    } else {
-                      target.src = "/placeholder.svg";
+                    const target = e.target as HTMLImageElement
+                    if (!user) {
+                      target.src = "/placeholder.svg"
+                      return
                     }
+
+                    if (target.src.includes("variant=thumbnail")) {
+                      target.src = getInlineFileUrl(file.id, "original")
+                      return
+                    }
+
+                    target.src = "/placeholder.svg"
                   }}
                 />
                 <div className="absolute bottom-0 left-0 right-0 bg-background/80 backdrop-blur-sm p-1 text-sm truncate font-apply-target">
@@ -454,7 +465,7 @@ export function FileGrid({ files, showAsThumbnails = false }: FileGridProps) {
                 src={(() => {
                   const file = files.find(f => f.url === previewImage.url)
                   if (file && user) {
-                    return apiUrl(`/api/files/download?id=${file.id}&userId=${user.id}&format=download`)
+                    return apiUrl(`/api/files/download?id=${file.id}&userId=${user.id}&format=inline&variant=original`)
                   }
                   return previewImage.url
                 })()}

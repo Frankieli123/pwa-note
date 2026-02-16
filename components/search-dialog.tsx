@@ -5,6 +5,7 @@ import { useContext, useState, useMemo, useEffect, useCallback, useRef } from "r
 import { Search, FileText, Link as LinkIcon, File, Loader2 } from "lucide-react"
 import { SyncContext } from "@/components/sync-provider"
 import { useAuth } from "@/hooks/use-auth"
+import { apiUrl } from "@/lib/api-utils"
 import { SearchResultNoteItem } from "@/components/search-result-note-item"
 import {
   CommandDialog,
@@ -219,9 +220,11 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
 
   // 处理文件点击
   const handleFileClick = (file: any) => {
-    // 打开文件
-    if (file.url) {
-      window.open(file.url, '_blank')
+    if (file?.id && user) {
+      window.open(
+        apiUrl(`/api/files/download?id=${file.id}&userId=${user.id}&format=inline&variant=original`),
+        "_blank"
+      )
     }
     onOpenChange(false)
   }
