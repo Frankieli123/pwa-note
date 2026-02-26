@@ -284,7 +284,12 @@ function cleanAiTitle(raw: string): string | null {
 
 async function generateAiTitle(content: string): Promise<string | null> {
   const apiKey = process.env.AI_TITLE_API_KEY
-  if (!apiKey) return null
+  if (!apiKey) {
+    if (process.env.AI_TITLE_DEBUG === "true") {
+      console.log("AI title disabled: missing AI_TITLE_API_KEY")
+    }
+    return null
+  }
 
   const provider = String(process.env.AI_TITLE_PROVIDER || "openai")
     .trim()
@@ -326,6 +331,14 @@ async function generateAiTitle(content: string): Promise<string | null> {
   ].join("\n")
 
   try {
+    if (process.env.AI_TITLE_DEBUG === "true") {
+      console.log("AI title request", {
+        provider,
+        baseUrl: baseUrlNoVersion,
+        model,
+        contentLength: String(content ?? "").length,
+      })
+    }
     if (provider === "gemini") {
       const baseUrl = ensureEndsWithVersion(baseUrlNoVersion, "/v1beta")
       const modelName = model.replace(/^models\//i, "")
@@ -343,6 +356,9 @@ async function generateAiTitle(content: string): Promise<string | null> {
         },
       )
 
+      if (process.env.AI_TITLE_DEBUG === "true") {
+        console.log("AI title response", { provider, status: response.status })
+      }
       if (!response.ok) return null
       const data: any = await response.json()
       const rawText = String(
@@ -374,10 +390,16 @@ async function generateAiTitle(content: string): Promise<string | null> {
       signal: AbortSignal.timeout(6000),
     })
 
+    if (process.env.AI_TITLE_DEBUG === "true") {
+      console.log("AI title response", { provider, status: response.status })
+    }
     if (!response.ok) return null
     const data: any = await response.json()
     return cleanAiTitle(data?.choices?.[0]?.message?.content ?? "")
   } catch {
+    if (process.env.AI_TITLE_DEBUG === "true") {
+      console.log("AI title request failed")
+    }
     return null
   }
 }
@@ -445,7 +467,15 @@ export async function updateNote(
   try {
     let result;
 
-    const titleToSave = typeof title === "string" ? title.trim() : undefined
+    let titleToSave = typeof title === "string" ? title.trim() : undefined
+
+    // Existing notes: if caller saves an empty title, auto-generate one (AI if configured).
+    if (typeof title === "string" && !titleToSave) {
+      if (process.env.AI_TITLE_DEBUG === "true") {
+        console.log("Empty title provided; generating title", { id, userId, contentLength: content.length })
+      }
+      titleToSave = (await generateNoteTitle(content)).trim()
+    }
 
     // 如果提供了客户端时间，使用它作为更新时间
     if (clientTime) {
