@@ -2,26 +2,31 @@
 
 import type React from "react"
 
-import { createContext, useEffect, useState } from "react"
+import { createContext, useCallback, useEffect, useRef, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { getOrCreateUserAvatarConfig, getUserAvatarUrl, getUserAvatarConfigFromDB, cleanExpiredAvatarCache, type AvatarConfig } from "@/lib/avatar-utils"
-import { hasUserPassword, verifyUserPassword } from "@/app/actions/setting-actions"
+import {
+  cleanExpiredAvatarCache,
+  getOrCreateUserAvatarConfig,
+  getUserAvatarConfigFromDB,
+  getUserAvatarUrl,
+  type AvatarConfig,
+} from "@/lib/avatar-utils"
+import { hasUserPassword } from "@/app/actions/setting-actions"
 import { apiUrl } from "@/lib/api-utils"
 
-// 认证状态枚举
 export enum AuthStatus {
-  INITIALIZING = "INITIALIZING",     // 初始化中
-  CHECKING = "CHECKING",             // 检查认证状态中
-  AUTHENTICATED = "AUTHENTICATED",   // 已认证
-  UNAUTHENTICATED = "UNAUTHENTICATED" // 未认证
+  INITIALIZING = "INITIALIZING",
+  CHECKING = "CHECKING",
+  AUTHENTICATED = "AUTHENTICATED",
+  UNAUTHENTICATED = "UNAUTHENTICATED",
 }
 
 type User = {
   id: string
   username: string
-  avatar?: string // 向后兼容的旧字段
-  avatarConfig?: AvatarConfig // 临时头像配置（用于预览）
-  dbAvatarConfig?: AvatarConfig // 从数据库加载的头像配置
+  avatar?: string
+  avatarConfig?: AvatarConfig
+  dbAvatarConfig?: AvatarConfig
   deviceInfo?: {
     name: string
     type: "mobile" | "tablet" | "desktop"
@@ -38,7 +43,15 @@ type AuthContextType = {
   login: (username: string) => Promise<void>
   loginWithPassword: (username: string, password: string) => Promise<void>
   checkUserHasPassword: (username: string) => Promise<boolean>
-  logout: () => void
+  logout: () => Promise<void>
+}
+
+type AuthMeResponse = {
+  authenticated: boolean
+  user: {
+    id: string
+    username: string
+  } | null
 }
 
 export const AuthContext = createContext<AuthContextType>({
@@ -50,115 +63,212 @@ export const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   loginWithPassword: async () => {},
   checkUserHasPassword: async () => false,
-  logout: () => {},
+  logout: async () => {},
 })
 
-// Helper function to generate a consistent user ID from username
 function generateUserId(username: string): string {
   let hash = 0
   for (let i = 0; i < username.length; i++) {
     const char = username.charCodeAt(i)
     hash = (hash << 5) - hash + char
-    hash = hash & hash // Convert to 32bit integer
+    hash = hash & hash
   }
 
-  const userId = `user_${Math.abs(hash).toString(16)}`
-  return userId
+  return `user_${Math.abs(hash).toString(16)}`
 }
 
-// 旧的头像生成函数已移除，现在使用 avatar-utils.ts 中的新函数
-
-// Helper function to determine device type
 function getDeviceType(): "mobile" | "tablet" | "desktop" {
-  if (typeof window === "undefined") return "desktop";
-  
-  const width = window.innerWidth;
-  if (width < 768) return "mobile";
-  if (width < 1024) return "tablet";
-  return "desktop";
+  if (typeof window === "undefined") return "desktop"
+
+  const width = window.innerWidth
+  if (width < 768) return "mobile"
+  if (width < 1024) return "tablet"
+  return "desktop"
+}
+
+function createDefaultDeviceInfo() {
+  return {
+    name: "当前设备",
+    type: getDeviceType(),
+  } as const
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [authStatus, setAuthStatus] = useState<AuthStatus>(AuthStatus.INITIALIZING)
   const { toast } = useToast()
+  const authRequestVersionRef = useRef(0)
+  const logoutPromiseRef = useRef<Promise<void> | null>(null)
 
-  // 计算派生状态
   const isLoading = authStatus === AuthStatus.INITIALIZING || authStatus === AuthStatus.CHECKING
   const isAuthenticated = authStatus === AuthStatus.AUTHENTICATED && user !== null
   const isInitializing = authStatus === AuthStatus.INITIALIZING || authStatus === AuthStatus.CHECKING
 
-  // 认证状态变化日志
-  useEffect(() => {
-    console.log(`[AuthProvider] 认证状态变化: ${authStatus}, 用户: ${user?.username || 'null'}, isLoading: ${isLoading}`)
-  }, [authStatus, user, isLoading])
+  const clearLegacyTokens = useCallback(() => {
+    if (typeof window === "undefined") return
+    localStorage.removeItem("authToken")
+    localStorage.removeItem("refreshToken")
+  }, [])
 
-  // 监听存储变化，实现设置更新同步
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const userData = localStorage.getItem("userData")
-      if (userData) {
-        const parsedUserData = JSON.parse(userData)
-        console.log('存储变化，更新用户数据:', parsedUserData)
-        setUser(parsedUserData)
-      }
-    }
+  const getStoredUserData = useCallback((): User | null => {
+    if (typeof window === "undefined") return null
 
-    // 监听存储事件
-    window.addEventListener("storage", handleStorageChange)
+    const savedUser = localStorage.getItem("userData")
+    if (!savedUser) return null
 
-    return () => {
-      window.removeEventListener("storage", handleStorageChange)
+    try {
+      return JSON.parse(savedUser) as User
+    } catch (error) {
+      console.error("[AuthProvider] Failed to parse stored user data:", error)
+      localStorage.removeItem("userData")
+      return null
     }
   }, [])
 
-  // 从数据库加载用户头像配置
-  const loadUserAvatarFromDB = async (userId: string) => {
+  const persistUserData = useCallback((nextUser: User | null) => {
+    if (typeof window === "undefined") return
+
+    clearLegacyTokens()
+
+    if (nextUser) {
+      localStorage.setItem("userData", JSON.stringify(nextUser))
+      return
+    }
+
+    localStorage.removeItem("userData")
+  }, [clearLegacyTokens])
+
+  const applyUnauthenticatedState = useCallback((status: AuthStatus = AuthStatus.UNAUTHENTICATED) => {
+    persistUserData(null)
+    setUser(null)
+    setAuthStatus(status)
+  }, [persistUserData])
+
+  const buildAuthenticatedUser = useCallback((baseUser: { id: string; username: string }): User => {
+    const storedUser = getStoredUserData()
+    const previousUser = storedUser?.id === baseUser.id ? storedUser : null
+
+    return {
+      ...(previousUser ?? {}),
+      id: baseUser.id,
+      username: baseUser.username,
+      deviceInfo: previousUser?.deviceInfo ?? createDefaultDeviceInfo(),
+    }
+  }, [getStoredUserData])
+
+  const applyAuthenticatedState = useCallback((baseUser: { id: string; username: string }) => {
+    const nextUser = buildAuthenticatedUser(baseUser)
+    setUser(nextUser)
+    setAuthStatus(AuthStatus.AUTHENTICATED)
+    return nextUser
+  }, [buildAuthenticatedUser])
+
+  const loadUserAvatarFromDB = useCallback(async (userId: string) => {
     try {
       const dbAvatarConfig = await getUserAvatarConfigFromDB(userId)
+
       if (dbAvatarConfig) {
-        console.log(`从数据库加载用户 ${userId} 的头像配置:`, dbAvatarConfig)
-        setUser(prevUser => {
-          if (prevUser && prevUser.id === userId) {
-            return {
-              ...prevUser,
-              dbAvatarConfig,
-              avatar: getUserAvatarUrl({ ...prevUser, dbAvatarConfig })
-            }
-          }
-          return prevUser
-        })
-      } else {
-        console.log(`用户 ${userId} 在数据库中没有头像配置，生成新的`)
-        // 如果数据库中没有头像配置，生成新的并保存
-        const avatarConfig = getOrCreateUserAvatarConfig(userId)
-        setUser(prevUser => {
-          if (prevUser && prevUser.id === userId) {
-            return {
-              ...prevUser,
-              avatarConfig,
-              avatar: getUserAvatarUrl({ ...prevUser, avatarConfig })
-            }
-          }
-          return prevUser
-        })
-      }
-    } catch (error) {
-      console.error(`加载用户 ${userId} 头像配置失败:`, error)
-      // 如果加载失败，使用本地生成的配置
-      const avatarConfig = getOrCreateUserAvatarConfig(userId)
-      setUser(prevUser => {
-        if (prevUser && prevUser.id === userId) {
+        setUser((prevUser) => {
+          if (!prevUser || prevUser.id !== userId) return prevUser
           return {
             ...prevUser,
-            avatarConfig,
-            avatar: getUserAvatarUrl({ ...prevUser, avatarConfig })
+            dbAvatarConfig,
+            avatar: getUserAvatarUrl({ ...prevUser, dbAvatarConfig }),
           }
+        })
+        return
+      }
+
+      const avatarConfig = getOrCreateUserAvatarConfig(userId)
+      setUser((prevUser) => {
+        if (!prevUser || prevUser.id !== userId) return prevUser
+        return {
+          ...prevUser,
+          avatarConfig,
+          avatar: getUserAvatarUrl({ ...prevUser, avatarConfig }),
         }
-        return prevUser
+      })
+    } catch (error) {
+      console.error(`[AuthProvider] Failed to load avatar config for ${userId}:`, error)
+      const avatarConfig = getOrCreateUserAvatarConfig(userId)
+      setUser((prevUser) => {
+        if (!prevUser || prevUser.id !== userId) return prevUser
+        return {
+          ...prevUser,
+          avatarConfig,
+          avatar: getUserAvatarUrl({ ...prevUser, avatarConfig }),
+        }
       })
     }
-  }
+  }, [])
+
+  const restoreSession = useCallback(async (): Promise<User | null> => {
+    const requestVersion = ++authRequestVersionRef.current
+    console.log("[AuthProvider] Checking auth state with backend cookie")
+    setAuthStatus(AuthStatus.CHECKING)
+
+    try {
+      const response = await fetch(apiUrl("/api/auth/me"), {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      })
+
+      const result = (await response.json()) as AuthMeResponse
+
+      if (requestVersion !== authRequestVersionRef.current) {
+        return null
+      }
+
+      if (!response.ok || !result.authenticated || !result.user) {
+        applyUnauthenticatedState()
+        return null
+      }
+
+      const nextUser = applyAuthenticatedState(result.user)
+      void loadUserAvatarFromDB(nextUser.id)
+      return nextUser
+    } catch (error) {
+      if (requestVersion !== authRequestVersionRef.current) {
+        return null
+      }
+      console.error("[AuthProvider] Failed to restore session:", error)
+      applyUnauthenticatedState()
+      return null
+    }
+  }, [applyAuthenticatedState, applyUnauthenticatedState, loadUserAvatarFromDB])
+
+  useEffect(() => {
+    console.log(
+      `[AuthProvider] Auth status changed: ${authStatus}, user: ${user?.username || "null"}, isLoading: ${isLoading}`,
+    )
+  }, [authStatus, user, isLoading])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const handleStorageChange = (event?: Event) => {
+      if (event instanceof StorageEvent) {
+        const changedKey = event.key
+        if (changedKey && !["userData", "authToken", "refreshToken"].includes(changedKey)) {
+          return
+        }
+      }
+
+      void restoreSession()
+    }
+
+    window.addEventListener("storage", handleStorageChange)
+    return () => {
+      window.removeEventListener("storage", handleStorageChange)
+    }
+  }, [restoreSession])
+
+  useEffect(() => {
+    if (authStatus === AuthStatus.AUTHENTICATED && user) {
+      persistUserData(user)
+    }
+  }, [authStatus, user, persistUserData])
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -166,200 +276,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // 清理过期的头像缓存
     cleanExpiredAvatarCache()
+    void restoreSession()
+  }, [restoreSession])
 
-    // 原子化的认证检查函数
-    const checkAuth = async () => {
-      console.log('[AuthProvider] 开始认证检查')
-      setAuthStatus(AuthStatus.CHECKING)
-
-      try {
-        // In a real app, this would verify token with backend
-        const token = localStorage.getItem("authToken")
-
-        if (token) {
-          console.log('[AuthProvider] 发现认证令牌，检查用户数据')
-
-          // Try to get user info from local storage
-          const savedUser = localStorage.getItem("userData")
-          if (savedUser) {
-            const userData = JSON.parse(savedUser)
-            console.log('[AuthProvider] 从本地存储加载用户数据:', userData.username)
-
-            // 原子化状态更新：同时设置用户和认证状态
-            setUser(userData)
-            setAuthStatus(AuthStatus.AUTHENTICATED)
-
-            // 异步加载数据库中的头像配置（不影响认证状态）
-            if (userData.id) {
-              loadUserAvatarFromDB(userData.id)
-            }
-          } else {
-            console.log('[AuthProvider] 令牌存在但无用户数据，创建默认用户')
-
-            // If no user data but token exists, set default user
-            const defaultUsername = "默认用户"
-            const userId = generateUserId(defaultUsername)
-            const deviceType = getDeviceType();
-
-            const defaultUser = {
-              id: userId,
-              username: defaultUsername,
-              deviceInfo: {
-                name: "当前设备",
-                type: deviceType,
-              },
-            }
-
-            // 原子化状态更新
-            setUser(defaultUser)
-            setAuthStatus(AuthStatus.AUTHENTICATED)
-            localStorage.setItem("userData", JSON.stringify(defaultUser))
-
-            // 异步加载数据库中的头像配置
-            loadUserAvatarFromDB(userId)
-          }
-        } else {
-          console.log('[AuthProvider] 无认证令牌，设置为未认证状态')
-          setUser(null)
-          setAuthStatus(AuthStatus.UNAUTHENTICATED)
-        }
-      } catch (error) {
-        console.error("[AuthProvider] 认证检查失败:", error)
-        setUser(null)
-        setAuthStatus(AuthStatus.UNAUTHENTICATED)
-      }
+  const waitForPendingLogout = useCallback(async () => {
+    if (logoutPromiseRef.current) {
+      await logoutPromiseRef.current
     }
-
-    checkAuth()
   }, [])
 
+  const handleLoginSuccess = useCallback(async () => {
+    const nextUser = await restoreSession()
+    if (!nextUser) {
+      throw new Error("登录状态校验失败，请重试")
+    }
+    toast({
+      title: "登录成功",
+      description: "欢迎回来",
+    })
+  }, [restoreSession, toast])
+
   const login = async (username: string) => {
-    console.log('[AuthProvider] 开始登录流程:', username)
+    console.log("[AuthProvider] Starting passwordless login:", username)
+    await waitForPendingLogout()
     setAuthStatus(AuthStatus.CHECKING)
 
     try {
-      // 调用后端登录 API（无密码快速登录）
-      const response = await fetch(apiUrl('/api/auth/login'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password: '' }),
-        credentials: 'include'
+      const response = await fetch(apiUrl("/api/auth/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password: "" }),
+        credentials: "include",
       })
 
       const result = await response.json()
 
-      // 如果后端要求密码，抛出错误让用户输入密码
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error('此用户需要密码登录')
+          throw new Error("此用户需要密码登录")
         }
-        throw new Error(result.message || '登录失败')
+        throw new Error(result.message || "登录失败")
       }
 
-      const userId = result.user?.id || generateUserId(username)
-      const mockToken = "jwt-token-" + Math.random().toString(36).substring(2)
-      const mockRefreshToken = "refresh-token-" + Math.random().toString(36).substring(2)
-      const deviceType = getDeviceType();
-
-      // 先创建基础用户对象，不设置头像配置
-      const newUser = {
-        id: userId,
-        username,
-        deviceInfo: {
-          name: "当前设备",
-          type: deviceType,
-        },
-      }
-
-      // 原子化操作：同时更新localStorage和状态，避免时间窗口
-      console.log('[AuthProvider] 原子化更新认证状态和本地存储')
-
-      // 批量更新localStorage，减少中间状态
-      localStorage.setItem("authToken", mockToken)
-      localStorage.setItem("refreshToken", mockRefreshToken)
-      localStorage.setItem("userData", JSON.stringify(newUser))
-
-      // 原子化状态更新：同时设置用户和认证状态
-      setUser(newUser)
-      setAuthStatus(AuthStatus.AUTHENTICATED)
-      console.log('[AuthProvider] 登录成功，用户状态已更新')
-
-      // 显示成功消息
-      toast({
-        title: "登录成功",
-        description: "欢迎回来！",
-      })
-
-      // 后台异步加载数据库中的头像配置，不阻塞UI
-      setTimeout(async () => {
-        try {
-          console.log(`[AuthProvider] 开始加载用户 ${userId} 的头像配置`)
-          const dbAvatarConfig = await getUserAvatarConfigFromDB(userId)
-          if (dbAvatarConfig) {
-            console.log(`[AuthProvider] 从数据库加载用户 ${userId} 的头像配置:`, dbAvatarConfig)
-            setUser(prevUser => {
-              if (prevUser && prevUser.id === userId) {
-                const updatedUser = {
-                  ...prevUser,
-                  dbAvatarConfig,
-                  avatar: getUserAvatarUrl({ ...prevUser, dbAvatarConfig })
-                }
-                // 更新本地存储
-                localStorage.setItem("userData", JSON.stringify(updatedUser))
-                return updatedUser
-              }
-              return prevUser
-            })
-          } else {
-            // 如果数据库中没有头像配置，生成新的并保存
-            console.log(`用户 ${userId} 在数据库中没有头像配置，生成新的`)
-            const avatarConfig = getOrCreateUserAvatarConfig(userId)
-            setUser(prevUser => {
-              if (prevUser && prevUser.id === userId) {
-                const updatedUser = {
-                  ...prevUser,
-                  avatarConfig,
-                  avatar: getUserAvatarUrl({ ...prevUser, avatarConfig })
-                }
-                // 更新本地存储
-                localStorage.setItem("userData", JSON.stringify(updatedUser))
-                return updatedUser
-              }
-              return prevUser
-            })
-          }
-        } catch (error) {
-          console.error(`[AuthProvider] 加载用户 ${userId} 头像配置失败:`, error)
-          // 确保头像加载失败不影响认证状态，使用本地生成的配置
-          const avatarConfig = getOrCreateUserAvatarConfig(userId)
-          setUser(prevUser => {
-            if (prevUser && prevUser.id === userId) {
-              const updatedUser = {
-                ...prevUser,
-                avatarConfig,
-                avatar: getUserAvatarUrl({ ...prevUser, avatarConfig })
-              }
-              // 更新本地存储
-              localStorage.setItem("userData", JSON.stringify(updatedUser))
-              return updatedUser
-            }
-            return prevUser
-          })
-        }
-
-        // 强制页面更新以确保所有组件能获取到最新的用户状态
-        if (process.env.NODE_ENV === "development") {
-          const event = new Event('storage')
-          window.dispatchEvent(event)
-        }
-      }, 100) // 100ms后开始后台处理
-
+      await handleLoginSuccess()
     } catch (error) {
-      console.error("[AuthProvider] 登录失败:", error)
-      setUser(null)
-      setAuthStatus(AuthStatus.UNAUTHENTICATED)
+      console.error("[AuthProvider] Login failed:", error)
+      applyUnauthenticatedState()
       toast({
         title: "登录失败",
         description: "请重试",
@@ -369,163 +332,98 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const checkUserHasPassword = async (username: string): Promise<boolean> => {
-    console.log('[AuthProvider] 检查用户是否设置密码:', username)
+    console.log("[AuthProvider] Checking whether user has password:", username)
     try {
       const userId = generateUserId(username)
-      const hasPassword = await hasUserPassword(userId)
-      console.log('[AuthProvider] 用户密码状态:', hasPassword ? '已设置' : '未设置')
-      return hasPassword
+      return await hasUserPassword(userId)
     } catch (error) {
-      console.error('[AuthProvider] 检查用户密码失败:', error)
+      console.error("[AuthProvider] Failed to check password state:", error)
       return false
     }
   }
 
   const loginWithPassword = async (username: string, password: string) => {
-    console.log('[AuthProvider] 开始密码登录流程:', username)
+    console.log("[AuthProvider] Starting password login:", username)
+    await waitForPendingLogout()
     setAuthStatus(AuthStatus.CHECKING)
 
     try {
-      // 调用后端登录 API，设置 HttpOnly Cookie
-      const response = await fetch(apiUrl('/api/auth/login'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch(apiUrl("/api/auth/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
-        credentials: 'include'
+        credentials: "include",
       })
 
       const result = await response.json()
 
       if (!response.ok || !result.success) {
-        throw new Error(result.message || '登录失败')
+        throw new Error(result.message || "登录失败")
       }
 
-      const userId = result.user.id
-
-      // 使用后端返回的 token 或生成本地 token 用于前端状态
-      const mockToken = "jwt-token-" + Math.random().toString(36).substring(2)
-      const mockRefreshToken = "refresh-token-" + Math.random().toString(36).substring(2)
-
-      const deviceType = getDeviceType();
-
-      // 先创建基础用户对象，不设置头像配置
-      const newUser = {
-        id: userId,
-        username,
-        deviceInfo: {
-          name: "当前设备",
-          type: deviceType,
-        },
-      }
-
-      // 原子化操作：同时更新localStorage和状态，避免时间窗口
-      console.log('[AuthProvider] 原子化更新认证状态和本地存储')
-
-      // 批量更新localStorage，减少中间状态
-      localStorage.setItem("authToken", mockToken)
-      localStorage.setItem("refreshToken", mockRefreshToken)
-      localStorage.setItem("userData", JSON.stringify(newUser))
-
-      // 原子化状态更新：同时设置用户和认证状态
-      setUser(newUser)
-      setAuthStatus(AuthStatus.AUTHENTICATED)
-      console.log('[AuthProvider] 密码登录成功，用户状态已更新')
-
-      // 显示成功消息
-      toast({
-        title: "登录成功",
-        description: "欢迎回来！",
-      })
-
-      // 后台异步加载数据库中的头像配置
-      setTimeout(async () => {
-        try {
-          console.log(`[AuthProvider] 开始加载用户 ${userId} 的头像配置`)
-          const dbAvatarConfig = await getUserAvatarConfigFromDB(userId)
-          if (dbAvatarConfig) {
-            console.log(`[AuthProvider] 从数据库加载用户 ${userId} 的头像配置:`, dbAvatarConfig)
-            setUser(prevUser => {
-              if (prevUser && prevUser.id === userId) {
-                return {
-                  ...prevUser,
-                  dbAvatarConfig,
-                  avatar: getUserAvatarUrl({ ...prevUser, avatarConfig: dbAvatarConfig })
-                }
-              }
-              return prevUser
-            })
-          } else {
-            console.log(`[AuthProvider] 用户 ${userId} 没有数据库头像配置，使用本地生成`)
-            const avatarConfig = getOrCreateUserAvatarConfig(userId)
-            setUser(prevUser => {
-              if (prevUser && prevUser.id === userId) {
-                return {
-                  ...prevUser,
-                  avatarConfig,
-                  avatar: getUserAvatarUrl({ ...prevUser, avatarConfig })
-                }
-              }
-              return prevUser
-            })
-          }
-        } catch (error) {
-          console.error(`[AuthProvider] 加载用户 ${userId} 头像配置失败:`, error)
-          // 如果加载失败，使用本地生成的配置
-          const avatarConfig = getOrCreateUserAvatarConfig(userId)
-          setUser(prevUser => {
-            if (prevUser && prevUser.id === userId) {
-              return {
-                ...prevUser,
-                avatarConfig,
-                avatar: getUserAvatarUrl({ ...prevUser, avatarConfig })
-              }
-            }
-            return prevUser
-          })
-        }
-      }, 100)
-
+      await handleLoginSuccess()
     } catch (error) {
-      console.error("[AuthProvider] 密码登录失败:", error)
-      setUser(null)
-      setAuthStatus(AuthStatus.UNAUTHENTICATED)
+      console.error("[AuthProvider] Password login failed:", error)
+      applyUnauthenticatedState()
       toast({
         title: "登录失败",
         description: error instanceof Error ? error.message : "请重试",
         variant: "destructive",
       })
-      throw error // 重新抛出错误，让调用方处理
+      throw error
     }
   }
 
-  const logout = () => {
-    console.log('[AuthProvider] 开始退出登录')
-    localStorage.removeItem("authToken")
-    localStorage.removeItem("refreshToken")
-    localStorage.removeItem("userData")
+  const logout = async () => {
+    if (logoutPromiseRef.current) {
+      await logoutPromiseRef.current
+      return
+    }
 
-    // 原子化状态更新
-    setUser(null)
-    setAuthStatus(AuthStatus.UNAUTHENTICATED)
+    console.log("[AuthProvider] Starting logout")
+    authRequestVersionRef.current += 1
+    applyUnauthenticatedState(AuthStatus.CHECKING)
 
-    toast({
-      title: "已退出登录",
-      description: "您已成功退出登录",
-    })
+    const logoutTask = (async () => {
+      try {
+        const response = await fetch(apiUrl("/api/auth/logout"), {
+          method: "POST",
+          credentials: "include",
+        })
+
+        if (!response.ok) {
+          throw new Error(`Logout failed with status ${response.status}`)
+        }
+      } catch (error) {
+        console.error("[AuthProvider] Logout request failed:", error)
+      } finally {
+        logoutPromiseRef.current = null
+        setAuthStatus(AuthStatus.UNAUTHENTICATED)
+        toast({
+          title: "已退出登录",
+          description: "您已成功退出登录",
+        })
+      }
+    })()
+
+    logoutPromiseRef.current = logoutTask
+    await logoutTask
   }
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      isLoading,
-      authStatus,
-      isAuthenticated,
-      isInitializing,
-      login,
-      loginWithPassword,
-      checkUserHasPassword,
-      logout
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        authStatus,
+        isAuthenticated,
+        isInitializing,
+        login,
+        loginWithPassword,
+        checkUserHasPassword,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

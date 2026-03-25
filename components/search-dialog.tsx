@@ -85,8 +85,11 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     try {
       console.log('🔍 发起搜索请求:', { userId: user.id, query })
       const response = await fetch(
-        `/api/search?userId=${user.id}&q=${encodeURIComponent(query)}&limit=10`,
-        { signal: abortController.signal }
+        apiUrl(`/api/search?userId=${user.id}&q=${encodeURIComponent(query)}&limit=10`),
+        {
+          signal: abortController.signal,
+          credentials: 'include'
+        }
       )
 
       if (abortController.signal.aborted) {
