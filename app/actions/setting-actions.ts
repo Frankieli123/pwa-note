@@ -3,6 +3,7 @@
 import { query } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
+import { assertAuthenticatedUser } from "@/lib/auth"
 
 export type UserSettings = {
   id: number
@@ -12,7 +13,6 @@ export type UserSettings = {
   sync_interval: number
   avatar_style?: string
   avatar_seed?: string
-  password_hash?: string
   updated_at: Date
 }
 
@@ -65,6 +65,7 @@ async function createUserSettingsTableIfNeeded() {
 
 // 获取用户设置
 export async function getUserSettings(userId: string): Promise<UserSettings | null> {
+  await assertAuthenticatedUser(userId)
   console.log("【设置同步】开始获取用户设置:", { userId })
   
   try {
@@ -93,11 +94,10 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
       sync_interval: row.sync_interval,
       avatar_style: row.avatar_style,
       avatar_seed: row.avatar_seed,
-      password_hash: row.password_hash,
       updated_at: row.updated_at
     }
     
-    console.log("【设置同步】成功获取用户设置:", settings)
+    console.log("【设置同步】成功获取用户设置", { userId })
     return settings
   } catch (error) {
     console.error("【设置同步】获取用户设置失败:", error)
@@ -116,6 +116,7 @@ export async function saveUserSettings(
     avatar_seed?: string
   }
 ): Promise<UserSettings | null> {
+  await assertAuthenticatedUser(userId)
   console.log("【设置同步】开始保存用户设置:", { userId, settings })
   
   try {
@@ -168,11 +169,10 @@ export async function saveUserSettings(
       sync_interval: row.sync_interval,
       avatar_style: row.avatar_style,
       avatar_seed: row.avatar_seed,
-      password_hash: row.password_hash,
       updated_at: row.updated_at
     }
     
-    console.log("【设置同步】成功保存用户设置:", userSettings)
+    console.log("【设置同步】成功保存用户设置", { userId })
     revalidatePath("/")
     return userSettings
   } catch (error) {
@@ -189,6 +189,7 @@ export async function saveUserSettings(
  * @returns 是否设置了密码
  */
 export async function hasUserPassword(userId: string): Promise<boolean> {
+  // Used before login to decide whether to show the password form.
   console.log("【密码检查】检查用户是否设置密码:", userId)
 
   try {
@@ -218,7 +219,8 @@ export async function hasUserPassword(userId: string): Promise<boolean> {
  * @param userId 用户ID
  * @returns 密码哈希，如果不存在返回null
  */
-export async function getUserPasswordHash(userId: string): Promise<string | null> {
+async function getUserPasswordHash(userId: string): Promise<string | null> {
+  await assertAuthenticatedUser(userId)
   console.log("【密码获取】获取用户密码哈希:", userId)
 
   try {
@@ -254,6 +256,7 @@ export async function getUserPasswordHash(userId: string): Promise<string | null
  * @returns 是否设置成功
  */
 export async function setUserPassword(userId: string, passwordHash: string): Promise<boolean> {
+  await assertAuthenticatedUser(userId)
   console.log("【密码设置】设置用户密码:", userId)
 
   try {
@@ -298,6 +301,7 @@ export async function setUserPassword(userId: string, passwordHash: string): Pro
  * @returns 是否移除成功
  */
 export async function removeUserPassword(userId: string): Promise<boolean> {
+  await assertAuthenticatedUser(userId)
   console.log("【密码移除】移除用户密码:", userId)
 
   try {
@@ -328,7 +332,8 @@ export async function removeUserPassword(userId: string): Promise<boolean> {
  * @param password 用户输入的密码
  * @returns 是否验证成功
  */
-export async function verifyUserPassword(userId: string, password: string): Promise<boolean> {
+async function verifyUserPassword(userId: string, password: string): Promise<boolean> {
+  await assertAuthenticatedUser(userId)
   console.log("【密码验证】验证用户密码:", userId)
 
   try {

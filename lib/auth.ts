@@ -72,6 +72,14 @@ export async function getAuthPayloadFromCookies(): Promise<TokenPayload | null> 
   return verifyToken(token)
 }
 
+/** Prevent Server Actions from trusting a browser-supplied userId. */
+export async function assertAuthenticatedUser(requestUserId: string): Promise<TokenPayload> {
+  const payload = await getAuthPayloadFromCookies()
+  if (!payload) throw new Error('UNAUTHORIZED')
+  if (payload.userId !== requestUserId) throw new Error('FORBIDDEN')
+  return payload
+}
+
 export type AuthResult = {
   success: true
   userId: string

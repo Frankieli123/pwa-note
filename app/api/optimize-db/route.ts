@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { optimizeDatabase, checkIndexes, analyzeQueryPerformance } from '@/lib/optimize-db'
-import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
+import { verifyMaintenanceRequest } from '@/lib/maintenance-auth'
 
 /**
  * 数据库优化API
@@ -10,13 +10,10 @@ import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
-    const { action, userId } = await request.json()
+    const authError = verifyMaintenanceRequest(request)
+    if (authError) return authError
 
-    // 认证验证 - 管理操作需要登录
-    const authResult = await verifyApiAuth(userId)
-    if (!authResult.success) {
-      return createAuthErrorResponse(authResult)
-    }
+    const { action, userId } = await request.json()
 
     switch (action) {
       case 'optimize':
@@ -48,15 +45,17 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { 
         error: 'Internal server error',
-        message: error instanceof Error ? error.message : String(error)
+        message: '数据库维护操作失败'
       },
       { status: 500 }
     )
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const authError = verifyMaintenanceRequest(request)
+    if (authError) return authError
     console.log('🔍 检查数据库索引状态...')
     const result = await checkIndexes()
     return NextResponse.json(result)
@@ -67,7 +66,7 @@ export async function GET() {
     return NextResponse.json(
       { 
         error: 'Internal server error',
-        message: error instanceof Error ? error.message : String(error)
+        message: '数据库维护操作失败'
       },
       { status: 500 }
     )

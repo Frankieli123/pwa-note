@@ -2,6 +2,7 @@
 
 import { query } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { assertAuthenticatedUser } from "@/lib/auth"
 
 // 数据库行类型定义
 interface NoteRow {
@@ -106,6 +107,7 @@ export async function getNotes(
   offset: number = 0,
   groupId: string = "all",
 ): Promise<Note[]> {
+  await assertAuthenticatedUser(userId)
   // 如果没有传递limit参数或limit为-1，则加载所有数据
   const isLoadAll = limit === undefined || limit === -1
   console.log("⚡ 加载便签:", { userId, limit: isLoadAll ? '全部' : limit, offset, groupId })
@@ -163,6 +165,7 @@ export async function getNotesCursor(
   cursor?: string,
   groupId: string = "all",
 ): Promise<{ notes: Note[], nextCursor?: string, hasMore: boolean }> {
+  await assertAuthenticatedUser(userId)
   console.log("🚀 游标分页加载便签:", { userId, limit, cursor, groupId })
 
   try {
@@ -416,6 +419,7 @@ export async function createNote(
   groupId: number | null = null,
   title: string = "",
 ): Promise<Note> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: createNote", { userId, contentLength: content.length, clientTime, groupId })
 
   try {
@@ -461,6 +465,7 @@ export async function updateNote(
   clientTime?: string,
   title?: string,
 ): Promise<Note> {
+  await assertAuthenticatedUser(userId)
   // 确保content不为undefined，如果是则用空字符串代替
   content = content || "";
   console.log("服务器操作: updateNote", { id, userId, contentLength: content.length, clientTime })
@@ -528,6 +533,7 @@ export async function updateNote(
 export async function regenerateAllNoteTitles(
   userId: string,
 ): Promise<{ updated: number; titles: { id: number; title: string; updated_at: Date }[] }> {
+  await assertAuthenticatedUser(userId)
   const notesResult = await query("SELECT id, content FROM notes WHERE user_id = $1 ORDER BY id ASC", [userId])
   const rows = notesResult.rows as { id: number; content: string }[]
 
@@ -596,6 +602,7 @@ export async function regenerateAllNoteTitles(
 }
 
 export async function deleteNote(id: number, userId: string): Promise<void> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: deleteNote", { id, userId })
   try {
     await query("DELETE FROM notes WHERE id = $1 AND user_id = $2", [id, userId])
@@ -608,6 +615,7 @@ export async function deleteNote(id: number, userId: string): Promise<void> {
 }
 
 export async function getGroups(userId: string): Promise<Group[]> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: getGroups", { userId })
   try {
     const result = await query(
@@ -629,6 +637,7 @@ export async function getGroups(userId: string): Promise<Group[]> {
 }
 
 export async function createGroup(userId: string, name: string): Promise<Group> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: createGroup", { userId, name })
   try {
     const result = await query(
@@ -654,6 +663,7 @@ export async function createGroup(userId: string, name: string): Promise<Group> 
 }
 
 export async function renameGroup(id: number, userId: string, name: string): Promise<Group> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: renameGroup", { id, userId, name })
   try {
     const result = await query(
@@ -679,6 +689,7 @@ export async function renameGroup(id: number, userId: string, name: string): Pro
 }
 
 export async function deleteGroup(id: number, userId: string): Promise<void> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: deleteGroup", { id, userId })
   try {
     await query("DELETE FROM groups WHERE id = $1 AND user_id = $2", [id, userId])
@@ -690,6 +701,7 @@ export async function deleteGroup(id: number, userId: string): Promise<void> {
 }
 
 export async function moveNoteToGroup(noteId: number, userId: string, groupId: number | null): Promise<Note> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: moveNoteToGroup", { noteId, userId, groupId })
   try {
     const result = await query(
@@ -718,6 +730,7 @@ export async function moveNoteToGroup(noteId: number, userId: string, groupId: n
 
 // 获取便签总数
 export async function getNotesCount(userId: string): Promise<number> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: getNotesCount", { userId })
   try {
     const result = await query("SELECT COUNT(*) as count FROM notes WHERE user_id = $1", [userId])
@@ -732,6 +745,7 @@ export async function getNotesCount(userId: string): Promise<number> {
 
 // Links actions
 export async function getLinks(userId: string): Promise<Link[]> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: getLinks", { userId })
   try {
     const result = await query("SELECT * FROM links WHERE user_id = $1 ORDER BY created_at DESC", [userId])
@@ -750,6 +764,7 @@ export async function getLinks(userId: string): Promise<Link[]> {
 }
 
 export async function createLink(userId: string, url: string, title: string, clientTime?: string): Promise<Link> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: createLink", { userId, url, title, clientTime })
   try {
     let result;
@@ -788,6 +803,7 @@ export async function createLink(userId: string, url: string, title: string, cli
 }
 
 export async function deleteLink(id: number, userId: string): Promise<void> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: deleteLink", { id, userId })
   try {
     await query("DELETE FROM links WHERE id = $1 AND user_id = $2", [id, userId])
@@ -801,6 +817,7 @@ export async function deleteLink(id: number, userId: string): Promise<void> {
 
 // Files actions (只支持 MinIO 对象存储)
 export async function getFiles(userId: string): Promise<File[]> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: getFiles (MinIO only)", { userId })
   try {
     const result = await query(
@@ -839,6 +856,7 @@ export async function createFile(
     size: number
   },
 ): Promise<File> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: createFile (MinIO only)", { userId, fileData })
 
   // 验证必需的 minio_url
@@ -899,6 +917,7 @@ export async function createFileAction(
     thumbnail_url?: string // MinIO 缩略图URL
   }
 ): Promise<File> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: createFileAction (MinIO only)", { userId, fileData })
 
   // 验证必需的 minio_url
@@ -937,6 +956,7 @@ export async function createFileAction(
 }
 
 export async function updateFileName(id: number, userId: string, newName: string): Promise<File> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: updateFileName", { id, userId, newName })
 
   // 验证文件名
@@ -988,6 +1008,7 @@ export async function updateFileName(id: number, userId: string, newName: string
 }
 
 export async function deleteFile(id: number, userId: string): Promise<void> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: deleteFile", { id, userId })
   try {
     // 获取文件信息以便删除 MinIO 存储的文件
@@ -1030,6 +1051,7 @@ export async function deleteFile(id: number, userId: string): Promise<void> {
 
 // Get file with MinIO data (for download/preview)
 export async function getFileWithMinio(id: number, userId: string): Promise<File | null> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: getFileWithMinio", { id, userId })
   try {
     const result = await query(
@@ -1068,6 +1090,7 @@ export const getFileWithBlob = getFileWithMinio
 
 // User settings actions
 export async function getUserSettings(userId: string): Promise<UserSettings | null> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: getUserSettings", { userId })
   try {
     // 检查是否存在settings表，如果不存在则创建
@@ -1134,6 +1157,7 @@ export async function updateUserSettings(
     sync_interval: number;
   }
 ): Promise<UserSettings> {
+  await assertAuthenticatedUser(userId)
   console.log("服务器操作: updateUserSettings", { userId, settings })
   try {
     // 确保表存在

@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle } from 'lucide-react'
 import { apiUrl } from '@/lib/api-utils'
+import { Input } from '@/components/ui/input'
 
 const isDevelopment = process.env.NODE_ENV === 'development'
 
 export default function InitDbPage() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
+  const [maintenanceKey, setMaintenanceKey] = useState('')
 
   if (!isDevelopment) {
     return (
@@ -36,6 +38,7 @@ export default function InitDbPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-maintenance-key': maintenanceKey,
         },
         body: JSON.stringify({ 
           action,
@@ -65,10 +68,17 @@ export default function InitDbPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Input
+            type="password"
+            value={maintenanceKey}
+            onChange={(event) => setMaintenanceKey(event.target.value)}
+            placeholder="MAINTENANCE_API_KEY"
+            autoComplete="off"
+          />
           <div className="grid grid-cols-2 gap-4">
             <Button 
               onClick={() => handleInit('init')}
-              disabled={loading}
+              disabled={loading || !maintenanceKey}
               variant="outline"
             >
               {loading ? '处理中...' : '仅初始化表结构'}
@@ -76,14 +86,14 @@ export default function InitDbPage() {
             
             <Button 
               onClick={() => handleInit('init-and-seed')}
-              disabled={loading}
+              disabled={loading || !maintenanceKey}
             >
               {loading ? '处理中...' : '初始化并添加示例数据'}
             </Button>
             
             <Button 
               onClick={() => handleInit('fix-fields')}
-              disabled={loading}
+              disabled={loading || !maintenanceKey}
               variant="secondary"
             >
               {loading ? '处理中...' : '修复缺失字段'}
@@ -91,7 +101,7 @@ export default function InitDbPage() {
             
             <Button 
               onClick={() => handleInit('seed')}
-              disabled={loading}
+              disabled={loading || !maintenanceKey}
               variant="secondary"
             >
               {loading ? '处理中...' : '仅添加示例数据'}

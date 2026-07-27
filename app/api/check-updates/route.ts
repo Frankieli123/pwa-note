@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query } from "@/lib/db"
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 // 检查自上次同步后是否有新内容
 export async function POST(request: Request) {
@@ -18,6 +19,11 @@ export async function POST(request: Request) {
     if (!userId) {
       console.error("Missing user ID in request");
       return NextResponse.json({ error: "Missing user ID" }, { status: 400 });
+    }
+
+    const authResult = await verifyApiAuth(typeof userId === 'string' ? userId : null)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
     }
     
     // 如果没有提供上次更新时间，假设有更新
@@ -94,4 +100,4 @@ export async function POST(request: Request) {
       message: "服务器内部错误，请联系管理员"  
     }, { status: 500 });
   }
-} 
+}

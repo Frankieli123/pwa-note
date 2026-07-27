@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { updateFileName } from '@/app/actions/db-actions'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * 重命名文件 API
@@ -14,6 +15,11 @@ export async function PUT(
     const fileId = parseInt(id)
     const body = await request.json()
     const { userId, newName } = body
+
+    const authResult = await verifyApiAuth(typeof userId === 'string' ? userId : null)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
+    }
 
     // 验证参数
     if (!userId || !newName) {

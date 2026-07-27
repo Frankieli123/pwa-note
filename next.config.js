@@ -4,6 +4,10 @@ const { execSync } = require('child_process')
 
 // 获取版本号函数
 function getAppVersion() {
+  if (process.env.NEXT_PUBLIC_APP_VERSION) {
+    return process.env.NEXT_PUBLIC_APP_VERSION
+  }
+
   try {
     // 优先使用环境变量（Vercel 部署时）
     if (process.env.VERCEL_GIT_COMMIT_SHA) {
@@ -20,13 +24,16 @@ function getAppVersion() {
   }
 }
 
+// A build must use one immutable version value everywhere.
+const appVersion = getAppVersion()
+
 const nextConfig = {
   // 代理访问路径配置
   basePath: process.env.BASE_PATH || '',
   assetPrefix: process.env.ASSET_PREFIX || '',
 
   env: {
-    NEXT_PUBLIC_APP_VERSION: getAppVersion(),
+    NEXT_PUBLIC_APP_VERSION: appVersion,
   },
 
   // 图片配置 - 允许外部域名（支持环境变量）
@@ -60,8 +67,6 @@ const nextConfig = {
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     // 在构建时替换 Service Worker 中的版本号
     if (!isServer && !dev) {
-      const appVersion = getAppVersion()
-      
       config.plugins.push(
         new webpack.DefinePlugin({
           '__APP_VERSION__': JSON.stringify(appVersion),

@@ -134,13 +134,7 @@ async function searchNotes(userId: string, searchQuery: string, limit: number) {
       LIMIT $4
     `, [userId, searchPattern, searchQuery, limit])
 
-    debugLog('📝 便签SQL执行结果:', {
-      rowCount: result.rows.length,
-      sampleContent: result.rows.slice(0, 2).map((row: any) => ({
-        id: row.id,
-        content: row.content.substring(0, 50) + '...'
-      }))
-    })
+    debugLog('📝 便签SQL执行结果:', { rowCount: result.rows.length })
 
     debugLog('📝 便签搜索结果:', result.rows.length, '条')
 

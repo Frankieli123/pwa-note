@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyUserPassword, hasUserPassword } from '@/app/actions/setting-actions'
+import { verifyLegacyUserPassword, hasLegacyUserPassword } from '@/lib/legacy-password'
 import { signToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       const existingUserWithLegacyId = await getUserByUserId(legacyUserId)
 
       // 检查旧系统中是否有此 legacyUserId 的密码
-      const legacyHasPassword = await hasUserPassword(legacyUserId)
+      const legacyHasPassword = await hasLegacyUserPassword(legacyUserId)
 
       if (existingUserWithLegacyId) {
         // legacyUserId 已存在于 users 表
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
               { status: 401 }
             )
           }
-          const isValid = await verifyUserPassword(legacyUserId, password)
+          const isValid = await verifyLegacyUserPassword(legacyUserId, password)
           if (!isValid) {
             return NextResponse.json(
               { error: 'Invalid credentials', message: '密码错误' },
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        const isValid = await verifyUserPassword(legacyUserId, password)
+        const isValid = await verifyLegacyUserPassword(legacyUserId, password)
         if (!isValid) {
           return NextResponse.json(
             { error: 'Invalid credentials', message: '密码错误' },
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
         }
       } else {
         // users表无密码：检查user_settings中是否有旧密码需迁移
-        const legacyHasPassword = await hasUserPassword(user.user_id)
+        const legacyHasPassword = await hasLegacyUserPassword(user.user_id)
         if (legacyHasPassword) {
           if (!password) {
             return NextResponse.json(
@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
               { status: 401 }
             )
           }
-          const isValid = await verifyUserPassword(user.user_id, password)
+          const isValid = await verifyLegacyUserPassword(user.user_id, password)
           if (!isValid) {
             return NextResponse.json(
               { error: 'Invalid credentials', message: '密码错误' },

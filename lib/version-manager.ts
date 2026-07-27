@@ -59,7 +59,7 @@ export async function clearAppCache(): Promise<void> {
     // 1. 清理 localStorage 中的应用数据（保留用户设置）
     const keysToKeep = [
       'userSettings', // 保留用户设置
-      'auth_user',    // 保留用户认证信息
+      'userData',     // 前端用户状态；认证最终仍由 HttpOnly cookie 校验
       VERSION_KEY,    // 保留版本信息
       LAST_CACHE_CLEAR_KEY
     ]
@@ -86,8 +86,10 @@ export async function clearAppCache(): Promise<void> {
       const cacheNames = await caches.keys()
       await Promise.all(
         cacheNames.map(async (cacheName) => {
-          await caches.delete(cacheName)
-          console.log(`🗑️ 清理缓存: ${cacheName}`)
+          if (cacheName.startsWith('quick-notes-')) {
+            await caches.delete(cacheName)
+            console.log(`🗑️ 清理缓存: ${cacheName}`)
+          }
         })
       )
     }
@@ -162,14 +164,14 @@ export async function handleVersionUpdate(): Promise<boolean> {
   if (hasVersionChanged) {
     console.log('🔄 检测到应用版本更新，开始清理缓存...')
     
+    // 先记录目标版本，避免清理或刷新中途失败造成刷新循环。
+    updateStoredVersion()
+
     // 清理缓存
     await clearAppCache()
     
     // 更新 Service Worker
     await updateServiceWorker()
-    
-    // 更新版本号
-    updateStoredVersion()
     
     console.log('✅ 版本更新处理完成')
     return true

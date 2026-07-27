@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
 
 /**
  * 调试搜索API - 查看数据库中的实际数据
@@ -15,7 +16,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
     }
 
-    console.log('🔍 调试搜索:', { userId, searchQuery })
+    const authResult = await verifyApiAuth(userId)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
+    }
+
+    console.log('🔍 调试搜索:', { userId, hasSearchQuery: Boolean(searchQuery?.trim()) })
 
     // 1. 查看用户的所有便签（前10条）
     const allNotes = await query(`
@@ -26,11 +32,7 @@ export async function GET(request: NextRequest) {
       LIMIT 10
     `, [userId])
 
-    console.log('📝 用户便签示例:', allNotes.rows.map((note: any) => ({
-      id: note.id,
-      content: note.content.substring(0, 50) + '...',
-      created_at: note.created_at
-    })))
+    console.log('📝 调试搜索便签统计:', { count: allNotes.rows.length })
 
     // 2. 如果有搜索关键词，测试不同的搜索方式
     let searchTests = {}
@@ -65,18 +67,17 @@ export async function GET(request: NextRequest) {
       const containsChinese = /[\u4e00-\u9fff]/.test(query_text)
 
       searchTests = {
-        query: query_text,
         containsChinese,
         exactMatch: exactMatch.rows.length,
         likeMatch: likeMatch.rows.length,
-        ilikeMatch: ilikeMatch.rows.length,
-        ilikeResults: ilikeMatch.rows.map((row: any) => ({
-          id: row.id,
-          content: row.content.substring(0, 100) + '...'
-        }))
+        ilikeMatch: ilikeMatch.rows.length
       }
 
-      console.log('🧪 搜索测试结果:', searchTests)
+      console.log('🧪 调试搜索匹配统计:', {
+        exactMatch: exactMatch.rows.length,
+        likeMatch: likeMatch.rows.length,
+        ilikeMatch: ilikeMatch.rows.length
+      })
     }
 
     // 3. 数据库编码检查（兼容不同PostgreSQL版本）
@@ -97,11 +98,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         totalNotes: allNotes.rows.length,
-        sampleNotes: allNotes.rows.map((note: any) => ({
-          id: note.id,
-          content: note.content.substring(0, 100) + '...',
-          created_at: note.created_at
-        })),
+        sampleNoteCount: allNotes.rows.length,
         searchTests,
         databaseInfo: encodingInfo.rows[0]
       }
@@ -113,7 +110,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : '调试失败'
+        error: '调试失败'
       },
       { status: 500 }
     )

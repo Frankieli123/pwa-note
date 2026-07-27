@@ -129,8 +129,9 @@ export default function RootLayout({
                       // 自动接管新版本，避免缓存导致的版本不一致（如 Server Action ID 不匹配）
                       var refreshing = false;
                       navigator.serviceWorker.addEventListener('controllerchange', function () {
-                        if (refreshing) return;
+                        if (refreshing || window.__PWA_RELOAD_SCHEDULED__) return;
                         refreshing = true;
+                        window.__PWA_RELOAD_SCHEDULED__ = true;
                         window.location.reload();
                       });
 

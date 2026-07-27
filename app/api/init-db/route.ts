@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { initializeDatabase, fixMissingFields } from '@/app/actions/init-db'
 import { seedDatabase } from '@/app/actions/seed-db'
-import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
+import { verifyMaintenanceRequest } from '@/lib/maintenance-auth'
 
 /**
  * 手动数据库初始化API
@@ -10,13 +10,10 @@ import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
  */
 export async function POST(request: Request) {
   try {
-    const { action, userId } = await request.json()
+    const authError = verifyMaintenanceRequest(request)
+    if (authError) return authError
 
-    // 认证验证 - 管理操作需要登录
-    const authResult = await verifyApiAuth(userId)
-    if (!authResult.success) {
-      return createAuthErrorResponse(authResult)
-    }
+    const { action, userId } = await request.json()
 
     switch (action) {
       case 'init':
@@ -70,7 +67,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { 
         error: 'Internal server error',
-        message: error instanceof Error ? error.message : String(error)
+        message: '数据库维护操作失败'
       },
       { status: 500 }
     )

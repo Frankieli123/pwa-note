@@ -181,6 +181,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { userId, action, fileIds } = body
 
+    const authResult = await verifyApiAuth(typeof userId === 'string' ? userId : null)
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult)
+    }
+
     if (!userId || !action || !Array.isArray(fileIds)) {
       return NextResponse.json(
         { 

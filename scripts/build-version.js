@@ -11,12 +11,18 @@ const { execSync } = require('child_process')
 
 // 获取版本号
 function getAppVersion() {
+  if (process.env.NEXT_PUBLIC_APP_VERSION) {
+    return process.env.NEXT_PUBLIC_APP_VERSION
+  }
+
+  const deploymentVersion = process.env.VERCEL_GIT_COMMIT_SHA
+    || process.env.GIT_COMMIT_SHA
+    || process.env.SOURCE_COMMIT
+  if (deploymentVersion) {
+    return deploymentVersion.slice(0, 8)
+  }
+
   try {
-    // 优先使用环境变量（Vercel 部署时）
-    if (process.env.VERCEL_GIT_COMMIT_SHA) {
-      return process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 8)
-    }
-    
     // 本地开发时使用 Git 命令
     const gitHash = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim()
     return gitHash.slice(0, 8)
@@ -27,7 +33,7 @@ function getAppVersion() {
   }
 }
 
-// 替换文件中的版本占位符
+// 每次都从当前文件内容生成新的 Service Worker 版本。
 function replaceVersionInFile(filePath, version) {
   if (!fs.existsSync(filePath)) {
     console.warn(`文件不存在: ${filePath}`)
@@ -38,8 +44,9 @@ function replaceVersionInFile(filePath, version) {
     let content = fs.readFileSync(filePath, 'utf8')
     const originalContent = content
     
-    // 替换版本占位符
-    content = content.replace(/__APP_VERSION__/g, version)
+    content = content
+      .replace(/__APP_VERSION__/g, version)
+      .replace(/const APP_VERSION = ['"][^'"]+['"]/, `const APP_VERSION = '${version}'`)
     
     // 只有内容发生变化时才写入文件
     if (content !== originalContent) {
@@ -52,18 +59,13 @@ function replaceVersionInFile(filePath, version) {
 }
 
 // 主函数
-function main() {
-  const version = getAppVersion()
+function writeVersionAssets(version) {
   console.log(`🔄 构建版本: ${version}`)
   
   // 需要替换版本号的文件列表
   const filesToUpdate = [
     'public/sw.js',
-    '.next/static/sw.js', // 如果存在的话
   ]
-  
-  // 设置环境变量
-  process.env.NEXT_PUBLIC_APP_VERSION = version
   
   // 替换文件中的版本号
   filesToUpdate.forEach(file => {
@@ -93,9 +95,13 @@ function main() {
   console.log(`📦 应用版本: ${version}`)
 }
 
+function main() {
+  writeVersionAssets(getAppVersion())
+}
+
 // 如果直接运行此脚本
 if (require.main === module) {
   main()
 }
 
-module.exports = { getAppVersion, replaceVersionInFile }
+module.exports = { getAppVersion, replaceVersionInFile, writeVersionAssets }

@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
-import { verifyApiAuth, createAuthErrorResponse } from '@/lib/auth'
+import { verifyMaintenanceRequest } from '@/lib/maintenance-auth'
 
 export async function POST(request: NextRequest) {
   try {
+    const authError = verifyMaintenanceRequest(request)
+    if (authError) return authError
+
     const body = await request.json().catch(() => ({}))
     const { userId } = body
-
-    // 认证验证 - 管理操作需要登录
-    const authResult = await verifyApiAuth(userId)
-    if (!authResult.success) {
-      return createAuthErrorResponse(authResult)
-    }
 
     console.log('开始数据库迁移...')
     
@@ -29,7 +26,7 @@ export async function POST(request: NextRequest) {
     console.error('数据库迁移失败:', error)
     return NextResponse.json({ 
       success: false, 
-      error: error instanceof Error ? error.message : '未知错误' 
+      error: '数据库迁移失败'
     }, { status: 500 })
   }
 }
