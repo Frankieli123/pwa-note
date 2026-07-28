@@ -1,6 +1,6 @@
 // Service Worker for PWA
 // 版本号会在构建时被 scripts/build-version.js 替换为真实版本
-const APP_VERSION = '4968db27'
+const APP_VERSION = 'b442c52d'
 const CACHE_PREFIX = 'quick-notes-'
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`
 

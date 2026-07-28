@@ -7,7 +7,6 @@ import { OnboardingAnimation } from "@/components/onboarding-animation"
 import { MainLayout } from "@/components/layout/MainLayout"
 import { AppInitializer } from "@/components/layout/AppInitializer"
 import { SidebarManager } from "@/components/layout/SidebarManager"
-import { VersionChecker } from "@/components/version-checker"
 
 import { useAppState } from "@/hooks/use-app-state"
 import { useAuth } from "@/hooks/use-auth"
@@ -62,8 +61,6 @@ export function AppContainer() {
           </SidebarManager>
         )}
 
-        {/* 版本检查和缓存管理 */}
-        <VersionChecker />
       </AppInitializer>
 
       {/* 新用户引导覆盖层 - 统一在这里渲染，避免重新挂载 */}

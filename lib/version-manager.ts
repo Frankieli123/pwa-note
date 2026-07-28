@@ -25,6 +25,12 @@ export function checkVersionChange(): boolean {
   
   try {
     const storedVersion = localStorage.getItem(VERSION_KEY)
+    // First visit/install is a baseline, not an upgrade. Reloading here races
+    // with the first Server Action requests and can leave the UI empty.
+    if (storedVersion === null) {
+      localStorage.setItem(VERSION_KEY, APP_VERSION)
+      return false
+    }
     return storedVersion !== APP_VERSION
   } catch (error) {
     console.warn('检查版本失败:', error)

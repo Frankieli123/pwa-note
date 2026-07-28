@@ -258,7 +258,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const syncChannel = useRef<BroadcastChannel | null>(null)
   const lastBroadcastRef = useRef<number | null>(null)
   const lastContentUpdateRef = useRef<Date | null>(null)
-  const syncOptimizedRef = useRef<(silent?: boolean) => Promise<void>>(async () => {})
+  const syncOptimizedRef = useRef<(silent?: boolean) => Promise<boolean>>(async () => false)
   const didTriggerHardReloadRef = useRef(false)
   const syncRef = useRef<(silent?: boolean) => Promise<void>>(async () => {})
   const checkForUpdatesRef = useRef<() => Promise<void>>(async () => {})
@@ -290,9 +290,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
+    let cancelled = false
+
     const loadInitialData = async () => {
       setSyncStatus("syncing")
-      try {
+      const maxAttempts = 4
+
+      for (let attempt = 1; attempt <= maxAttempts && !cancelled; attempt += 1) {
         // 初始化时设置客户端时间
         const clientNow = new Date();
         setLastSyncTime(clientNow);
@@ -301,19 +305,30 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         console.log("🔄 用户ID变化，开始加载数据:", userId)
         // 快速同步 - 只加载最近的数据
-        await syncOptimizedRef.current(false)
-        setIsInitialized(true)
-      } catch (error) {
-        console.error("Failed to load initial data", error)
-        setSyncStatus("error")
+        const success = await syncOptimizedRef.current(attempt > 1)
+        if (success) {
+          if (!cancelled) setIsInitialized(true)
+          return
+        }
+
+        if (attempt < maxAttempts) {
+          const delay = 750 * 2 ** (attempt - 1)
+          console.warn(`Initial data load failed; retrying in ${delay}ms (${attempt}/${maxAttempts})`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+        }
       }
+
+      if (!cancelled) setSyncStatus("error")
     }
 
-    loadInitialData()
+    void loadInitialData()
+    return () => {
+      cancelled = true
+    }
   }, [userId, setNotesWithDeduplication]) // 只依赖用户ID，避免头像配置更新触发重复加载
 
   useEffect(() => {
-    if (!userId) return
+    if (!userId || !isInitialized) return
 
     setHasMoreNotes(true)
     setNextCursor(undefined)
@@ -337,7 +352,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
 
     reload()
-  }, [selectedGroupId, userId, setNotesWithDeduplication])
+  }, [selectedGroupId, userId, isInitialized, setNotesWithDeduplication])
 
   // Set up sync timer and update checker
   useEffect(() => {
@@ -483,7 +498,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   // 优先加载便签的快速同步函数
   const syncOptimized = async (silent = false) => {
-    if (!user) return
+    if (!user) return false
 
     if (!silent) {
       setSyncStatus("syncing")
@@ -543,6 +558,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       // 移除不必要的页面刷新，避免重复加载
       // router.refresh() - 已移除，减少不必要的页面刷新
+      return true
     } catch (error) {
       console.error("❌ 便签加载失败", error)
 
@@ -554,6 +570,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           description: "未能同步数据，请稍后再试",
         })
       }
+      return false
     }
   }
 

@@ -15,6 +15,7 @@ import {
 import type { Metadata, Viewport } from "next"
 import { Toaster } from "@/components/ui/toaster"
 import { ErrorBoundary } from "@/components/error-boundary"
+import { VersionGate } from "@/components/version-gate"
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
 
@@ -122,6 +123,7 @@ export default function RootLayout({
               // Service Worker 注册
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
+                  var hadController = !!navigator.serviceWorker.controller;
                   navigator.serviceWorker.register('${basePath}/sw.js')
                     .then(function(registration) {
                       console.log('SW registered: ', registration);
@@ -129,6 +131,11 @@ export default function RootLayout({
                       // 自动接管新版本，避免缓存导致的版本不一致（如 Server Action ID 不匹配）
                       var refreshing = false;
                       navigator.serviceWorker.addEventListener('controllerchange', function () {
+                        // The first SW install does not replace old application code.
+                        if (!hadController) {
+                          hadController = true;
+                          return;
+                        }
                         if (refreshing || window.__PWA_RELOAD_SCHEDULED__) return;
                         refreshing = true;
                         window.__PWA_RELOAD_SCHEDULED__ = true;
@@ -209,16 +216,18 @@ export default function RootLayout({
             disableTransitionOnChange
             themes={['light', 'dark', 'neutral', 'system']}
           >
-            <AuthProvider>
-              <SettingsProvider>
-                <SyncProvider>
-                  <ThemeHandler />
-                  <SilentDbInitializer />
-                  {children}
-                  <Toaster />
-                </SyncProvider>
-              </SettingsProvider>
-            </AuthProvider>
+            <VersionGate>
+              <AuthProvider>
+                <SettingsProvider>
+                  <SyncProvider>
+                    <ThemeHandler />
+                    <SilentDbInitializer />
+                    {children}
+                    <Toaster />
+                  </SyncProvider>
+                </SettingsProvider>
+              </AuthProvider>
+            </VersionGate>
           </ThemeProvider>
         </ErrorBoundary>
       </body>
